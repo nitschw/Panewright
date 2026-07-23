@@ -114,9 +114,27 @@ public struct PanewrightConfig: Equatable, Sendable {
         }
     }
 
+    /// SketchyBar-driven status bar. The theme toggle is the dual-aesthetic
+    /// differentiator: native (SF Pro, vibrancy, floating pill) vs technical
+    /// (monospace, square, solid — the Linux look).
+    public struct StatusBar: Equatable, Sendable {
+        public enum Theme: String, Equatable, Sendable, CaseIterable {
+            case native, technical
+        }
+
+        public var enabled: Bool
+        public var theme: Theme
+
+        public init(enabled: Bool = true, theme: Theme = .native) {
+            self.enabled = enabled
+            self.theme = theme
+        }
+    }
+
     public var modifier: Modifier
     /// The prefix chord when `modifier == .leader`, in AeroSpace key syntax.
     public var leaderKey: String
+    public var statusBar: StatusBar
     public var gaps: Gaps
     public var focusBorder: FocusBorder
     public var bindings: [Binding]
@@ -130,6 +148,7 @@ public struct PanewrightConfig: Equatable, Sendable {
     public init(
         modifier: Modifier = .hyper,
         leaderKey: String = "cmd-semicolon",
+        statusBar: StatusBar = StatusBar(),
         gaps: Gaps = Gaps(),
         focusBorder: FocusBorder = FocusBorder(),
         bindings: [Binding] = [],
@@ -139,6 +158,7 @@ public struct PanewrightConfig: Equatable, Sendable {
     ) {
         self.modifier = modifier
         self.leaderKey = leaderKey
+        self.statusBar = statusBar
         self.gaps = gaps
         self.focusBorder = focusBorder
         self.bindings = bindings

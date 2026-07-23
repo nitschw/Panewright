@@ -110,6 +110,43 @@ public struct Orchestrator: Sendable {
         }
     }
 
+    /// UI-driven toggle: surgically edits `[border] enabled` in the user's
+    /// panewright.toml (preserving comments), then applies.
+    public func setBordersEnabled(_ enabled: Bool) throws {
+        try writeDefaultConfigIfMissing()
+        let url = paths.panewrightConfigFile
+        let text = try String(contentsOf: url, encoding: .utf8)
+        try Self.settingBordersEnabled(enabled, in: text)
+            .write(to: url, atomically: true, encoding: .utf8)
+        try apply()
+    }
+
+    static func settingBordersEnabled(_ enabled: Bool, in toml: String) -> String {
+        var lines = toml.components(separatedBy: "\n")
+        let headerIndex = lines.firstIndex {
+            $0.trimmingCharacters(in: .whitespaces) == "[border]"
+        }
+        guard let headerIndex else {
+            var result = toml
+            if !result.hasSuffix("\n") { result += "\n" }
+            return result + "\n[border]\nenabled = \(enabled)\n"
+        }
+        var index = headerIndex + 1
+        while index < lines.count {
+            let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("[") {
+                break
+            }
+            if trimmed.hasPrefix("enabled") {
+                lines[index] = "enabled = \(enabled)"
+                return lines.joined(separator: "\n")
+            }
+            index += 1
+        }
+        lines.insert("enabled = \(enabled)", at: headerIndex + 1)
+        return lines.joined(separator: "\n")
+    }
+
     public func bordersInfo() -> String {
         guard let borders = JankyBordersSupervisor.locate() else {
             return "not installed"

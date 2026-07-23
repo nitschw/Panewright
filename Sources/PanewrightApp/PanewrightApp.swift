@@ -66,6 +66,7 @@ final class AppModel {
     var launchAtLogin = false
     var dragToTileActive = false
     var bordersInfo = ""
+    var bordersEnabled = true
     /// SMAppService needs a real bundle; the bare dev binary has no identifier.
     let isBundled = Bundle.main.bundleIdentifier != nil
     private var dragController: DragTileController?
@@ -73,6 +74,7 @@ final class AppModel {
     func refreshStatus() {
         status = orchestrator.status()
         bordersInfo = orchestrator.bordersInfo()
+        bordersEnabled = (try? orchestrator.loadConfig())?.focusBorder.enabled ?? true
         if isBundled {
             launchAtLogin = SMAppService.mainApp.status == .enabled
         }
@@ -128,6 +130,16 @@ final class AppModel {
         refreshStatus()
     }
 
+    func setBordersEnabled(_ enabled: Bool) {
+        do {
+            try orchestrator.setBordersEnabled(enabled)
+            lastMessage = enabled ? "Borders on" : "Borders off"
+        } catch {
+            lastMessage = "\(error)"
+        }
+        refreshStatus()
+    }
+
     func openConfig() {
         NSWorkspace.shared.open(orchestrator.paths.panewrightConfigFile)
     }
@@ -175,7 +187,16 @@ struct PanewrightMenu: View {
             model.apply()
         }
         aeroSpaceButton
-        Text("Borders: \(model.bordersInfo)")
+        if model.bordersInfo == "not installed" {
+            Text("Borders: not installed")
+        } else {
+            Toggle(
+                "Focus Borders",
+                isOn: Binding(
+                    get: { model.bordersEnabled },
+                    set: { model.setBordersEnabled($0) }
+                ))
+        }
         if !model.dragToTileActive {
             Button("Finish Drag-to-Tile setup…") {
                 model.finishDragToTileSetup()

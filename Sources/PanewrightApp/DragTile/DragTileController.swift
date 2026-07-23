@@ -14,8 +14,13 @@ final class DragTileController {
         case idle
         /// Mouse went down in a title-bar band; waiting to cross the drag threshold.
         case armed(windowID: CGWindowID, start: CGPoint)
-        case dragging(windowID: CGWindowID)
+        /// `targets` = the other tiled windows at drag start; only they can
+        /// receive the drop (helper daemons draw layer-0 windows too).
+        case dragging(windowID: CGWindowID, targets: Set<CGWindowID>)
     }
+
+    /// Overlay/border/bar daemons whose windows must never arm or receive drags.
+    private static let ignoredOwners: Set<String> = ["borders", "sketchybar"]
 
     private static let titleBarHeight: CGFloat = 40
     private static let dragThreshold: CGFloat = 15
@@ -87,9 +92,10 @@ final class DragTileController {
         switch type {
         case .leftMouseDown:
             phase = .idle
-            if let window = WindowSnapshot.topmost(at: point),
-                point.y - window.frame.minY <= Self.titleBarHeight {
-                DragLog.log("armed: window=\(window.id) at=\(point)")
+            if let window = WindowSnapshot.capture().first(where: {
+                !Self.ignoredOwners.contains($0.ownerName) && $0.frame.contains(point)
+            }), point.y - window.frame.minY <= Self.titleBarHeight {
+                DragLog.log("armed: window=\(window.id) owner=\(window.ownerName) at=\(point)")
                 phase = .armed(windowID: window.id, start: point)
             }
         case .leftMouseDragged:
@@ -98,13 +104,13 @@ final class DragTileController {
                 if hypot(point.x - start.x, point.y - start.y) > Self.dragThreshold {
                     beginDrag(windowID: windowID)
                 }
-            case .dragging(let windowID):
-                updateDrag(windowID: windowID, at: point)
+            case .dragging(let windowID, let targets):
+                updateDrag(windowID: windowID, targets: targets, at: point)
             case .idle:
                 break
             }
         case .leftMouseUp:
-            if case .dragging(let windowID) = phase {
+            if case .dragging(let windowID, _) = phase {
                 finishDrag(windowID: windowID)
             }
             phase = .idle
@@ -123,11 +129,14 @@ final class DragTileController {
         else {
             return
         }
-        let isTiled = output.split(separator: "\n").contains { line in
+        var tiledIDs: Set<CGWindowID> = []
+        for line in output.split(separator: "\n") {
             let parts = line.split(separator: " ")
-            return parts.count >= 2 && parts[0] == "\(windowID)"
-                && parts[1].hasSuffix("tiles")
+            if parts.count >= 2, let id = CGWindowID(parts[0]), parts[1].hasSuffix("tiles") {
+                tiledIDs.insert(id)
+            }
         }
+        let isTiled = tiledIDs.contains(windowID)
         DragLog.log("beginDrag: window=\(windowID) tiled=\(isTiled)")
         guard isTiled else { return }
         // Float for the duration of the drag so AeroSpace's hardcoded
@@ -139,12 +148,15 @@ final class DragTileController {
             DragLog.log("beginDrag: float FAILED: \(error)")
             return
         }
-        phase = .dragging(windowID: windowID)
+        tiledIDs.remove(windowID)
+        phase = .dragging(windowID: windowID, targets: tiledIDs)
     }
 
-    private func updateDrag(windowID: CGWindowID, at point: CGPoint) {
+    private func updateDrag(windowID: CGWindowID, targets: Set<CGWindowID>, at point: CGPoint) {
         guard
-            let target = WindowSnapshot.topmost(at: point, excluding: [windowID]),
+            let target = WindowSnapshot.capture().first(where: {
+                targets.contains($0.id) && $0.frame.contains(point)
+            }),
             let zone = DropZone.zone(at: point, in: target.frame)
         else {
             dropTarget = nil
@@ -152,7 +164,7 @@ final class DragTileController {
             return
         }
         if dropTarget?.window.id != target.id || dropTarget?.zone != zone {
-            DragLog.log("target: window=\(target.id) zone=\(zone.rawValue)")
+            DragLog.log("target: window=\(target.id) owner=\(target.ownerName) zone=\(zone.rawValue)")
         }
         dropTarget = (target, zone)
         overlay.show(cgFrame: zone.previewFrame(in: target.frame))

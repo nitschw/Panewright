@@ -4,6 +4,8 @@ import CoreGraphics
 struct OnScreenWindow: Equatable, Sendable {
     let id: CGWindowID
     let ownerPID: pid_t
+    /// Process name of the owner (available without any TCC permission).
+    let ownerName: String
     /// Top-left-origin (CGWindowList) coordinates.
     let frame: CGRect
 }
@@ -32,7 +34,9 @@ enum WindowSnapshot {
             else {
                 continue
             }
-            windows.append(OnScreenWindow(id: id, ownerPID: pid, frame: frame))
+            let ownerName = entry[kCGWindowOwnerName as String] as? String ?? ""
+            windows.append(
+                OnScreenWindow(id: id, ownerPID: pid, ownerName: ownerName, frame: frame))
         }
         return windows
     }

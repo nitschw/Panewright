@@ -42,6 +42,40 @@ import Testing
         }
     }
 
+    @Test func togglingBordersEditsExistingSectionPreservingComments() {
+        let toml = """
+            # my config
+            [border]
+            width = 6  # chunky
+            enabled = true
+            """
+        let result = Orchestrator.settingBordersEnabled(false, in: toml)
+        #expect(result.contains("enabled = false"))
+        #expect(result.contains("# my config"))
+        #expect(result.contains("width = 6  # chunky"))
+        #expect(!result.contains("enabled = true"))
+    }
+
+    @Test func togglingBordersInsertsIntoSectionWithoutFlag() {
+        let toml = """
+            [border]
+            width = 6
+
+            [gaps]
+            inner = 8
+            """
+        let result = Orchestrator.settingBordersEnabled(false, in: toml)
+        #expect(result.contains("[border]\nenabled = false\nwidth = 6"))
+        #expect(result.contains("[gaps]"))
+    }
+
+    @Test func togglingBordersAppendsSectionWhenMissing() throws {
+        let result = Orchestrator.settingBordersEnabled(false, in: "modifier = \"alt\"\n")
+        #expect(result.contains("[border]\nenabled = false"))
+        let config = try ConfigParser.parse(toml: result)
+        #expect(config.focusBorder.enabled == false)
+    }
+
     @Test func writeAerospaceConfigRunsFullPipeline() throws {
         let (orchestrator, dir) = makeOrchestrator()
         defer { try? FileManager.default.removeItem(at: dir) }
