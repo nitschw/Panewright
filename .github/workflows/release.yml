@@ -1,0 +1,47 @@
+name: Release build
+
+# Every v* tag gets a build artifact, no exceptions. The canonical
+# (Developer-ID-signed + notarized) asset still comes from Scripts/release.sh
+# on a machine with the keychain; this workflow's ad-hoc-signed `-ci.zip`
+# rides alongside it and never clobbers it.
+#
+# Future: add repo secrets (SIGNING_CERT_P12_BASE64, SIGNING_CERT_PASSWORD,
+# NOTARY_APPLE_ID, NOTARY_TEAM_ID, NOTARY_PASSWORD) and this job can import
+# the cert, sign, and notarize — retiring the local script entirely.
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    runs-on: macos-15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests
+        run: swift test
+      - name: Bundle
+        run: |
+          Scripts/bundle.sh release
+          ditto -c -k --keepParent build/Panewright.app "build/Panewright-${GITHUB_REF_NAME}-ci.zip"
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Panewright-${{ github.ref_name }}-ci
+          path: build/Panewright-*-ci.zip
+          retention-days: 90
+      - name: Attach to the GitHub Release once it exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for i in $(seq 1 10); do
+            if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+              gh release upload "$GITHUB_REF_NAME" build/Panewright-*-ci.zip --clobber
+              echo "attached CI build to $GITHUB_REF_NAME"
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "no release for $GITHUB_REF_NAME yet — artifact remains on this run"
