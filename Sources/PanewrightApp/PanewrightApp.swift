@@ -550,7 +550,9 @@ final class AppModel {
 
     private func startWatching() throws {
         let directory = orchestrator.paths.panewrightConfigFile.deletingLastPathComponent()
-        let watcher = ConfigWatcher(directory: directory) { [weak self] in
+        let watcher = ConfigWatcher(
+            directory: directory, file: orchestrator.paths.panewrightConfigFile
+        ) { [weak self] in
             Task { @MainActor in
                 self?.apply()
             }

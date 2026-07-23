@@ -36,7 +36,9 @@ public enum AeroSpaceConfigEmitter {
             }
             lines.append("")
         }
-        for appId in config.floatingApps {
+        // Skip junk entries (an empty row in the editor, a stray dash) —
+        // they'd emit rules that match nothing.
+        for appId in config.floatingApps where appId.contains(".") {
             lines.append("[[on-window-detected]]")
             lines.append("if.app-id = '\(appId)'")
             lines.append("run = 'layout floating'")
