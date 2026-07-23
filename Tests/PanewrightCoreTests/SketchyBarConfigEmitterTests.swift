@@ -28,12 +28,13 @@ import Testing
         #expect(files.workspacesPlugin.contains("0xffff375f"))
     }
 
-    @Test func emitsSystemStatusItems() throws {
+    @Test func omitsSystemStatusItems() throws {
+        // The native menu bar owns clock/wifi/battery; our bar is pure WM.
         let files = try SketchyBarConfigEmitter.emit(.default)
-        #expect(files.sketchybarrc.contains("panewright_battery.sh"))
-        #expect(files.sketchybarrc.contains("panewright_wifi.sh"))
-        #expect(files.batteryPlugin.contains("pmset -g batt"))
-        #expect(files.wifiPlugin.contains("system_profiler SPAirPortDataType"))
+        #expect(!files.sketchybarrc.contains("battery"))
+        #expect(!files.sketchybarrc.contains("wifi"))
+        #expect(!files.sketchybarrc.contains("clock"))
+        #expect(files.sketchybarrc.contains("front_app"))
     }
 
     @Test func modePluginUppercasesAndClears() throws {

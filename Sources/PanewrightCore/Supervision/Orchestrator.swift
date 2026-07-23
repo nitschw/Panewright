@@ -126,17 +126,8 @@ public struct Orchestrator: Sendable {
             } else {
                 try bar.launch()
             }
-            if setSystemMenuBarHidden(true) {
-                // Tiles must re-fit the reclaimed strip.
-                try? restartAeroSpace()
-            }
-        } else {
-            if bar.isRunning() {
-                bar.stop()
-            }
-            if setSystemMenuBarHidden(false) {
-                try? restartAeroSpace()
-            }
+        } else if bar.isRunning() {
+            bar.stop()
         }
     }
 
@@ -150,10 +141,11 @@ public struct Orchestrator: Sendable {
             ("plugins/panewright_workspaces.sh", files.workspacesPlugin),
             ("plugins/panewright_mode.sh", files.modePlugin),
             ("plugins/panewright_front_app.sh", files.frontAppPlugin),
-            ("plugins/panewright_clock.sh", files.clockPlugin),
-            ("plugins/panewright_battery.sh", files.batteryPlugin),
-            ("plugins/panewright_wifi.sh", files.wifiPlugin),
         ]
+        for obsolete in ["panewright_clock.sh", "panewright_battery.sh", "panewright_wifi.sh"] {
+            try? FileManager.default.removeItem(
+                at: plugins.appending(path: obsolete))
+        }
         for (name, content) in scripts {
             let url = directory.appending(path: name)
             try content.write(to: url, atomically: true, encoding: .utf8)
@@ -181,38 +173,6 @@ public struct Orchestrator: Sendable {
     /// One bar at a time: enabling Panewright's bar hides the macOS menu bar
     /// (auto-hide — it still slides in on hover for app menus and third-party
     /// status items); disabling restores it. No-ops unless the state changes.
-    /// Returns true when the state actually changed. Modern macOS applies
-    /// this preference via the Dock process, and AeroSpace only reads screen
-    /// geometry at startup — so a change requires kicking both.
-    @discardableResult
-    func setSystemMenuBarHidden(_ hidden: Bool) -> Bool {
-        let current = runToolCapture(
-            "/usr/bin/defaults", ["read", "NSGlobalDomain", "_HIHideMenuBar"])
-        let currentlyHidden = current == "1"
-        guard currentlyHidden != hidden else { return false }
-        try? runTool(
-            "/usr/bin/defaults",
-            ["write", "NSGlobalDomain", "_HIHideMenuBar", "-bool", hidden ? "true" : "false"])
-        try? runTool("/usr/bin/killall", ["SystemUIServer"])
-        try? runTool("/usr/bin/killall", ["Dock"])
-        return true
-    }
-
-    private func runToolCapture(_ path: String, _ arguments: [String]) -> String? {
-        let process = Process()
-        process.executableURL = URL(filePath: path)
-        process.arguments = arguments
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
-        guard (try? process.run()) != nil else { return nil }
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
-        return String(
-            decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self
-        ).trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     /// Borders are an optional visual layer: a missing binary is not an
     /// error, but bad config is (caught upstream at parse time).
     public func applyBorders(_ config: PanewrightConfig) throws {
