@@ -6,6 +6,31 @@ import SwiftUI
 struct PanewrightApp: App {
     @State private var model = AppModel()
 
+    init() {
+        Self.terminateIfAlreadyRunning()
+    }
+
+    /// Bare-executable dev builds have no bundle ID for the usual
+    /// single-instance check, so match on process name instead.
+    private static func terminateIfAlreadyRunning() {
+        let mine = ProcessInfo.processInfo.processIdentifier
+        let pgrep = Process()
+        pgrep.executableURL = URL(filePath: "/usr/bin/pgrep")
+        pgrep.arguments = ["-x", "panewright"]
+        let pipe = Pipe()
+        pgrep.standardOutput = pipe
+        guard (try? pgrep.run()) != nil else { return }
+        pgrep.waitUntilExit()
+        let output = String(
+            decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        let others = output.split(separator: "\n")
+            .compactMap { Int32($0) }
+            .filter { $0 != mine }
+        if !others.isEmpty {
+            exit(0)
+        }
+    }
+
     var body: some Scene {
         MenuBarExtra("Panewright", systemImage: "rectangle.split.3x1") {
             PanewrightMenu(model: model)
