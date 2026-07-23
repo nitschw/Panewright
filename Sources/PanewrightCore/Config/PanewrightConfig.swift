@@ -77,6 +77,8 @@ public struct PanewrightConfig: Equatable, Sendable {
         case enterMode(String)
         /// i3's `exec` — run a shell command (usually `open -a <App>`).
         case exec(String)
+        /// i3's `kill` — close the focused window.
+        case close
     }
 
     public enum MonitorTarget: String, Equatable, Sendable, CaseIterable {

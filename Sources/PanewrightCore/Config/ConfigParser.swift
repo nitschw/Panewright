@@ -85,6 +85,18 @@ public enum ConfigParser {
                 )
             }
         }
+        if let modes = raw.mode {
+            // Custom modes replace the defaults wholesale.
+            config.modes = try modes.map { rawMode in
+                PanewrightConfig.Mode(
+                    name: rawMode.name,
+                    bindings: try (rawMode.binding ?? []).map { rawBinding in
+                        PanewrightConfig.Binding(
+                            key: rawBinding.key,
+                            actions: try parseActionChain(rawBinding.action))
+                    })
+            }
+        }
         if let floatingApps = raw.floatingApps {
             config.floatingApps = floatingApps
         }
@@ -164,6 +176,9 @@ public enum ConfigParser {
         if words == ["flatten"] {
             return .flattenWorkspace
         }
+        if words == ["close"] {
+            return .close
+        }
         if words.count == 2, words[0] == "mode" {
             return .enterMode(words[1])
         }
@@ -177,15 +192,21 @@ private struct RawConfig: Codable {
     var border: RawBorder?
     var bar: RawBar?
     var binding: [RawBinding]?
+    var mode: [RawMode]?
     var leaderKey: String?
     var floatingApps: [String]?
     var workspaceMonitors: [String: String]?
 
     enum CodingKeys: String, CodingKey {
-        case modifier, gaps, border, bar, binding
+        case modifier, gaps, border, bar, binding, mode
         case leaderKey = "leader-key"
         case floatingApps = "floating-apps"
         case workspaceMonitors = "workspace-monitors"
+    }
+
+    struct RawMode: Codable {
+        var name: String
+        var binding: [RawBinding]?
     }
 
     struct RawBar: Codable {

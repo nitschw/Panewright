@@ -35,8 +35,32 @@ do {
     case "status" where arguments.count == 1:
         print("AeroSpace \(Orchestrator().status())")
 
+    case "import" where arguments.count == 2:
+        let source = try String(contentsOfFile: arguments[1], encoding: .utf8)
+        let result = I3ConfigImporter.importConfig(source)
+        let toml = PanewrightConfigSerializer.emit(result.config)
+        let orchestrator = Orchestrator()
+        try FileManager.default.createDirectory(
+            at: orchestrator.profilesDirectory, withIntermediateDirectories: true)
+        let destination = orchestrator.profilesDirectory.appending(path: "i3-imported.toml")
+        try toml.write(to: destination, atomically: true, encoding: .utf8)
+        print(
+            "Imported \(result.config.bindings.count) bindings and \(result.config.modes.count) modes"
+        )
+        print("Saved as profile 'i3-imported' → \(destination.path)")
+        print("Activate it from the Panewright menu (Profiles) after reviewing.")
+        if result.issues.isEmpty {
+            print("\nClean import — nothing needs attention.")
+        } else {
+            print("\n\(result.issues.count) items need attention:")
+            for issue in result.issues {
+                print("  line \(issue.line): \(issue.reason)")
+                print("    > \(issue.text)")
+            }
+        }
+
     default:
-        fail("usage: panewright-dev emit [panewright.toml] | apply | status")
+        fail("usage: panewright-dev emit [panewright.toml] | apply | status | import <i3-config>")
     }
 } catch {
     FileHandle.standardError.write(Data("panewright-dev: \(error)\n".utf8))

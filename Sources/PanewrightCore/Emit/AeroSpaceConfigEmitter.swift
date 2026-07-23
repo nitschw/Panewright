@@ -180,6 +180,7 @@ public enum AeroSpaceConfigEmitter {
         case .flattenWorkspace: "flatten-workspace-tree"
         case .enterMode(let name): "mode \(name)"
         case .exec(let command): "exec-and-forget \(command)"
+        case .close: "close"
         }
     }
 }
