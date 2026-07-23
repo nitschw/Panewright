@@ -13,7 +13,10 @@ struct OnScreenWindow: Equatable, Sendable {
 /// Point-in-time view of normal-level on-screen windows, front to back.
 /// CGWindowList needs no TCC permission for ids/frames (only names are gated).
 enum WindowSnapshot {
-    static func capture() -> [OnScreenWindow] {
+    /// `allLayers` includes panels and utility windows that sit above the
+    /// normal layer — needed when the caller has its own idea of which
+    /// windows count (e.g. the set AeroSpace manages).
+    static func capture(allLayers: Bool = false) -> [OnScreenWindow] {
         let options: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
         guard
             let entries = CGWindowListCopyWindowInfo(options, kCGNullWindowID)
@@ -25,7 +28,8 @@ enum WindowSnapshot {
         var windows: [OnScreenWindow] = []
         for entry in entries {
             guard
-                let layer = entry[kCGWindowLayer as String] as? Int, layer == 0,
+                let layer = entry[kCGWindowLayer as String] as? Int,
+                allLayers ? layer >= 0 : layer == 0,
                 let id = entry[kCGWindowNumber as String] as? CGWindowID,
                 let pid = entry[kCGWindowOwnerPID as String] as? pid_t,
                 pid != ownPID,

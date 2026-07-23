@@ -47,6 +47,11 @@ final class DragTileController {
     private(set) var focusFollowsMouse = false
     private var lastHoverFocus: CGWindowID?
     private var lastHoverCheck: CFTimeInterval = 0
+    /// Every window AeroSpace manages on the focused workspace — tiled *and*
+    /// floating. Hover focus picks the topmost of these, so floating panels
+    /// (which often live above the normal window layer) can be reached.
+    private var managedWindows: Set<CGWindowID> = []
+    private var managedRefreshedAt: CFTimeInterval = 0
 
     /// The tap's event mask is fixed at creation, so changing the option
     /// rebuilds the tap.
@@ -180,9 +185,17 @@ final class DragTileController {
         let now = CFAbsoluteTimeGetCurrent()
         guard now - lastHoverCheck > 0.1 else { return }
         lastHoverCheck = now
+        refreshManagedWindowsIfStale(now: now)
+        // Front-to-back order, so the first hit is whatever is actually on
+        // top under the pointer — including a floating window over a tile.
+        let managed = managedWindows
+        let candidates = WindowSnapshot.capture(allLayers: !managed.isEmpty)
         guard
-            let window = WindowSnapshot.capture().first(where: {
-                !Self.ignoredOwners.contains($0.ownerName) && $0.frame.contains(point)
+            let window = candidates.first(where: {
+                guard !Self.ignoredOwners.contains($0.ownerName),
+                    $0.frame.contains(point)
+                else { return false }
+                return managed.isEmpty || managed.contains($0.id)
             }),
             window.id != lastHoverFocus
         else {
@@ -232,6 +245,27 @@ final class DragTileController {
         Task.detached {
             let zones = Self.queryWorkspaceZones()
             await assign(zones)
+        }
+    }
+
+    private func refreshManagedWindowsIfStale(now: CFTimeInterval) {
+        guard now - managedRefreshedAt > 2 else { return }
+        managedRefreshedAt = now
+        guard let cli = AeroSpaceCLI.locate() else { return }
+        let assign: @MainActor @Sendable (Set<CGWindowID>) -> Void = { [weak self] ids in
+            self?.managedWindows = ids
+        }
+        Task.detached(priority: .utility) {
+            guard
+                let output = try? cli.run([
+                    "list-windows", "--workspace", "focused", "--format", "%{window-id}",
+                ])
+            else { return }
+            let ids = Set(
+                output.split(separator: "\n").compactMap {
+                    CGWindowID($0.trimmingCharacters(in: .whitespaces))
+                })
+            await assign(ids)
         }
     }
 
