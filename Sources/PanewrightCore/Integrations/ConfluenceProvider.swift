@@ -8,13 +8,29 @@ public struct ConfluencePage: Sendable, Equatable, Identifiable {
     public var url: URL
     /// Rendered HTML (`body.view`), empty until the page itself is fetched.
     public var html: String
+    /// Who touched it last, and when — the activity view is built on these.
+    public var lastEditor: String
+    public var updated: Date?
+    public var created: Date?
 
-    public init(id: String, title: String, space: String, url: URL, html: String = "") {
+    public init(
+        id: String,
+        title: String,
+        space: String,
+        url: URL,
+        html: String = "",
+        lastEditor: String = "",
+        updated: Date? = nil,
+        created: Date? = nil
+    ) {
         self.id = id
         self.title = title
         self.space = space
         self.url = url
         self.html = html
+        self.lastEditor = lastEditor
+        self.updated = updated
+        self.created = created
     }
 }
 
@@ -36,6 +52,17 @@ public struct ConfluenceProvider: Sendable {
         !host.isEmpty && Keychain.hasToken(for: "confluence")
     }
 
+    public var siteHost: String { host }
+
+    /// Shared with the reader so it can authenticate image requests.
+    public func authorizationHeader() -> String? {
+        guard let token = Keychain.token(for: "confluence") else { return nil }
+        if email.isEmpty {
+            return "Bearer \(token)"
+        }
+        return "Basic " + Data("\(email):\(token)".utf8).base64EncodedString()
+    }
+
     /// Free-text search; empty query returns what you touched most recently.
     public func search(_ query: String, limit: Int = 30) async throws -> [ConfluencePage] {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
@@ -48,7 +75,7 @@ public struct ConfluenceProvider: Sendable {
         components.queryItems = [
             URLQueryItem(name: "cql", value: cql),
             URLQueryItem(name: "limit", value: "\(limit)"),
-            URLQueryItem(name: "expand", value: "space"),
+            URLQueryItem(name: "expand", value: "space,version,history"),
         ]
         let response: SearchResponse = try await get(components.url!)
         return response.results.compactMap(page(from:))
@@ -58,7 +85,7 @@ public struct ConfluenceProvider: Sendable {
     public func page(id: String) async throws -> ConfluencePage {
         var components = URLComponents(string: "https://\(host)/wiki/rest/api/content/\(id)")!
         components.queryItems = [
-            URLQueryItem(name: "expand", value: "body.view,space")
+            URLQueryItem(name: "expand", value: "body.view,space,version,history")
         ]
         let result: Content = try await get(components.url!)
         guard var page = page(from: result) else {
@@ -75,7 +102,19 @@ public struct ConfluenceProvider: Sendable {
             id: content.id,
             title: content.title,
             space: content.space?.name ?? content.space?.key ?? "",
-            url: url)
+            url: url,
+            lastEditor: content.version?.by?.displayName ?? "",
+            updated: content.version?.when.flatMap(Self.parseDate),
+            created: content.history?.createdDate.flatMap(Self.parseDate))
+    }
+
+    /// Atlassian timestamps: 2026-07-23T01:22:33.000Z (and offset variants).
+    public static func parseDate(_ value: String) -> Date? {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = iso.date(from: value) { return date }
+        iso.formatOptions = [.withInternetDateTime]
+        return iso.date(from: value)
     }
 
     private func get<T: Decodable>(_ url: URL) async throws -> T {
@@ -116,11 +155,23 @@ public struct ConfluenceProvider: Sendable {
         let title: String
         let space: Space?
         let body: Body?
+        let version: Version?
+        let history: History?
         let _links: Links?
 
         struct Space: Decodable {
             let key: String?
             let name: String?
+        }
+        struct Person: Decodable {
+            let displayName: String?
+        }
+        struct Version: Decodable {
+            let when: String?
+            let by: Person?
+        }
+        struct History: Decodable {
+            let createdDate: String?
         }
         struct Body: Decodable {
             let view: Value?
@@ -141,6 +192,7 @@ public enum ConfluenceFavorites {
         home.appending(path: ".config/panewright/confluence-favorites.tsv")
     }
 
+    /// Favorites keep only stable metadata; activity fields are refetched.
     public static func load(from url: URL) -> [ConfluencePage] {
         guard let text = try? String(contentsOf: url, encoding: .utf8) else { return [] }
         return text.split(separator: "\n").compactMap { line in

@@ -7,16 +7,24 @@ import WebKit
 struct ArticleWebView: NSViewRepresentable {
     let pageID: String
     let html: String
+    let host: String
+    let authorization: String?
+
+    /// Attachments live behind the same auth as the API, so image URLs are
+    /// rewritten to this scheme and fetched with credentials attached.
+    static let imageScheme = "pwimg"
 
     func makeCoordinator() -> Coordinator {
         Coordinator()
     }
 
     func makeNSView(context: Context) -> WKWebView {
+        context.coordinator.authorization = authorization
         let controller = WKUserContentController()
         controller.add(context.coordinator, name: "panewright")
         let configuration = WKWebViewConfiguration()
         configuration.userContentController = controller
+        configuration.setURLSchemeHandler(context.coordinator, forURLScheme: Self.imageScheme)
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         webView.setValue(false, forKey: "drawsBackground")
@@ -28,13 +36,70 @@ struct ArticleWebView: NSViewRepresentable {
         guard context.coordinator.loadedPageID != pageID else { return }
         context.coordinator.loadedPageID = pageID
         context.coordinator.pageID = pageID
-        webView.loadHTMLString(Self.document(body: html), baseURL: nil)
+        context.coordinator.authorization = authorization
+        let body = Self.rewritingImageSources(html, host: host)
+        webView.loadHTMLString(Self.document(body: body), baseURL: nil)
     }
 
-    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+    /// Point every attachment at our authenticated scheme handler.
+    static func rewritingImageSources(_ html: String, host: String) -> String {
+        guard !host.isEmpty else { return html }
+        return
+            html
+            .replacingOccurrences(of: "src=\"https://\(host)/", with: "src=\"\(imageScheme)://\(host)/")
+            .replacingOccurrences(of: "src=\"/", with: "src=\"\(imageScheme)://\(host)/")
+            .replacingOccurrences(of: "src='https://\(host)/", with: "src='\(imageScheme)://\(host)/")
+            .replacingOccurrences(of: "src='/", with: "src='\(imageScheme)://\(host)/")
+    }
+
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler,
+        WKURLSchemeHandler
+    {
         weak var webView: WKWebView?
         var pageID = ""
         var loadedPageID: String?
+        var authorization: String?
+        private var tasks: [ObjectIdentifier: URLSessionDataTask] = [:]
+
+        // MARK: Authenticated image loading
+
+        func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
+            guard let source = urlSchemeTask.request.url,
+                var components = URLComponents(url: source, resolvingAgainstBaseURL: false)
+            else {
+                urlSchemeTask.didFailWithError(URLError(.badURL))
+                return
+            }
+            components.scheme = "https"
+            guard let target = components.url else {
+                urlSchemeTask.didFailWithError(URLError(.badURL))
+                return
+            }
+            var request = URLRequest(url: target)
+            if let authorization {
+                request.setValue(authorization, forHTTPHeaderField: "Authorization")
+            }
+            // WKURLSchemeTask isn't Sendable; hop back to the main queue
+            // through a box so the completion doesn't send it across
+            // isolation domains.
+            let box = SchemeTaskBox(task: urlSchemeTask)
+            let key = ObjectIdentifier(urlSchemeTask)
+            let task = URLSession.shared.dataTask(with: request) { [weak self] data, response, error in
+                DispatchQueue.main.async {
+                    guard let self, self.tasks[key] != nil else { return }
+                    self.tasks[key] = nil
+                    box.finish(data: data, response: response, error: error)
+                }
+            }
+            tasks[key] = task
+            task.resume()
+        }
+
+        func webView(_ webView: WKWebView, stop urlSchemeTask: any WKURLSchemeTask) {
+            let key = ObjectIdentifier(urlSchemeTask)
+            tasks[key]?.cancel()
+            tasks[key] = nil
+        }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             let state = ArticleState.load(pageID: pageID)
@@ -56,6 +121,26 @@ struct ArticleWebView: NSViewRepresentable {
                 collapsed: collapsed ?? [],
                 scroll: body["scroll"] as? Double ?? 0
             ).save(pageID: pageID)
+        }
+    }
+
+    /// Carries a non-Sendable scheme task across the network callback.
+    final class SchemeTaskBox: @unchecked Sendable {
+        private let task: any WKURLSchemeTask
+
+        init(task: any WKURLSchemeTask) {
+            self.task = task
+        }
+
+        @MainActor
+        func finish(data: Data?, response: URLResponse?, error: Error?) {
+            if let data, let response {
+                task.didReceive(response)
+                task.didReceive(data)
+                task.didFinish()
+            } else {
+                task.didFailWithError(error ?? URLError(.badServerResponse))
+            }
         }
     }
 

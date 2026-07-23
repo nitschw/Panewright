@@ -38,6 +38,8 @@ final class IntegrationsModel {
             writeStatus()
             return
         }
+        // A bar refresh even when only the reader is enabled.
+        writeStatus()
         let timer = Timer.scheduledTimer(withTimeInterval: Self.interval, repeats: true) { _ in
             Task { @MainActor [weak self] in self?.refresh() }
         }
@@ -105,9 +107,16 @@ final class IntegrationsModel {
     private func writeStatus() {
         let providersByID = Dictionary(
             uniqueKeysWithValues: providers().map { ($0.id, $0) })
-        let lines = services.compactMap { service -> String? in
+        var lines = services.compactMap { service -> String? in
             guard let provider = providersByID[service.id] else { return nil }
             return "\(service.id)\t\(service.items.count)\t\(provider.barLabel)"
+        }
+        // Confluence is a reader, not a work-item list, so it has no
+        // provider — but it still earns a pill that opens the browser,
+        // badged with how many articles you've pinned.
+        if config.confluence.enabled {
+            let favorites = ConfluenceFavorites.load(from: ConfluenceFavorites.defaultURL())
+            lines.append("confluence\t\(favorites.count)\tWIKI")
         }
         try? (lines.joined(separator: "\n") + (lines.isEmpty ? "" : "\n"))
             .write(to: statusFile, atomically: true, encoding: .utf8)

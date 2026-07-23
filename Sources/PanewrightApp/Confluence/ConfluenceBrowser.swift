@@ -21,11 +21,17 @@ final class ConfluenceModel {
 
     func configure(host: String, email: String) {
         provider = ConfluenceProvider(host: host, email: email)
+        hasHost = !host.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
     var isConfigured: Bool {
         provider?.isConfigured ?? false
     }
+
+    private(set) var hasHost = false
+
+    var siteHost: String { provider?.siteHost ?? "" }
+    var authorizationHeader: String? { provider?.authorizationHeader() }
 
     /// Debounced so typing doesn't fire a request per keystroke.
     func searchDebounced() {
@@ -38,7 +44,7 @@ final class ConfluenceModel {
     }
 
     func search() async {
-        guard let provider else { return }
+        guard let provider, provider.isConfigured else { return }
         isLoading = true
         error = nil
         do {
@@ -84,6 +90,7 @@ final class ConfluenceModel {
 
 struct ConfluenceBrowserView: View {
     @Bindable var model: ConfluenceModel
+    @State private var selection: ConfluencePage.ID?
 
     var body: some View {
         HSplitView {
@@ -95,8 +102,37 @@ struct ConfluenceBrowserView: View {
         .frame(minWidth: 900, minHeight: 600)
     }
 
+    /// Missing host or token is a setup problem, not an error — say so, and
+    /// offer the fix inline.
+    private var setupNotice: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Confluence isn't set up yet", systemImage: "gearshape")
+                .font(.callout.weight(.medium))
+            Text(
+                model.hasHost
+                    ? "Add an Atlassian API token to start searching."
+                    : "Set your site host (and email) in Open Editor… → Integrations, then add a token."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            Button("Add Confluence token…") {
+                TokenPrompt.ask(service: "confluence", displayName: "Confluence") {
+                    Task { await model.search() }
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.06)))
+        .padding(10)
+    }
+
     private var sidebar: some View {
         VStack(spacing: 0) {
+            if !model.isConfigured {
+                setupNotice
+            }
             HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                 TextField("Search Confluence", text: $model.query)
@@ -147,10 +183,14 @@ struct ConfluenceBrowserView: View {
                     Text(page.title)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
-                    if !page.space.isEmpty {
-                        Text(page.space)
+                    let meta = [page.space, page.lastEditor]
+                        .filter { !$0.isEmpty }
+                        .joined(separator: " · ")
+                    if !meta.isEmpty {
+                        Text(meta)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
+                            .lineLimit(1)
                     }
                 }
                 Spacer(minLength: 4)
@@ -180,6 +220,13 @@ struct ConfluenceBrowserView: View {
                     }
                     Spacer()
                     Button {
+                        model.selected = nil
+                    } label: {
+                        Label("Activity", systemImage: "list.bullet.rectangle")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Back to recent activity")
+                    Button {
                         model.toggleFavorite(page)
                     } label: {
                         Image(
@@ -207,22 +254,95 @@ struct ConfluenceBrowserView: View {
                         Spacer()
                     }
                 } else {
-                    ArticleWebView(pageID: page.id, html: page.html)
+                    ArticleWebView(
+                        pageID: page.id,
+                        html: page.html,
+                        host: model.siteHost,
+                        authorization: model.authorizationHeader)
                 }
             }
         } else {
-            VStack(spacing: 8) {
-                Image(systemName: "doc.text.magnifyingglass")
-                    .font(.system(size: 34))
-                    .foregroundStyle(.tertiary)
-                Text("Search, or pick a favorite.")
-                    .foregroundStyle(.secondary)
-                Text("Headings collapse on click — your place is kept per article.")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            activityHome
         }
+    }
+
+    /// Home view: who's been editing what, most recent first.
+    private var activityHome: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Recent activity").font(.headline)
+                    Text("What your workspace has been working on")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button {
+                    Task { await model.search() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            Divider()
+            if !model.isConfigured {
+                Text("Set up Confluence to see activity.")
+                    .foregroundStyle(.secondary)
+                    .padding(16)
+                Spacer()
+            } else if model.results.isEmpty {
+                if model.isLoading {
+                    ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    Text("Nothing recent found.")
+                        .foregroundStyle(.secondary)
+                        .padding(16)
+                    Spacer()
+                }
+            } else {
+                Table(model.results, selection: $selection) {
+                    TableColumn("Title") { page in
+                        Text(page.title).lineLimit(1)
+                    }
+                    .width(min: 180, ideal: 280)
+                    TableColumn("Space") { page in
+                        Text(page.space).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    .width(min: 80, ideal: 120)
+                    TableColumn("Last edited by") { page in
+                        Text(page.lastEditor).lineLimit(1)
+                    }
+                    .width(min: 100, ideal: 150)
+                    TableColumn("Updated") { page in
+                        Text(Self.relative(page.updated)).foregroundStyle(.secondary)
+                    }
+                    .width(min: 80, ideal: 110)
+                    TableColumn("Created") { page in
+                        Text(Self.absolute(page.created)).foregroundStyle(.secondary)
+                    }
+                    .width(min: 80, ideal: 100)
+                }
+                .onChange(of: selection) {
+                    if let id = selection,
+                        let page = model.results.first(where: { $0.id == id }) {
+                        model.open(page)
+                        selection = nil
+                    }
+                }
+            }
+        }
+    }
+
+    static func relative(_ date: Date?) -> String {
+        guard let date else { return "—" }
+        return date.formatted(.relative(presentation: .numeric))
+    }
+
+    static func absolute(_ date: Date?) -> String {
+        guard let date else { return "—" }
+        return date.formatted(date: .abbreviated, time: .omitted)
     }
 }
 
