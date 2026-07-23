@@ -126,8 +126,12 @@ public struct Orchestrator: Sendable {
             } else {
                 try bar.launch()
             }
-        } else if bar.isRunning() {
-            bar.stop()
+            setSystemMenuBarHidden(true)
+        } else {
+            if bar.isRunning() {
+                bar.stop()
+            }
+            setSystemMenuBarHidden(false)
         }
     }
 
@@ -142,6 +146,8 @@ public struct Orchestrator: Sendable {
             ("plugins/panewright_mode.sh", files.modePlugin),
             ("plugins/panewright_front_app.sh", files.frontAppPlugin),
             ("plugins/panewright_clock.sh", files.clockPlugin),
+            ("plugins/panewright_battery.sh", files.batteryPlugin),
+            ("plugins/panewright_wifi.sh", files.wifiPlugin),
         ]
         for (name, content) in scripts {
             let url = directory.appending(path: name)
@@ -165,6 +171,35 @@ public struct Orchestrator: Sendable {
         try Self.settingEnabled(enabled, section: "bar", in: text)
             .write(to: url, atomically: true, encoding: .utf8)
         try apply()
+    }
+
+    /// One bar at a time: enabling Panewright's bar hides the macOS menu bar
+    /// (auto-hide — it still slides in on hover for app menus and third-party
+    /// status items); disabling restores it. No-ops unless the state changes.
+    func setSystemMenuBarHidden(_ hidden: Bool) {
+        let current = runToolCapture(
+            "/usr/bin/defaults", ["read", "NSGlobalDomain", "_HIHideMenuBar"])
+        let currentlyHidden = current == "1"
+        guard currentlyHidden != hidden else { return }
+        try? runTool(
+            "/usr/bin/defaults",
+            ["write", "NSGlobalDomain", "_HIHideMenuBar", "-bool", hidden ? "true" : "false"])
+        try? runTool("/usr/bin/killall", ["SystemUIServer"])
+    }
+
+    private func runToolCapture(_ path: String, _ arguments: [String]) -> String? {
+        let process = Process()
+        process.executableURL = URL(filePath: path)
+        process.arguments = arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        guard (try? process.run()) != nil else { return nil }
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
+        return String(
+            decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Borders are an optional visual layer: a missing binary is not an

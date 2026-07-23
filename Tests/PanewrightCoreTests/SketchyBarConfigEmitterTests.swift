@@ -28,6 +28,14 @@ import Testing
         #expect(files.workspacesPlugin.contains("0xffff375f"))
     }
 
+    @Test func emitsSystemStatusItems() throws {
+        let files = try SketchyBarConfigEmitter.emit(.default)
+        #expect(files.sketchybarrc.contains("panewright_battery.sh"))
+        #expect(files.sketchybarrc.contains("panewright_wifi.sh"))
+        #expect(files.batteryPlugin.contains("pmset -g batt"))
+        #expect(files.wifiPlugin.contains("ipconfig getsummary"))
+    }
+
     @Test func modePluginUppercasesAndClears() throws {
         let files = try SketchyBarConfigEmitter.emit(.default)
         #expect(files.modePlugin.contains(#"[ "$MODE" = "main" ]"#))
