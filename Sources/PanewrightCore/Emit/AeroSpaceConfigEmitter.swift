@@ -9,8 +9,10 @@ public enum AeroSpaceConfigEmitter {
         lines.append("start-at-login = false")
         if config.statusBar.enabled || config.workspaceChangedHook != nil {
             // One dispatch script serves the bar and the user's hook.
+            // NB: the array form is execv-style — only `bash -c <string>`
+            // gets shell expansion of $HOME.
             lines.append(
-                "exec-on-workspace-change = ['/bin/bash', '\"$HOME\"/.config/panewright/scripts/on-workspace-change.sh']"
+                "exec-on-workspace-change = ['/bin/bash', '-c', '\"$HOME\"/.config/panewright/scripts/on-workspace-change.sh']"
             )
         }
         lines.append("")

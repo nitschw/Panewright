@@ -149,7 +149,7 @@ import Testing
         let toml = AeroSpaceConfigEmitter.emit(.default)
         #expect(
             toml.contains(
-                "exec-on-workspace-change = ['/bin/bash', '\"$HOME\"/.config/panewright/scripts/on-workspace-change.sh']"
+                "exec-on-workspace-change = ['/bin/bash', '-c', '\"$HOME\"/.config/panewright/scripts/on-workspace-change.sh']"
             ))
         #expect(
             toml.contains(
