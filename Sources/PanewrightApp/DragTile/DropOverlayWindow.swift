@@ -43,10 +43,14 @@ final class DropOverlayWindow {
         window.orderOut(nil)
     }
 
-    /// CG coordinates hang from the top of the primary screen; Cocoa's grow
-    /// from its bottom.
+    /// CG coordinates hang from the top of the *primary* screen; Cocoa's
+    /// grow from its bottom. The flip is always relative to the primary
+    /// (the zero-origin screen) — `screens.first` isn't guaranteed to be it,
+    /// which put overlays on the wrong monitor in multi-display setups.
     static func cocoaRect(fromCG rect: CGRect) -> CGRect {
-        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+        let primaryHeight =
+            (NSScreen.screens.first { $0.frame.origin == .zero }
+                ?? NSScreen.screens.first)?.frame.height ?? 0
         return CGRect(
             x: rect.minX,
             y: primaryHeight - rect.maxY,

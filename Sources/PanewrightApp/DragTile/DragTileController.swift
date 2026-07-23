@@ -41,11 +41,12 @@ final class DragTileController {
     }
 
     private var destination: DropDestination?
-    /// Screen rects of the bar's workspace numbers, fetched at drag start.
+    /// Screen rects of the bar's workspace numbers across *all* displays.
     private var workspaceZones: [(number: Int, frame: CGRect)] = []
-    /// The bar's vertical band, inferred from its items — dropping in it
-    /// (away from a workspace number) parks the window as a pill.
-    private var barBand: CGRect?
+    /// One bar strip per display — dropping in any of them (away from a
+    /// workspace number) parks the window as a pill. Per-display, not a
+    /// union, so negative-origin monitors are handled correctly.
+    private var barBands: [CGRect] = []
     private(set) var dragToBarEnabled = true
 
     func configure(dragToBar: Bool) {
@@ -144,6 +145,10 @@ final class DragTileController {
         }
         DragLog.log(
             "start: modifying tap created (focusFollowsMouse=\(focusFollowsMouse))")
+        let screens = NSScreen.screens.map {
+            "\(Int($0.frame.minX)),\(Int($0.frame.minY)) \(Int($0.frame.width))×\(Int($0.frame.height))"
+        }.joined(separator: " | ")
+        DragLog.log("start: \(NSScreen.screens.count) screen(s): \(screens)")
         self.tap = tap
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         runLoopSource = source
@@ -278,26 +283,16 @@ final class DragTileController {
         // Bar geometry can shift with workspaces/theme; refresh per drag.
         // (MainActor closure built here so `self` never crosses the
         // detachment boundary — Swift 6.0 compilers insist.)
-        let assign: @MainActor @Sendable ([(number: Int, frame: CGRect)], CGRect?) -> Void =
-            { [weak self] zones, band in
+        let assign: @MainActor @Sendable ([(number: Int, frame: CGRect)], [CGRect]) -> Void =
+            { [weak self] zones, bands in
                 self?.workspaceZones = zones
-                self?.barBand = band
+                self?.barBands = bands
             }
         Task.detached {
-            let zones = Self.queryWorkspaceZones()
-            await assign(zones, Self.barBand(from: zones))
+            let (zones, bands) = Self.queryBarGeometry()
+            DragLog.log("arm: \(zones.count) workspace zone(s), \(bands.count) bar band(s)")
+            await assign(zones, bands)
         }
-    }
-
-    /// Full-width strip at the bar's height, padded a little so near-misses
-    /// still count as "on the bar".
-    nonisolated static func barBand(from zones: [(number: Int, frame: CGRect)]) -> CGRect? {
-        guard let first = zones.first else { return nil }
-        let top = zones.map(\.frame.minY).min() ?? first.frame.minY
-        let bottom = zones.map(\.frame.maxY).max() ?? first.frame.maxY
-        let width = NSScreen.screens.map(\.frame.maxX).max() ?? first.frame.maxX
-        return CGRect(
-            x: 0, y: top - 6, width: width, height: (bottom - top) + 12)
     }
 
     private func refreshManagedWindowsIfStale(now: CFTimeInterval) {
@@ -322,10 +317,20 @@ final class DragTileController {
     }
 
     /// Asks SketchyBar where its workspace items are (empty if no bar).
-    nonisolated private static func queryWorkspaceZones() -> [(number: Int, frame: CGRect)] {
+    /// Workspace-number rects across every display, plus one bar strip per
+    /// display. SketchyBar reports `bounding_rects` keyed by display, all in
+    /// the same top-left-origin space as CGEvent locations — so a strip is
+    /// built per display from that display's own pill y and its CG bounds.
+    nonisolated private static func queryBarGeometry()
+        -> (zones: [(number: Int, frame: CGRect)], bands: [CGRect])
+    {
         let sketchybar = "/opt/homebrew/bin/sketchybar"
-        guard FileManager.default.isExecutableFile(atPath: sketchybar) else { return [] }
+        guard FileManager.default.isExecutableFile(atPath: sketchybar) else { return ([], []) }
+        let displayBounds = activeDisplayBounds()
         var zones: [(number: Int, frame: CGRect)] = []
+        // display key → the pill strip's vertical extent on that display.
+        var stripYByDisplay: [String: (minY: CGFloat, maxY: CGFloat)] = [:]
+
         for number in Array(1...9) + [0] {
             let process = Process()
             process.executableURL = URL(filePath: sketchybar)
@@ -338,17 +343,47 @@ final class DragTileController {
             guard process.terminationStatus == 0,
                 let json = try? JSONSerialization.jsonObject(
                     with: pipe.fileHandleForReading.readDataToEndOfFile()) as? [String: Any],
-                let rects = json["bounding_rects"] as? [String: Any],
-                let first = rects.values.first as? [String: Any],
-                let origin = first["origin"] as? [Double], origin.count == 2,
-                let size = first["size"] as? [Double], size.count == 2
-            else {
-                continue
+                let rects = json["bounding_rects"] as? [String: Any]
+            else { continue }
+            for (displayKey, value) in rects {
+                guard let rect = value as? [String: Any],
+                    let origin = rect["origin"] as? [Double], origin.count == 2,
+                    let size = rect["size"] as? [Double], size.count == 2
+                else { continue }
+                let frame = CGRect(x: origin[0], y: origin[1], width: size[0], height: size[1])
+                zones.append((number, frame))
+                let existing = stripYByDisplay[displayKey]
+                stripYByDisplay[displayKey] = (
+                    min(existing?.minY ?? frame.minY, frame.minY),
+                    max(existing?.maxY ?? frame.maxY, frame.maxY))
             }
-            zones.append(
-                (number, CGRect(x: origin[0], y: origin[1], width: size[0], height: size[1])))
         }
-        return zones
+
+        // One band per display: full display width at that display's strip y.
+        var bands: [CGRect] = []
+        for (_, strip) in stripYByDisplay {
+            let mid = CGPoint(x: 0, y: (strip.minY + strip.maxY) / 2)
+            let bounds =
+                displayBounds.first {
+                    $0.minY <= strip.maxY && $0.maxY >= strip.minY
+                        && $0.height > 0
+                } ?? CGRect(x: mid.x, y: strip.minY, width: 3000, height: strip.maxY - strip.minY)
+            bands.append(
+                CGRect(
+                    x: bounds.minX, y: strip.minY - 6,
+                    width: bounds.width, height: (strip.maxY - strip.minY) + 12))
+        }
+        return (zones, bands)
+    }
+
+    /// Every active display's bounds in CG global (top-left origin) space —
+    /// the same space as CGEvent locations and SketchyBar rects.
+    nonisolated private static func activeDisplayBounds() -> [CGRect] {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+        var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &ids, &count) == .success else { return [] }
+        return ids.map { CGDisplayBounds($0) }
     }
 
     private func updateDrag(windowID: CGWindowID, targets: Set<CGWindowID>, at point: CGPoint) {
@@ -364,7 +399,7 @@ final class DragTileController {
             return
         }
         // Anywhere else on the bar parks the window as a pill.
-        if dragToBarEnabled, let band = barBand, band.contains(point) {
+        if dragToBarEnabled, let band = barBands.first(where: { $0.contains(point) }) {
             if case .parkAsPill = destination {} else {
                 DragLog.log("target: bar (park as pill)")
             }

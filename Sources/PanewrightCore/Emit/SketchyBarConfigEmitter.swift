@@ -66,7 +66,11 @@ public enum SketchyBarConfigEmitter {
             SCRIPTS_DIR="$HOME/.config/panewright/scripts"
             BAR=/opt/homebrew/bin/sketchybar
 
-            $BAR --bar position=top sticky=on \(palette.barProps)
+            # display=main: the native menu bar shows on every monitor, and
+            # our floating bar collides with it on the secondaries. Keeping
+            # our bar on the primary avoids the overlap (and one bar is the
+            # mental model anyway).
+            $BAR --bar position=top sticky=on display=main \(palette.barProps)
             $BAR --default icon.font="\(palette.font)" label.font="\(palette.font)" \\
                 icon.color=\(palette.text) label.color=\(palette.text) \\
                 padding_left=4 padding_right=4
