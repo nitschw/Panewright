@@ -91,6 +91,8 @@ public struct PanewrightConfig: Equatable, Sendable {
         case workspaceBackAndForth
         /// Prompt for a new to-do item.
         case todoAdd
+        /// Stash the focused window into a bar pill you can peek at later.
+        case pillWindow
     }
 
     public enum MonitorTarget: String, Equatable, Sendable, CaseIterable {
@@ -255,6 +257,8 @@ public struct PanewrightConfig: Equatable, Sendable {
         bindings.append(Binding(key: "tab", action: .workspaceBackAndForth))
         // $mod+t: capture a to-do without leaving the keyboard.
         bindings.append(Binding(key: "t", action: .todoAdd))
+        // $mod+p: park the focused window in the bar.
+        bindings.append(Binding(key: "p", action: .pillWindow))
 
         // i3's default resize mode: h/l shrink and grow width, j/k grow and
         // shrink height; Enter or Escape returns to normal bindings.

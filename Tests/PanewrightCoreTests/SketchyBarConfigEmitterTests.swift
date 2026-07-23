@@ -67,6 +67,17 @@ import Testing
         #expect(!files.sketchybarrc.contains("--trigger panewright_todo"))
     }
 
+    @Test func windowPillsRenderAndPrune() throws {
+        let files = try SketchyBarConfigEmitter.emit(.default)
+        #expect(files.sketchybarrc.contains("--add event panewright_pills"))
+        #expect(files.pillsPlugin.contains("pill-toggle.sh"))
+        #expect(files.pillsPlugin.contains("pill-release.sh"))
+        // Parked windows live on the hidden P workspace.
+        #expect(files.pillsPlugin.contains("--workspace P"))
+        // Closed windows shouldn't leave orphaned pills behind.
+        #expect(files.pillsPlugin.contains("grep -qx \"$id\" || continue"))
+    }
+
     @Test func modePluginUppercasesAndClears() throws {
         let files = try SketchyBarConfigEmitter.emit(.default)
         #expect(files.modePlugin.contains(#"[ "$MODE" = "main" ]"#))

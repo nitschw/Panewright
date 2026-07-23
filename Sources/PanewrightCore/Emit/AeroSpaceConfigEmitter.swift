@@ -221,6 +221,8 @@ public enum AeroSpaceConfigEmitter {
         case .workspaceBackAndForth: "workspace-back-and-forth"
         case .todoAdd:
             "exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/todo-add.sh\""
+        case .pillWindow:
+            "exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/pill-window.sh\""
         case .scratchpadShow:
             "exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/scratchpad-show.sh\""
         case .scratchpadMove:

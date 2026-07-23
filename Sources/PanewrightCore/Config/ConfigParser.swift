@@ -198,6 +198,9 @@ public enum ConfigParser {
         if words == ["todo", "add"] {
             return .todoAdd
         }
+        if words == ["pill", "window"] {
+            return .pillWindow
+        }
         if words == ["scratchpad", "show"] {
             return .scratchpadShow
         }

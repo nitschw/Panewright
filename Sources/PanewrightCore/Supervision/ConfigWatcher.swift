@@ -37,7 +37,11 @@ public final class ConfigWatcher: @unchecked Sendable {
             eventMask: [.write, .rename, .extend],
             queue: queue)
         source.setEventHandler { [weak self] in
-            self?.scheduleChange()
+            // Directory events fire for *any* file in the config folder —
+            // todo.txt, pills.tsv, favorites — and re-applying on those
+            // caused a rewrite → apply → reload → rewrite storm. Only a
+            // genuine change to the config file counts.
+            self?.scheduleChangeIfConfigTouched()
         }
         source.setCancelHandler {
             close(descriptor)
@@ -76,6 +80,17 @@ public final class ConfigWatcher: @unchecked Sendable {
         source = nil
         poll?.cancel()
         poll = nil
+    }
+
+    private func scheduleChangeIfConfigTouched() {
+        guard let watchedFile else {
+            scheduleChange()
+            return
+        }
+        let current = Self.modificationDate(of: watchedFile)
+        guard current != lastModified else { return }
+        lastModified = current
+        scheduleChange()
     }
 
     // Debounce: editors produce bursts of directory events per save.

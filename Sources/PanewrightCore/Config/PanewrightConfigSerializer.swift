@@ -124,6 +124,7 @@ public enum PanewrightConfigSerializer {
         case .scratchpadMove: "move scratchpad"
         case .workspaceBackAndForth: "workspace back_and_forth"
         case .todoAdd: "todo add"
+        case .pillWindow: "pill window"
         }
     }
 }
