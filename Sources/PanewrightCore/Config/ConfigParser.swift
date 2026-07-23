@@ -136,6 +136,9 @@ public enum ConfigParser {
             let direction = PanewrightConfig.Direction(rawValue: words[1]) {
             return .joinWith(direction)
         }
+        if words == ["flatten"] {
+            return .flattenWorkspace
+        }
         if words.count == 2, words[0] == "mode" {
             return .enterMode(words[1])
         }

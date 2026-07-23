@@ -84,6 +84,11 @@ import Testing
         #expect(toml.contains("6 = 'secondary'"))
     }
 
+    @Test func emitsFlattenBinding() {
+        let toml = AeroSpaceConfigEmitter.emit(.default)
+        #expect(toml.contains("cmd-alt-ctrl-shift-g = 'flatten-workspace-tree'"))
+    }
+
     @Test func emitsJoinModeWithCommandChains() {
         let toml = AeroSpaceConfigEmitter.emit(.default)
         #expect(toml.contains("cmd-alt-ctrl-g = 'mode join'"))

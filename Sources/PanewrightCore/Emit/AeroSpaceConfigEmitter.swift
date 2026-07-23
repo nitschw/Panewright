@@ -108,6 +108,7 @@ public enum AeroSpaceConfigEmitter {
         case .resize(let dimension, let delta):
             "resize \(dimension.rawValue) \(delta >= 0 ? "+\(delta)" : "\(delta)")"
         case .joinWith(let direction): "join-with \(direction.rawValue)"
+        case .flattenWorkspace: "flatten-workspace-tree"
         case .enterMode(let name): "mode \(name)"
         case .exec(let command): "exec-and-forget \(command)"
         }

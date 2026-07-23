@@ -57,6 +57,9 @@ public struct PanewrightConfig: Equatable, Sendable {
         /// Group the focused window with its neighbor into a nested
         /// opposite-orientation container (AeroSpace's `join-with`).
         case joinWith(Direction)
+        /// Un-nest every container on the workspace back to flat columns —
+        /// the layout panic button.
+        case flattenWorkspace
         case enterMode(String)
         /// i3's `exec` — run a shell command (usually `open -a <App>`).
         case exec(String)
@@ -152,7 +155,9 @@ public struct PanewrightConfig: Equatable, Sendable {
         bindings.append(Binding(key: "shift-left", action: .moveToMonitor(.left)))
         bindings.append(Binding(key: "shift-right", action: .moveToMonitor(.right)))
         // $mod+g: join mode — group the focused window with a neighbor.
+        // $mod+shift+g: un-group everything on the workspace.
         bindings.append(Binding(key: "g", action: .enterMode("join")))
+        bindings.append(Binding(key: "shift-g", action: .flattenWorkspace))
 
         // i3's default resize mode: h/l shrink and grow width, j/k grow and
         // shrink height; Enter or Escape returns to normal bindings.
