@@ -37,12 +37,26 @@ struct ArticleWebView: NSViewRepresentable {
         context.coordinator.loadedPageID = pageID
         context.coordinator.pageID = pageID
         context.coordinator.authorization = authorization
+        Self.dumpForDiagnosis(html, pageID: pageID)
         let body = Self.rewritingImageSources(html, host: host)
         // Base URL in our own scheme, so relative attachment paths resolve
         // through the authenticated handler *and* count as same-origin —
         // a null origin (the default for loadHTMLString) gets them blocked.
         let base = host.isEmpty ? nil : URL(string: "\(Self.imageScheme)://\(host)/")
         webView.loadHTMLString(Self.document(body: body), baseURL: base)
+    }
+
+    /// Last-viewed page body, for diagnosing rendering problems (image
+    /// markup varies wildly between Confluence editors and storage backends).
+    static func dumpForDiagnosis(_ html: String, pageID: String) {
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appending(path: "Library/Logs/Panewright-lastpage.html")
+        try? html.write(to: url, atomically: true, encoding: .utf8)
+        let images = html.components(separatedBy: "<img").dropFirst()
+            .prefix(6)
+            .map { "<img" + $0.prefix(400) }
+            .joined(separator: "\n\n")
+        DragLog.log("confluence page \(pageID): \(images.isEmpty ? "no <img> tags" : images)")
     }
 
     /// Absolute site URLs move onto our scheme; relative ones resolve via

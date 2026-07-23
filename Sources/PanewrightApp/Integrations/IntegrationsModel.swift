@@ -17,6 +17,9 @@ final class IntegrationsModel {
 
     private(set) var services: [ServiceState] = []
     private(set) var lastRefresh: Date?
+    private(set) var jiraHierarchy: [JiraIssueNode] = []
+    private(set) var jiraHierarchyError: String?
+    private(set) var jiraHierarchyLoading = false
     private var timer: Timer?
     private var config = IntegrationsConfig()
     private let statusFile = FileManager.default.homeDirectoryForCurrentUser
@@ -61,6 +64,23 @@ final class IntegrationsModel {
         // Bitbucket and Confluence conform to the same protocol and plug in
         // here when their providers land.
         return result
+    }
+
+    /// Loaded on demand — it costs extra requests to walk up the tree.
+    func loadJiraHierarchy() {
+        guard config.jira.enabled, !jiraHierarchyLoading else { return }
+        jiraHierarchyLoading = true
+        let provider = JiraProvider(host: config.jira.host, email: config.jira.user)
+        Task { @MainActor in
+            do {
+                jiraHierarchy = try await provider.hierarchy()
+                jiraHierarchyError = nil
+            } catch {
+                jiraHierarchy = []
+                jiraHierarchyError = "\(error)"
+            }
+            jiraHierarchyLoading = false
+        }
     }
 
     func promptForToken(service: String, displayName: String) {

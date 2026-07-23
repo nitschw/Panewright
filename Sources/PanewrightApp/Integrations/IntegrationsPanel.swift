@@ -19,6 +19,11 @@ struct IntegrationsPanelView: View {
     @State private var query = ""
     @State private var sort: ItemSort = .updated
     @State private var statusFilter: String?
+    @State private var showHierarchy = false
+
+    private var showsJira: Bool {
+        visible.contains { $0.id == "jira" }
+    }
 
     private var visible: [IntegrationsModel.ServiceState] {
         guard let focusedService else { return model.services }
@@ -78,11 +83,18 @@ struct IntegrationsPanelView: View {
         VStack(alignment: .leading, spacing: 0) {
             header
             Divider()
-            controls
-            Divider()
-            content
+            if showHierarchy {
+                JiraHierarchyView(
+                    nodes: model.jiraHierarchy,
+                    isLoading: model.jiraHierarchyLoading,
+                    error: model.jiraHierarchyError)
+            } else {
+                controls
+                Divider()
+                content
+            }
         }
-        .frame(width: 520, height: 480)
+        .frame(width: showHierarchy ? 720 : 520, height: 520)
     }
 
     private var header: some View {
@@ -95,8 +107,26 @@ struct IntegrationsPanelView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            if showsJira {
+                Picker("", selection: $showHierarchy) {
+                    Image(systemName: "list.bullet").tag(false)
+                    Image(systemName: "point.topleft.down.curvedto.point.bottomright.up")
+                        .tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 84)
+                .help("List or hierarchy")
+                .onChange(of: showHierarchy) {
+                    if showHierarchy { model.loadJiraHierarchy() }
+                }
+            }
             Button {
-                model.refresh()
+                if showHierarchy {
+                    model.loadJiraHierarchy()
+                } else {
+                    model.refresh()
+                }
             } label: {
                 Image(systemName: "arrow.clockwise")
             }
