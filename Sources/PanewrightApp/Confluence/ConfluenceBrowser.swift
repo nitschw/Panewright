@@ -43,12 +43,16 @@ final class ConfluenceModel {
         }
     }
 
+    var scope: ConfluenceProvider.SearchScope = .all {
+        didSet { searchDebounced() }
+    }
+
     func search() async {
         guard let provider, provider.isConfigured else { return }
         isLoading = true
         error = nil
         do {
-            results = try await provider.search(query)
+            results = try await provider.search(query, scope: scope)
         } catch {
             self.error = "\(error)"
             results = []
@@ -146,7 +150,18 @@ struct ConfluenceBrowserView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
             .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.06)))
-            .padding(10)
+            .padding(.horizontal, 10)
+            .padding(.top, 10)
+
+            Picker("", selection: $model.scope) {
+                ForEach(ConfluenceProvider.SearchScope.allCases) { scope in
+                    Text(scope.rawValue).tag(scope)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
 
             List {
                 if !model.favorites.isEmpty {

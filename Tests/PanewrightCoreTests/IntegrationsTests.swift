@@ -99,6 +99,39 @@ import Testing
     }
 }
 
+@Suite struct ConfluenceSearchTests {
+    @Test func scopesBuildTheRightCQL() {
+        let title = ConfluenceProvider.cql(for: "deploy runbook", scope: .title)
+        #expect(title.contains("title ~ \"deploy runbook\""))
+        #expect(!title.contains("text ~"))
+
+        let content = ConfluenceProvider.cql(for: "deploy", scope: .content)
+        #expect(content.contains("text ~ \"deploy\""))
+
+        let all = ConfluenceProvider.cql(for: "deploy", scope: .all)
+        #expect(all.contains("title ~ \"deploy\" or text ~ \"deploy\""))
+
+        // Author filtering is local, so its query stays the recency feed.
+        #expect(
+            ConfluenceProvider.cql(for: "Ada", scope: .author)
+                == "type = page order by lastmodified desc")
+        #expect(
+            ConfluenceProvider.cql(for: "", scope: .all)
+                == "type = page order by lastmodified desc")
+    }
+
+    @Test func escapesQuotesSoQueriesCantBreakOut() {
+        let cql = ConfluenceProvider.cql(for: "say \"hi\"", scope: .title)
+        #expect(cql.contains("\\\"hi\\\""))
+    }
+
+    @Test func parsesAtlassianTimestamps() {
+        #expect(ConfluenceProvider.parseDate("2026-07-23T01:22:33.000Z") != nil)
+        #expect(ConfluenceProvider.parseDate("2026-07-23T01:22:33Z") != nil)
+        #expect(ConfluenceProvider.parseDate("nope") == nil)
+    }
+}
+
 @Suite struct StatusClassificationTests {
     @Test func bucketsWorkflowStatesAcrossServices() {
         #expect(StatusKind.classify("In Progress") == .inProgress)

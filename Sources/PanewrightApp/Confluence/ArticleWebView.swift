@@ -38,18 +38,29 @@ struct ArticleWebView: NSViewRepresentable {
         context.coordinator.pageID = pageID
         context.coordinator.authorization = authorization
         let body = Self.rewritingImageSources(html, host: host)
-        webView.loadHTMLString(Self.document(body: body), baseURL: nil)
+        // Base URL in our own scheme, so relative attachment paths resolve
+        // through the authenticated handler *and* count as same-origin —
+        // a null origin (the default for loadHTMLString) gets them blocked.
+        let base = host.isEmpty ? nil : URL(string: "\(Self.imageScheme)://\(host)/")
+        webView.loadHTMLString(Self.document(body: body), baseURL: base)
     }
 
-    /// Point every attachment at our authenticated scheme handler.
+    /// Absolute site URLs move onto our scheme; relative ones resolve via
+    /// the base URL. `srcset` is stripped so the browser can't bypass the
+    /// handler with an unauthenticated candidate.
     static func rewritingImageSources(_ html: String, host: String) -> String {
         guard !host.isEmpty else { return html }
-        return
-            html
-            .replacingOccurrences(of: "src=\"https://\(host)/", with: "src=\"\(imageScheme)://\(host)/")
-            .replacingOccurrences(of: "src=\"/", with: "src=\"\(imageScheme)://\(host)/")
-            .replacingOccurrences(of: "src='https://\(host)/", with: "src='\(imageScheme)://\(host)/")
-            .replacingOccurrences(of: "src='/", with: "src='\(imageScheme)://\(host)/")
+        var result = html
+        for attribute in ["src", "data-image-src", "data-src", "href"] {
+            for quote in ["\"", "'"] {
+                result = result.replacingOccurrences(
+                    of: "\(attribute)=\(quote)https://\(host)/",
+                    with: "\(attribute)=\(quote)\(imageScheme)://\(host)/")
+            }
+        }
+        result = result.replacingOccurrences(
+            of: "srcset=\"", with: "data-pw-srcset=\"")
+        return result
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler,
@@ -134,13 +145,20 @@ struct ArticleWebView: NSViewRepresentable {
 
         @MainActor
         func finish(data: Data?, response: URLResponse?, error: Error?) {
-            if let data, let response {
-                task.didReceive(response)
-                task.didReceive(data)
-                task.didFinish()
-            } else {
+            guard let data, let requestURL = task.request.url else {
                 task.didFailWithError(error ?? URLError(.badServerResponse))
+                return
             }
+            // The response must carry the URL the web view asked for — a
+            // redirected https URL makes WebKit discard the payload.
+            let synthesized = URLResponse(
+                url: requestURL,
+                mimeType: response?.mimeType ?? "application/octet-stream",
+                expectedContentLength: data.count,
+                textEncodingName: response?.textEncodingName)
+            task.didReceive(synthesized)
+            task.didReceive(data)
+            task.didFinish()
         }
     }
 
@@ -204,6 +222,17 @@ struct ArticleWebView: NSViewRepresentable {
         <div id="pw-content">\(body)</div>
         <script>
         (function () {
+          // Confluence lazy-loads: the real attachment often sits in
+          // data-image-src while src holds a placeholder.
+          Array.from(document.querySelectorAll('#pw-content img')).forEach(function (img) {
+            const real = img.getAttribute('data-image-src') || img.getAttribute('data-src');
+            if (real && (!img.getAttribute('src') || img.getAttribute('src').startsWith('data:'))) {
+              img.setAttribute('src', real);
+            }
+            img.removeAttribute('srcset');
+            img.setAttribute('loading', 'eager');
+          });
+
           const headings = Array.from(document.querySelectorAll('#pw-content h1, #pw-content h2, #pw-content h3'));
           headings.forEach(function (heading, index) {
             heading.dataset.pwIndex = index;

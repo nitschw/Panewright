@@ -63,22 +63,54 @@ public struct ConfluenceProvider: Sendable {
         return "Basic " + Data("\(email):\(token)".utf8).base64EncodedString()
     }
 
-    /// Free-text search; empty query returns what you touched most recently.
-    public func search(_ query: String, limit: Int = 30) async throws -> [ConfluencePage] {
+    /// Which field a query applies to.
+    public enum SearchScope: String, Sendable, CaseIterable, Identifiable {
+        case all = "All"
+        case title = "Title"
+        case content = "Content"
+        case author = "Author"
+
+        public var id: String { rawValue }
+    }
+
+    /// Builds the CQL for a scoped query. Author isn't expressible in CQL
+    /// as free text (it wants account IDs), so it fetches recent pages and
+    /// filters by editor name in ``search(_:scope:limit:)``.
+    static func cql(for query: String, scope: SearchScope) -> String {
+        let escaped = query.trimmingCharacters(in: .whitespaces)
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        guard !escaped.isEmpty, scope != .author else {
+            return "type = page order by lastmodified desc"
+        }
+        let predicate =
+            switch scope {
+            case .title: "title ~ \"\(escaped)\""
+            case .content: "text ~ \"\(escaped)\""
+            case .all, .author: "(title ~ \"\(escaped)\" or text ~ \"\(escaped)\")"
+            }
+        return "type = page and \(predicate) order by lastmodified desc"
+    }
+
+    /// Empty query returns what the workspace touched most recently.
+    public func search(
+        _ query: String, scope: SearchScope = .all, limit: Int = 30
+    ) async throws -> [ConfluencePage] {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
-        let escaped = trimmed.replacingOccurrences(of: "\"", with: "\\\"")
-        let cql =
-            trimmed.isEmpty
-            ? "type = page order by lastmodified desc"
-            : "type = page and text ~ \"\(escaped)\" order by lastmodified desc"
+        let isAuthorSearch = scope == .author && !trimmed.isEmpty
         var components = URLComponents(string: "https://\(host)/wiki/rest/api/content/search")!
         components.queryItems = [
-            URLQueryItem(name: "cql", value: cql),
-            URLQueryItem(name: "limit", value: "\(limit)"),
+            URLQueryItem(name: "cql", value: Self.cql(for: trimmed, scope: scope)),
+            // Author filtering happens locally, so cast a wider net first.
+            URLQueryItem(name: "limit", value: "\(isAuthorSearch ? 100 : limit)"),
             URLQueryItem(name: "expand", value: "space,version,history"),
         ]
         let response: SearchResponse = try await get(components.url!)
-        return response.results.compactMap(page(from:))
+        let pages = response.results.compactMap(page(from:))
+        guard isAuthorSearch else { return pages }
+        return pages.filter {
+            $0.lastEditor.localizedCaseInsensitiveContains(trimmed)
+        }
     }
 
     /// Full rendered body for the reader.
