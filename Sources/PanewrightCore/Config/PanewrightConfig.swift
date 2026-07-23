@@ -171,7 +171,9 @@ public struct PanewrightConfig: Equatable, Sendable {
         // characters, and needs no third-party remapper — the best default
         // that works out of the box. Caps-Lock hyper remains one line away.
         modifier: Modifier = .ctrlCmd,
-        leaderKey: String = "cmd-semicolon",
+        // Same chord as the default modifier, plus a key — a prefix can't be
+        // modifiers alone. Space keeps it one thumb press away.
+        leaderKey: String = "ctrl-cmd-space",
         focusFollowsMouse: Bool = false,
         statusBar: StatusBar = StatusBar(),
         gaps: Gaps = Gaps(),

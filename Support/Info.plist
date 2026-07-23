@@ -28,6 +28,8 @@
 	<string>© 2026 William Nitsch — MIT License</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 	<key>SUFeedURL</key>
 	<string>https://raw.githubusercontent.com/nitschw/Panewright/main/appcast.xml</string>
 	<key>SUPublicEDKey</key>

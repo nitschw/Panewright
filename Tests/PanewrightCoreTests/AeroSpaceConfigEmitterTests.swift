@@ -112,7 +112,7 @@ import Testing
         config.modifier = .leader
         config.statusBar.enabled = false
         let toml = AeroSpaceConfigEmitter.emit(config)
-        #expect(toml.contains("cmd-semicolon = 'mode panewright'"))
+        #expect(toml.contains("ctrl-cmd-space = 'mode panewright'"))
         #expect(toml.contains("[mode.panewright.binding]"))
         #expect(toml.contains("1 = ['workspace 1', 'mode main']"))
         #expect(toml.contains("h = ['focus left', 'mode main']"))
