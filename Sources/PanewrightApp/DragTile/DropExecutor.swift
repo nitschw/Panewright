@@ -2,10 +2,11 @@ import CoreGraphics
 import Foundation
 import PanewrightCore
 
-/// Realizes a ghost drop by walking the dragged window through AeroSpace's
-/// tree with window-id swaps, then finishing with the zone's operation.
-/// Navigation is axis-aware: close the unaligned axis first, require a real
-/// shared edge before treating windows as neighbors, and log every step.
+/// Realizes a ghost drop. Movement model: walk the dragged window through the
+/// tree with window-id swaps until it genuinely neighbors the target, then
+/// finish with the zone's operation. The key structural insight: placing
+/// side-by-side windows that share a stack (or stacking windows that share a
+/// row) is an orientation change, done with `join-with` — never with swaps.
 struct DropExecutor: Sendable {
     let cli: AeroSpaceCLI
     private static let settleMicroseconds: UInt32 = 180_000
@@ -31,11 +32,7 @@ struct DropExecutor: Sendable {
     // MARK: Zone operations
 
     private func swap(dragged: CGWindowID, targetID: CGWindowID) -> String {
-        guard
-            let (d, t) = walk(dragged: dragged, targetID: targetID, until: { d, t in
-                Self.adjacentHorizontally(d, t) || Self.adjacentVertically(d, t)
-            })
-        else {
+        guard let (d, t) = walkToNeighbor(dragged: dragged, targetID: targetID) else {
             return "drag-to-tile: couldn't reach the target to swap"
         }
         let direction =
@@ -48,72 +45,88 @@ struct DropExecutor: Sendable {
         return "drag-to-tile: swapped with target"
     }
 
+    /// Left/right zones: end state is a horizontal pair. Same-stack neighbors
+    /// get joined (orientation change); same-row neighbors just need the
+    /// correct side.
     private func placeBeside(
         dragged: CGWindowID, targetID: CGWindowID, zone: DropZone
     ) -> String {
-        guard
-            let (d, t) = walk(dragged: dragged, targetID: targetID, until: {
-                Self.adjacentHorizontally($0, $1)
-            })
-        else {
+        guard let (d, t) = walkToNeighbor(dragged: dragged, targetID: targetID) else {
             return "drag-to-tile: couldn't reach the target"
         }
-        // Horizontally adjacent with a real shared edge ⇒ the neighbor in
-        // that direction is the target; one more swap crosses to the far side.
-        let draggedOnLeft = d.midX < t.midX
-        if (zone == .left) != draggedOnLeft {
-            let direction = Self.horizontalDirection(from: d, to: t)
-            guard (try? cli.run(["swap", "--window-id", "\(dragged)", direction])) != nil
+        if Self.adjacentVertically(d, t) {
+            let toward = Self.verticalDirection(from: d, to: t)
+            DragLog.log("executor: join-with \(toward) to form horizontal pair")
+            guard (try? cli.run(["join-with", "--window-id", "\(dragged)", toward])) != nil
             else {
-                return "drag-to-tile: side-crossing swap failed"
+                return "drag-to-tile: join-with \(toward) failed"
             }
+            usleep(Self.settleMicroseconds)
+        }
+        if let (d2, t2) = frames(dragged, targetID),
+            (zone == .left) != (d2.midX < t2.midX) {
+            let direction = Self.horizontalDirection(from: d2, to: t2)
+            try? cli.run(["swap", "--window-id", "\(dragged)", direction])
         }
         return "drag-to-tile: placed \(zone.rawValue) of target"
     }
 
+    /// Top/bottom zones: end state is a vertical pair — the mirror image.
     private func stack(
         dragged: CGWindowID, targetID: CGWindowID, zone: DropZone
     ) -> String {
-        guard
-            let (d, t) = walk(dragged: dragged, targetID: targetID, until: {
-                Self.adjacentHorizontally($0, $1)
-            })
-        else {
+        guard let (d, t) = walkToNeighbor(dragged: dragged, targetID: targetID) else {
             return "drag-to-tile: couldn't reach the target"
         }
-        let toward = Self.horizontalDirection(from: d, to: t)
-        guard (try? cli.run(["join-with", "--window-id", "\(dragged)", toward])) != nil else {
-            return "drag-to-tile: join-with \(toward) failed"
-        }
-        usleep(Self.settleMicroseconds)
-        if let newD = WindowSnapshot.frame(of: dragged),
-            let newT = WindowSnapshot.frame(of: targetID) {
-            let draggedOnTop = newD.midY < newT.midY
-            if (zone == .top) != draggedOnTop {
-                let direction = zone == .top ? "up" : "down"
-                try? cli.run(["move", "--window-id", "\(dragged)", direction])
+        if Self.adjacentHorizontally(d, t) {
+            let toward = Self.horizontalDirection(from: d, to: t)
+            DragLog.log("executor: join-with \(toward) to form vertical pair")
+            guard (try? cli.run(["join-with", "--window-id", "\(dragged)", toward])) != nil
+            else {
+                return "drag-to-tile: join-with \(toward) failed"
             }
+            usleep(Self.settleMicroseconds)
+        }
+        if let (d2, t2) = frames(dragged, targetID),
+            (zone == .top) != (d2.midY < t2.midY) {
+            let direction = Self.verticalDirection(from: d2, to: t2)
+            try? cli.run(["swap", "--window-id", "\(dragged)", direction])
         }
         return "drag-to-tile: stacked \(zone.rawValue) of target"
     }
 
     // MARK: Walking
 
-    private func walk(
-        dragged: CGWindowID, targetID: CGWindowID,
-        until isDone: (CGRect, CGRect) -> Bool
+    private func frames(_ a: CGWindowID, _ b: CGWindowID) -> (CGRect, CGRect)? {
+        guard let fa = WindowSnapshot.frame(of: a), let fb = WindowSnapshot.frame(of: b)
+        else {
+            return nil
+        }
+        return (fa, fb)
+    }
+
+    /// Swap-steps the dragged window until it shares a real edge with the
+    /// target on either axis. Aborts on revisited positions (oscillation).
+    private func walkToNeighbor(
+        dragged: CGWindowID, targetID: CGWindowID
     ) -> (CGRect, CGRect)? {
+        var visited: [CGPoint] = []
         for step in 0..<Self.maxSteps {
             usleep(Self.settleMicroseconds)
-            guard let d = WindowSnapshot.frame(of: dragged),
-                let t = WindowSnapshot.frame(of: targetID)
-            else {
+            guard let (d, t) = frames(dragged, targetID) else {
                 DragLog.log("executor: lost a window at step \(step)")
                 return nil
             }
-            if isDone(d, t) {
+            if Self.adjacentHorizontally(d, t) || Self.adjacentVertically(d, t) {
                 return (d, t)
             }
+            if visited.contains(where: {
+                abs($0.x - d.origin.x) < 2 && abs($0.y - d.origin.y) < 2
+            }) {
+                DragLog.log("executor: oscillation detected at step \(step), aborting")
+                return nil
+            }
+            visited.append(d.origin)
             let direction = Self.step(from: d, to: t)
             DragLog.log("executor step \(step): swap \(direction) d=\(d) t=\(t)")
             if (try? cli.run(["swap", "--window-id", "\(dragged)", direction])) == nil {
