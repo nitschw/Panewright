@@ -120,7 +120,9 @@ public struct Orchestrator: Sendable {
         _ = waitForAeroSpace()
         try? apply()
         healLayoutsWhenReady()
-        distributeWorkspaces()
+        // Distribution is driven from the app layer (MonitorMap) once the
+        // display arrangement is known and AeroSpace has settled — running it
+        // here races AeroSpace's own startup workspace auto-assignment.
     }
 
     /// Spreads workspaces across displays so every monitor owns at least one,
@@ -131,7 +133,7 @@ public struct Orchestrator: Sendable {
     /// primary. Idempotent, so re-running on a display change pulls a workspace
     /// onto a freshly attached monitor and returns an unplugged monitor's
     /// workspaces to a surviving display.
-    public func distributeWorkspaces() {
+    public func distributeWorkspaces(primaryMonitorID: Int? = nil) {
         guard let cli = AeroSpaceCLI.locate(),
             let monitorOut = try? cli.run(["list-monitors"])
         else { return }
@@ -144,8 +146,9 @@ public struct Orchestrator: Sendable {
         let names = AeroSpaceConfigEmitter.workspaceNumbers(in: config.bindings).map(String.init)
         guard !names.isEmpty else { return }
 
-        // The primary is AeroSpace's main display; the rest each get one home.
-        let primary = mainMonitorID(cli) ?? monitorIDs[0]
+        // Prefer the caller's true main display; fall back to the busiest one.
+        let primary = (primaryMonitorID.flatMap { monitorIDs.contains($0) ? $0 : nil })
+            ?? mainMonitorID(cli) ?? monitorIDs[0]
         let secondaries = monitorIDs.filter { $0 != primary }
         for (index, monitor) in secondaries.enumerated() where index < names.count {
             let workspace = names[index]

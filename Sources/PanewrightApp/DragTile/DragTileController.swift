@@ -331,31 +331,45 @@ final class DragTileController {
         // display key → the pill strip's vertical extent on that display.
         var stripYByDisplay: [String: (minY: CGFloat, maxY: CGFloat)] = [:]
 
-        for number in Array(1...9) + [0] {
-            let process = Process()
-            process.executableURL = URL(filePath: sketchybar)
-            process.arguments = ["--query", "space.\(number)"]
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            process.standardError = Pipe()
-            guard (try? process.run()) != nil else { continue }
-            process.waitUntilExit()
-            guard process.terminationStatus == 0,
-                let json = try? JSONSerialization.jsonObject(
-                    with: pipe.fileHandleForReading.readDataToEndOfFile()) as? [String: Any],
-                let rects = json["bounding_rects"] as? [String: Any]
-            else { continue }
-            for (displayKey, value) in rects {
-                guard let rect = value as? [String: Any],
-                    let origin = rect["origin"] as? [Double], origin.count == 2,
-                    let size = rect["size"] as? [Double], size.count == 2
+        // Per-monitor bars name their pills `space.<display>.<workspace>`, and a
+        // pill only draws (and reports a bounding rect) on the display whose
+        // monitor actually owns that workspace. So iterating every display×
+        // workspace and keeping only the drawn ones maps each on-screen zone to
+        // its real workspace — dropping on the "1" pill sends to workspace 1.
+        let displayCount = max(displayBounds.count, 1)
+        for did in 1...displayCount {
+            for number in Array(1...9) + [0] {
+                let process = Process()
+                process.executableURL = URL(filePath: sketchybar)
+                process.arguments = ["--query", "space.\(did).\(number)"]
+                let pipe = Pipe()
+                process.standardOutput = pipe
+                process.standardError = Pipe()
+                guard (try? process.run()) != nil else { continue }
+                process.waitUntilExit()
+                guard process.terminationStatus == 0,
+                    let json = try? JSONSerialization.jsonObject(
+                        with: pipe.fileHandleForReading.readDataToEndOfFile()) as? [String: Any],
+                    let rects = json["bounding_rects"] as? [String: Any]
                 else { continue }
-                let frame = CGRect(x: origin[0], y: origin[1], width: size[0], height: size[1])
-                zones.append((number, frame))
-                let existing = stripYByDisplay[displayKey]
-                stripYByDisplay[displayKey] = (
-                    min(existing?.minY ?? frame.minY, frame.minY),
-                    max(existing?.maxY ?? frame.maxY, frame.maxY))
+                for (displayKey, value) in rects {
+                    guard let rect = value as? [String: Any],
+                        let origin = rect["origin"] as? [Double], origin.count == 2,
+                        let size = rect["size"] as? [Double], size.count == 2
+                    else { continue }
+                    let frame = CGRect(
+                        x: origin[0], y: origin[1], width: size[0], height: size[1])
+                    // Undrawn pills are parked off-screen at (-9999, -9999) as a
+                    // 1×1 sentinel — skip them so only real, visible zones count.
+                    guard frame.width > 2, frame.height > 2,
+                        frame.minX > -9000, frame.minY > -9000
+                    else { continue }
+                    zones.append((number, frame))
+                    let existing = stripYByDisplay[displayKey]
+                    stripYByDisplay[displayKey] = (
+                        min(existing?.minY ?? frame.minY, frame.minY),
+                        max(existing?.maxY ?? frame.maxY, frame.maxY))
+                }
             }
         }
 

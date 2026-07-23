@@ -11,10 +11,19 @@ enum MonitorMap {
     private static let url = FileManager.default.homeDirectoryForCurrentUser
         .appending(path: ".config/panewright/monitor-map.tsv")
 
-    static func write() {
+    /// AeroSpace monitor id of macOS's main display (the one owning the menu
+    /// bar), matched by name — so distribution can pile the "rest" workspaces
+    /// on the display the user thinks of as primary, not whichever AeroSpace
+    /// happened to number first.
+    static func mainMonitorID() -> Int? {
+        guard let name = screenName(for: CGMainDisplayID()) else { return nil }
+        return monitorsByName()[normalize(name)]
+    }
+
+    private static func monitorsByName() -> [String: Int] {
         guard let cli = AeroSpaceCLI.locate(),
             let output = try? cli.run(["list-monitors"])
-        else { return }
+        else { return [:] }
         var monitorByName: [String: Int] = [:]
         for line in output.split(separator: "\n") {
             let parts = line.components(separatedBy: " | ")
@@ -22,6 +31,11 @@ enum MonitorMap {
                 monitorByName[normalize(parts[1])] = id
             }
         }
+        return monitorByName
+    }
+
+    static func write() {
+        let monitorByName = monitorsByName()
         guard !monitorByName.isEmpty else { return }
 
         // Active displays in Quartz order = SketchyBar's display-1..N.
@@ -48,20 +62,30 @@ enum MonitorMap {
     static func observe() {
         write()
         reloadBar()
+        // Initial spread: bootstrap left AeroSpace settled but with everything
+        // piled on the primary, so distribute once now that we know the true
+        // main display.
+        redistribute()
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil, queue: .main
         ) { _ in
             MainActor.assumeIsolated {
                 write()
-                // AeroSpace needs a beat to register the new arrangement.
-                Task.detached(priority: .userInitiated) {
-                    Orchestrator().distributeWorkspaces()
-                    await MainActor.run {
-                        write()
-                        reloadBar()
-                    }
-                }
+                redistribute()
+            }
+        }
+    }
+
+    /// Re-spread workspaces across the current displays (off the main thread,
+    /// since it shells out to AeroSpace), then repaint the bar.
+    private static func redistribute() {
+        let primary = mainMonitorID()
+        Task.detached(priority: .userInitiated) {
+            Orchestrator().distributeWorkspaces(primaryMonitorID: primary)
+            await MainActor.run {
+                write()
+                reloadBar()
             }
         }
     }
