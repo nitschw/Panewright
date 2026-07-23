@@ -12,6 +12,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var signalSources: [DispatchSourceSignal] = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Ask for the permissions the app can't work without — automatically,
+        // but only once AppKit has settled. (Prompting during init throws
+        // inside the first window-constraint pass; see AppModel.init.)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            guard !DragTileController.hasPermission else { return }
+            DragLog.log("requesting permissions (post-launch)")
+            DragTileController.requestPermission()
+        }
         for sig in [SIGTERM, SIGINT, SIGHUP] {
             signal(sig, SIG_IGN)
             let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
@@ -107,12 +115,21 @@ final class AppModel {
         } catch {
             report(error: "\(error)")
         }
-        // NEVER prompt for permissions here. A system permission dialog
-        // raised during app initialization — before AppKit finishes its
-        // first display cycle — throws inside the window constraint pass
-        // and kills the process, which turns a missing grant into a launch
-        // crash loop. Setup asks instead, on user action.
-        bootstrapEnvironment()
+        // Permissions gate everything: without them there's no drag engine,
+        // and a grant made now can't bind until the process restarts. So
+        // settle permissions FIRST and start nothing else until they're in
+        // hand — the app relaunches itself the moment they're granted.
+        //
+        // (The prompt itself is raised post-launch by the app delegate;
+        // raising a system dialog during init throws inside AppKit's first
+        // window-constraint pass and kills the process.)
+        if DragTileController.hasPermission {
+            bootstrapEnvironment()
+        } else {
+            awaitingPermissions = true
+            lastMessage = "Waiting for permissions…"
+            startPermissionWatch()
+        }
         // Detect (never present) last session's crash; the menu offers it.
         pendingCrashReport = CrashReporter.pendingReport()
         if pendingCrashReport != nil {
@@ -146,6 +163,7 @@ final class AppModel {
             self?.lastMessage = "Environment ready"
             self?.refreshStatus()
             self?.offerSetupIfIncomplete()
+            self?.startPermissionWatch()
         }
         Task.detached(priority: .userInitiated) {
             orchestrator.bootstrap()
@@ -171,6 +189,8 @@ final class AppModel {
     var isBootstrapping = false
     var autoOpenedSetup = false
     var pendingCrashReport: String?
+    var awaitingPermissions = false
+    private var permissionWatch: Timer?
     var installing: Set<String> = []
     var setupVisible = false
     var profiles: [String] = []
@@ -380,6 +400,60 @@ final class AppModel {
         dragToTileActive = controller.start()
     }
 
+    /// TCC grants only bind at process start, so a grant given while we're
+    /// running does nothing until we relaunch. Watch for it and do that
+    /// ourselves — the user already said yes; don't make them say it twice.
+    func startPermissionWatch() {
+        guard !dragToTileActive, permissionWatch == nil else { return }
+        permissionWatch = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in
+            Task { @MainActor [weak self] in
+                self?.checkForFreshGrant()
+            }
+        }
+    }
+
+    private func checkForFreshGrant() {
+        guard !dragToTileActive else {
+            permissionWatch?.invalidate()
+            permissionWatch = nil
+            return
+        }
+        guard DragTileController.hasPermission else { return }
+        permissionWatch?.invalidate()
+        permissionWatch = nil
+        // Launched without permissions: nothing has been started, so take
+        // the clean path — tear down and respawn into a process that can
+        // actually use the grant.
+        if awaitingPermissions {
+            DragLog.log("permissions granted — respawning")
+            relaunch()
+            return
+        }
+        // Granted mid-session: try in place, relaunch only if the tap
+        // still can't be created.
+        startDragToTileIfPermitted()
+        if dragToTileActive {
+            lastMessage = "Drag-to-Tile active"
+        } else {
+            DragLog.log("permission granted but tap needs a fresh process — relaunching")
+            relaunch()
+        }
+    }
+
+    /// Relaunch cleanly: spawn a detached starter that waits for this
+    /// process to exit (the single-instance guard defers to the elder).
+    func relaunch() {
+        lastMessage = "Restarting to apply permissions…"
+        let process = Process()
+        process.executableURL = URL(filePath: "/bin/sh")
+        process.arguments = ["-c", "sleep 3; open -a Panewright"]
+        try? process.run()
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(400))
+            NSApp.terminate(nil)
+        }
+    }
+
     /// User-initiated only (Setup window) — see the note in `init`.
     func finishDragToTileSetup() {
         DragTileController.requestPermission()
@@ -499,6 +573,13 @@ struct PanewrightMenu: View {
     let model: AppModel
 
     var body: some View {
+        if model.awaitingPermissions {
+            Text("Waiting for permissions…")
+            Button("Grant Permissions…") {
+                model.finishDragToTileSetup()
+            }
+            Divider()
+        }
         Text(statusLine)
         if model.status == .unresponsive {
             Text("Grant Accessibility in System Settings, then restart AeroSpace")
