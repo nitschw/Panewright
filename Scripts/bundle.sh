@@ -17,9 +17,10 @@ APP="build/Panewright.app"
 swift build -c "$CONFIGURATION" --product panewright
 
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp Support/Info.plist "$APP/Contents/Info.plist"
 cp ".build/$CONFIGURATION/panewright" "$APP/Contents/MacOS/panewright"
+cp Assets/logo.png "$APP/Contents/Resources/logo.png"
 
 IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
     | awk -F'"' '/Apple Development/ {print $2; exit}')"

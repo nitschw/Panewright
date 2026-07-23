@@ -85,6 +85,7 @@ final class AppModel {
     var profiles: [String] = []
     var activeProfile: String? = UserDefaults.standard.string(forKey: "activeProfile")
     private var setupWindowController: OnboardingWindowController?
+    private var aboutWindowController: AboutWindowController?
 
     var aerospaceInstalled: Bool { AeroSpaceCLI.locate() != nil }
     var bordersInstalled: Bool { JankyBordersSupervisor.locate() != nil }
@@ -114,6 +115,12 @@ final class AppModel {
     }
 
     // MARK: Setup window
+
+    func openAbout() {
+        let controller = aboutWindowController ?? AboutWindowController()
+        aboutWindowController = controller
+        controller.show()
+    }
 
     func openSetup() {
         let controller = setupWindowController ?? OnboardingWindowController()
@@ -423,6 +430,9 @@ struct PanewrightMenu: View {
             Text(model.lastMessage)
         }
         Divider()
+        Button("About Panewright") {
+            model.openAbout()
+        }
         Button("Quit Panewright") {
             NSApp.terminate(nil)
         }
