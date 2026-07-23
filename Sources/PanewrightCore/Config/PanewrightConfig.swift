@@ -49,6 +49,34 @@ public struct PanewrightConfig: Equatable, Sendable {
         case layoutTiles
         /// i3's stacking/tabbed equivalent — windows layered full-screen.
         case layoutAccordion
+        case fullscreen
+        case toggleFloating
+        case focusMonitor(MonitorTarget)
+        case moveToMonitor(MonitorTarget)
+        case resize(ResizeDimension, Int)
+        case enterMode(String)
+        /// i3's `exec` — run a shell command (usually `open -a <App>`).
+        case exec(String)
+    }
+
+    public enum MonitorTarget: String, Equatable, Sendable, CaseIterable {
+        case left, down, up, right, next, prev
+    }
+
+    public enum ResizeDimension: String, Equatable, Sendable, CaseIterable {
+        case width, height
+    }
+
+    /// A named binding mode (i3's `mode "resize"`). Keys inside a mode are
+    /// bound bare, without the modifier.
+    public struct Mode: Equatable, Sendable {
+        public var name: String
+        public var bindings: [Binding]
+
+        public init(name: String, bindings: [Binding]) {
+            self.name = name
+            self.bindings = bindings
+        }
     }
 
     public struct Binding: Equatable, Sendable {
@@ -65,17 +93,29 @@ public struct PanewrightConfig: Equatable, Sendable {
     public var gaps: Gaps
     public var focusBorder: FocusBorder
     public var bindings: [Binding]
+    public var modes: [Mode]
+    /// Bundle IDs of apps that float instead of tiling (i3's `for_window … floating enable`).
+    public var floatingApps: [String]
+    /// Workspace number → AeroSpace monitor pattern (`main`, `secondary`, a
+    /// 1-based index, or a display-name regex).
+    public var workspaceMonitors: [Int: String]
 
     public init(
         modifier: Modifier = .hyper,
         gaps: Gaps = Gaps(),
         focusBorder: FocusBorder = FocusBorder(),
-        bindings: [Binding] = []
+        bindings: [Binding] = [],
+        modes: [Mode] = [],
+        floatingApps: [String] = [],
+        workspaceMonitors: [Int: String] = [:]
     ) {
         self.modifier = modifier
         self.gaps = gaps
         self.focusBorder = focusBorder
         self.bindings = bindings
+        self.modes = modes
+        self.floatingApps = floatingApps
+        self.workspaceMonitors = workspaceMonitors
     }
 
     /// i3-familiar defaults: workspaces 1–9 on number keys, vim-style focus/move.
@@ -93,6 +133,37 @@ public struct PanewrightConfig: Equatable, Sendable {
         // i3's $mod+e (split) and $mod+s (stacking).
         bindings.append(Binding(key: "e", action: .layoutTiles))
         bindings.append(Binding(key: "s", action: .layoutAccordion))
-        return PanewrightConfig(bindings: bindings)
+        // i3's $mod+f, $mod+Shift+space, $mod+r, $mod+Return.
+        bindings.append(Binding(key: "f", action: .fullscreen))
+        bindings.append(Binding(key: "shift-space", action: .toggleFloating))
+        bindings.append(Binding(key: "r", action: .enterMode("resize")))
+        bindings.append(Binding(key: "enter", action: .exec("open -a Terminal")))
+        // Multi-monitor flow on the arrow keys.
+        bindings.append(Binding(key: "left", action: .focusMonitor(.left)))
+        bindings.append(Binding(key: "right", action: .focusMonitor(.right)))
+        bindings.append(Binding(key: "shift-left", action: .moveToMonitor(.left)))
+        bindings.append(Binding(key: "shift-right", action: .moveToMonitor(.right)))
+
+        // i3's default resize mode: h/l shrink and grow width, j/k grow and
+        // shrink height; Enter or Escape returns to normal bindings.
+        let resize = Mode(
+            name: "resize",
+            bindings: [
+                Binding(key: "h", action: .resize(.width, -50)),
+                Binding(key: "j", action: .resize(.height, 50)),
+                Binding(key: "k", action: .resize(.height, -50)),
+                Binding(key: "l", action: .resize(.width, 50)),
+                Binding(key: "enter", action: .enterMode("main")),
+                Binding(key: "esc", action: .enterMode("main")),
+            ])
+
+        return PanewrightConfig(
+            bindings: bindings,
+            modes: [resize],
+            floatingApps: [
+                "com.apple.systempreferences",
+                "com.apple.calculator",
+                "com.apple.ScreenContinuity",
+            ])
     }
 }

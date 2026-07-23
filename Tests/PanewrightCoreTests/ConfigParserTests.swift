@@ -55,6 +55,40 @@ import Testing
         #expect(try ConfigParser.parseAction("layout accordion") == .layoutAccordion)
     }
 
+    @Test func parsesWindowMonitorAndModeActions() throws {
+        #expect(try ConfigParser.parseAction("fullscreen") == .fullscreen)
+        #expect(try ConfigParser.parseAction("floating toggle") == .toggleFloating)
+        #expect(try ConfigParser.parseAction("focus monitor next") == .focusMonitor(.next))
+        #expect(try ConfigParser.parseAction("move to monitor left") == .moveToMonitor(.left))
+        #expect(try ConfigParser.parseAction("resize width -50") == .resize(.width, -50))
+        #expect(try ConfigParser.parseAction("resize height +50") == .resize(.height, 50))
+        #expect(try ConfigParser.parseAction("mode resize") == .enterMode("resize"))
+        #expect(try ConfigParser.parseAction("exec open -a iTerm") == .exec("open -a iTerm"))
+    }
+
+    @Test func parsesFloatingAppsAndMonitorAssignments() throws {
+        let toml = """
+            floating-apps = ["com.example.foo"]
+
+            [workspace-monitors]
+            1 = "main"
+            6 = "secondary"
+            """
+        let config = try ConfigParser.parse(toml: toml)
+        #expect(config.floatingApps == ["com.example.foo"])
+        #expect(config.workspaceMonitors == [1: "main", 6: "secondary"])
+    }
+
+    @Test func rejectsNonNumericWorkspaceMonitorKey() {
+        let toml = """
+            [workspace-monitors]
+            one = "main"
+            """
+        #expect(throws: ConfigError.invalidWorkspaceNumber("one")) {
+            try ConfigParser.parse(toml: toml)
+        }
+    }
+
     @Test func rejectsUnknownModifier() {
         #expect(throws: ConfigError.invalidModifier("super")) {
             try ConfigParser.parse(toml: "modifier = \"super\"")
@@ -65,9 +99,9 @@ import Testing
         let toml = """
             [[binding]]
             key = "x"
-            action = "exec i3-sensible-terminal"
+            action = "scratchpad show"
             """
-        #expect(throws: ConfigError.invalidAction("exec i3-sensible-terminal")) {
+        #expect(throws: ConfigError.invalidAction("scratchpad show")) {
             try ConfigParser.parse(toml: toml)
         }
     }

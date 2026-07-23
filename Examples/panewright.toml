@@ -4,6 +4,12 @@
 
 modifier = "hyper"  # Caps Lock via Karabiner-Elements; or "alt" / "cmd"
 
+# Apps that float instead of tiling (bundle IDs).
+floating-apps = [
+  "com.apple.systempreferences",
+  "com.apple.calculator",
+]
+
 [gaps]
 inner = 8
 outer = 8
@@ -27,3 +33,33 @@ action = "focus left"
 [[binding]]
 key = "shift-h"
 action = "move left"
+
+[[binding]]
+key = "f"
+action = "fullscreen"
+
+[[binding]]
+key = "shift-space"
+action = "floating toggle"
+
+[[binding]]
+key = "r"
+action = "mode resize"
+
+[[binding]]
+key = "enter"
+action = "exec open -a iTerm"
+
+[[binding]]
+key = "right"
+action = "focus monitor right"
+
+[[binding]]
+key = "shift-right"
+action = "move to monitor right"
+
+# Pin workspaces to monitors: 'main', 'secondary', a 1-based index,
+# or a display-name regex.
+[workspace-monitors]
+1 = "main"
+9 = "secondary"

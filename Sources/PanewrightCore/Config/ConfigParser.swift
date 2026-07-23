@@ -5,6 +5,7 @@ public enum ConfigError: Error, Equatable, CustomStringConvertible {
     case invalidTOML(String)
     case invalidModifier(String)
     case invalidAction(String)
+    case invalidWorkspaceNumber(String)
 
     public var description: String {
         switch self {
@@ -14,6 +15,8 @@ public enum ConfigError: Error, Equatable, CustomStringConvertible {
             "unknown modifier '\(value)' (expected hyper, alt, or cmd)"
         case .invalidAction(let value):
             "unrecognized action '\(value)'"
+        case .invalidWorkspaceNumber(let value):
+            "workspace-monitors keys must be workspace numbers, got '\(value)'"
         }
     }
 }
@@ -57,12 +60,29 @@ public enum ConfigParser {
                 )
             }
         }
+        if let floatingApps = raw.floatingApps {
+            config.floatingApps = floatingApps
+        }
+        if let assignments = raw.workspaceMonitors {
+            var monitors: [Int: String] = [:]
+            for (key, monitor) in assignments {
+                guard let workspace = Int(key) else {
+                    throw ConfigError.invalidWorkspaceNumber(key)
+                }
+                monitors[workspace] = monitor
+            }
+            config.workspaceMonitors = monitors
+        }
         return config
     }
 
     /// Parses an i3-flavored action string: `workspace 3`, `move to workspace 3`,
-    /// `focus left`, `move right`.
+    /// `focus left`, `move right`, `fullscreen`, `floating toggle`,
+    /// `focus monitor next`, `resize width -50`, `mode resize`, `exec …`.
     static func parseAction(_ string: String) throws -> PanewrightConfig.Action {
+        if string.hasPrefix("exec ") {
+            return .exec(String(string.dropFirst("exec ".count)))
+        }
         let words = string.split(separator: " ").map(String.init)
         if words.count == 2, words[0] == "workspace", let n = Int(words[1]) {
             return .workspace(n)
@@ -85,6 +105,28 @@ public enum ConfigParser {
         if words.count == 2, words[0] == "layout", words[1] == "accordion" {
             return .layoutAccordion
         }
+        if words == ["fullscreen"] {
+            return .fullscreen
+        }
+        if words == ["floating", "toggle"] {
+            return .toggleFloating
+        }
+        if words.count == 3, words[0] == "focus", words[1] == "monitor",
+            let target = PanewrightConfig.MonitorTarget(rawValue: words[2]) {
+            return .focusMonitor(target)
+        }
+        if words.count == 4, words[0] == "move", words[1] == "to", words[2] == "monitor",
+            let target = PanewrightConfig.MonitorTarget(rawValue: words[3]) {
+            return .moveToMonitor(target)
+        }
+        if words.count == 3, words[0] == "resize",
+            let dimension = PanewrightConfig.ResizeDimension(rawValue: words[1]),
+            let delta = Int(words[2]) {
+            return .resize(dimension, delta)
+        }
+        if words.count == 2, words[0] == "mode" {
+            return .enterMode(words[1])
+        }
         throw ConfigError.invalidAction(string)
     }
 }
@@ -94,6 +136,14 @@ private struct RawConfig: Codable {
     var gaps: RawGaps?
     var border: RawBorder?
     var binding: [RawBinding]?
+    var floatingApps: [String]?
+    var workspaceMonitors: [String: String]?
+
+    enum CodingKeys: String, CodingKey {
+        case modifier, gaps, border, binding
+        case floatingApps = "floating-apps"
+        case workspaceMonitors = "workspace-monitors"
+    }
 
     struct RawGaps: Codable {
         var inner: Int?

@@ -21,6 +21,19 @@ public enum AeroSpaceConfigEmitter {
             lines.append("persistent-workspaces = [\(list)]")
             lines.append("")
         }
+        if !config.workspaceMonitors.isEmpty {
+            lines.append("[workspace-to-monitor-force-assignment]")
+            for (workspace, monitor) in config.workspaceMonitors.sorted(by: { $0.key < $1.key }) {
+                lines.append("\(workspace) = '\(monitor)'")
+            }
+            lines.append("")
+        }
+        for appId in config.floatingApps {
+            lines.append("[[on-window-detected]]")
+            lines.append("if.app-id = '\(appId)'")
+            lines.append("run = 'layout floating'")
+            lines.append("")
+        }
         lines.append("[gaps]")
         lines.append("inner.horizontal = \(config.gaps.inner)")
         lines.append("inner.vertical = \(config.gaps.inner)")
@@ -32,6 +45,14 @@ public enum AeroSpaceConfigEmitter {
         for binding in config.bindings {
             let combo = keyCombo(modifier: config.modifier, key: binding.key)
             lines.append("\(combo) = '\(command(for: binding.action))'")
+        }
+        // Mode bindings are bare keys — that's the point of a mode.
+        for mode in config.modes {
+            lines.append("")
+            lines.append("[mode.\(mode.name).binding]")
+            for binding in mode.bindings {
+                lines.append("\(binding.key) = '\(command(for: binding.action))'")
+            }
         }
         return lines.joined(separator: "\n") + "\n"
     }
@@ -59,7 +80,7 @@ public enum AeroSpaceConfigEmitter {
             switch binding.action {
             case .workspace(let n), .moveToWorkspace(let n):
                 numbers.insert(n)
-            case .focus, .move, .layoutTiles, .layoutAccordion:
+            default:
                 break
             }
         }
@@ -74,6 +95,14 @@ public enum AeroSpaceConfigEmitter {
         case .move(let direction): "move \(direction.rawValue)"
         case .layoutTiles: "layout tiles horizontal vertical"
         case .layoutAccordion: "layout accordion horizontal vertical"
+        case .fullscreen: "fullscreen"
+        case .toggleFloating: "layout floating tiling"
+        case .focusMonitor(let target): "focus-monitor \(target.rawValue)"
+        case .moveToMonitor(let target): "move-node-to-monitor \(target.rawValue)"
+        case .resize(let dimension, let delta):
+            "resize \(dimension.rawValue) \(delta >= 0 ? "+\(delta)" : "\(delta)")"
+        case .enterMode(let name): "mode \(name)"
+        case .exec(let command): "exec-and-forget \(command)"
         }
     }
 }
