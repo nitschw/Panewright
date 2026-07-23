@@ -31,11 +31,18 @@ public struct PanewrightConfig: Equatable, Sendable {
 
     /// Focus border drawn by JankyBorders. Colors are `#RRGGBB` or `#RRGGBBAA` hex.
     public struct FocusBorder: Equatable, Sendable {
+        public var enabled: Bool
         public var width: Int
         public var activeColor: String
         public var inactiveColor: String
 
-        public init(width: Int = 4, activeColor: String = "#0A84FF", inactiveColor: String = "#00000000") {
+        public init(
+            enabled: Bool = true,
+            width: Int = 4,
+            activeColor: String = "#0A84FF",
+            inactiveColor: String = "#00000000"
+        ) {
+            self.enabled = enabled
             self.width = width
             self.activeColor = activeColor
             self.inactiveColor = inactiveColor

@@ -56,16 +56,23 @@ final class AppModel {
             lastMessage = "\(error)"
         }
         refreshStatus()
+        // Drag-to-tile is core behavior, not an option: ask for its
+        // permission on first launch rather than waiting to be enabled.
+        if !dragToTileActive {
+            DragTileController.requestPermission()
+        }
     }
 
     var launchAtLogin = false
     var dragToTileActive = false
+    var bordersInfo = ""
     /// SMAppService needs a real bundle; the bare dev binary has no identifier.
     let isBundled = Bundle.main.bundleIdentifier != nil
     private var dragController: DragTileController?
 
     func refreshStatus() {
         status = orchestrator.status()
+        bordersInfo = orchestrator.bordersInfo()
         if isBundled {
             launchAtLogin = SMAppService.mainApp.status == .enabled
         }
@@ -86,14 +93,15 @@ final class AppModel {
         dragToTileActive = controller.start()
     }
 
-    func enableDragToTile() {
-        if DragTileController.hasPermission {
-            startDragToTileIfPermitted()
-            lastMessage = dragToTileActive ? "Drag-to-Tile active" : "Could not start event tap"
-        } else {
-            DragTileController.requestPermission()
-            lastMessage = "Grant Input Monitoring to Panewright, then quit and reopen the app"
+    func finishDragToTileSetup() {
+        DragTileController.requestPermission()
+        if let url = URL(
+            string:
+                "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+        ) {
+            NSWorkspace.shared.open(url)
         }
+        lastMessage = "Enable Panewright under Input Monitoring, then quit and reopen the app"
     }
 
     func setLaunchAtLogin(_ enabled: Bool) {
@@ -167,11 +175,10 @@ struct PanewrightMenu: View {
             model.apply()
         }
         aeroSpaceButton
-        if model.dragToTileActive {
-            Text("Drag-to-Tile: active")
-        } else {
-            Button("Enable Drag-to-Tile…") {
-                model.enableDragToTile()
+        Text("Borders: \(model.bordersInfo)")
+        if !model.dragToTileActive {
+            Button("Finish Drag-to-Tile setup…") {
+                model.finishDragToTileSetup()
             }
         }
         if model.isBundled {

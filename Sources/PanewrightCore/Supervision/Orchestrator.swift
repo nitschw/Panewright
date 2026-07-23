@@ -87,13 +87,34 @@ public struct Orchestrator: Sendable {
         return emitted
     }
 
-    /// Full pipeline: regenerate the AeroSpace config and hot-reload it if
-    /// AeroSpace is up.
+    /// Full pipeline: regenerate the AeroSpace config, hot-reload it if
+    /// AeroSpace is up, and sync the JankyBorders daemon.
     public func apply() throws {
+        let config = try loadConfig()
         try writeAerospaceConfig()
         if status() == .running, let cli = AeroSpaceCLI.locate() {
             try cli.run(["reload-config"])
         }
+        try applyBorders(config)
+    }
+
+    /// Borders are an optional visual layer: a missing binary is not an
+    /// error, but bad config is (caught upstream at parse time).
+    public func applyBorders(_ config: PanewrightConfig) throws {
+        guard let borders = JankyBordersSupervisor.locate() else { return }
+        if config.focusBorder.enabled {
+            try borders.apply(
+                arguments: JankyBordersEmitter.arguments(for: config.focusBorder))
+        } else if borders.isRunning() {
+            borders.stop()
+        }
+    }
+
+    public func bordersInfo() -> String {
+        guard let borders = JankyBordersSupervisor.locate() else {
+            return "not installed"
+        }
+        return borders.isRunning() ? "on" : "off"
     }
 
     public func status() -> AeroSpaceStatus {

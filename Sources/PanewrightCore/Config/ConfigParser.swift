@@ -6,6 +6,7 @@ public enum ConfigError: Error, Equatable, CustomStringConvertible {
     case invalidModifier(String)
     case invalidAction(String)
     case invalidWorkspaceNumber(String)
+    case invalidColor(String)
 
     public var description: String {
         switch self {
@@ -17,6 +18,8 @@ public enum ConfigError: Error, Equatable, CustomStringConvertible {
             "unrecognized action '\(value)'"
         case .invalidWorkspaceNumber(let value):
             "workspace-monitors keys must be workspace numbers, got '\(value)'"
+        case .invalidColor(let value):
+            "invalid color '\(value)' (expected #RRGGBB or #RRGGBBAA)"
         }
     }
 }
@@ -51,9 +54,13 @@ public enum ConfigParser {
             config.gaps.outer = gaps.outer ?? config.gaps.outer
         }
         if let border = raw.border {
+            config.focusBorder.enabled = border.enabled ?? config.focusBorder.enabled
             config.focusBorder.width = border.width ?? config.focusBorder.width
             config.focusBorder.activeColor = border.activeColor ?? config.focusBorder.activeColor
             config.focusBorder.inactiveColor = border.inactiveColor ?? config.focusBorder.inactiveColor
+            // Fail loudly at parse time, not when the daemon launches.
+            _ = try ColorHex.argb(fromCSSHex: config.focusBorder.activeColor)
+            _ = try ColorHex.argb(fromCSSHex: config.focusBorder.inactiveColor)
         }
         if let bindings = raw.binding {
             config.bindings = try bindings.map { rawBinding in
@@ -171,12 +178,13 @@ private struct RawConfig: Codable {
     }
 
     struct RawBorder: Codable {
+        var enabled: Bool?
         var width: Int?
         var activeColor: String?
         var inactiveColor: String?
 
         enum CodingKeys: String, CodingKey {
-            case width
+            case enabled, width
             case activeColor = "active-color"
             case inactiveColor = "inactive-color"
         }
