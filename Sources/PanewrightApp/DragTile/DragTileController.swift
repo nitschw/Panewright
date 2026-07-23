@@ -62,6 +62,11 @@ final class DragTileController {
     /// (which often live above the normal window layer) can be reached.
     private var managedWindows: Set<CGWindowID> = []
     private var managedRefreshedAt: CFTimeInterval = 0
+    /// The focused workspace's tiled windows, refreshed off the main thread.
+    /// The event-tap callback must never spawn a subprocess — a modifying
+    /// tap that blocks freezes ALL system input — so `arm` reads this cache.
+    private var cachedTiledIDs: Set<CGWindowID> = []
+    private var tiledRefresh: DispatchSourceTimer?
 
     /// The tap's event mask is fixed at creation, so changing the option
     /// rebuilds the tap.
@@ -82,6 +87,8 @@ final class DragTileController {
         if let runLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
         }
+        tiledRefresh?.cancel()
+        tiledRefresh = nil
         tap = nil
         runLoopSource = nil
     }
@@ -142,7 +149,35 @@ final class DragTileController {
         runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        startTiledCacheRefresh()
         return true
+    }
+
+    /// Keep the tiled-window cache warm off the main thread, so the event
+    /// callback stays subprocess-free.
+    private func startTiledCacheRefresh() {
+        guard tiledRefresh == nil else { return }
+        let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+        timer.schedule(deadline: .now(), repeating: 1.5)
+        timer.setEventHandler { [weak self] in
+            guard let cli = AeroSpaceCLI.locate(),
+                let output = try? cli.run([
+                    "list-windows", "--workspace", "focused",
+                    "--format", "%{window-id} %{window-layout}",
+                ])
+            else { return }
+            var ids: Set<CGWindowID> = []
+            for line in output.split(separator: "\n") {
+                let parts = line.split(separator: " ")
+                if parts.count >= 2, let id = CGWindowID(parts[0]),
+                    parts[1].hasSuffix("tiles") {
+                    ids.insert(id)
+                }
+            }
+            Task { @MainActor [weak self] in self?.cachedTiledIDs = ids }
+        }
+        timer.resume()
+        tiledRefresh = timer
     }
 
     /// Returns true when the event must be consumed (window stays frozen).
@@ -220,26 +255,19 @@ final class DragTileController {
     }
 
     private func arm(at point: CGPoint) {
+        // Entirely synchronous and subprocess-free: CGWindowList (fast) plus
+        // the off-thread tiled cache. Never call cli.run here — this runs
+        // inside the modifying event tap, and blocking it freezes system
+        // input.
         guard
             let window = WindowSnapshot.capture().first(where: {
                 !Self.ignoredOwners.contains($0.ownerName) && $0.frame.contains(point)
             }),
-            point.y - window.frame.minY <= Self.titleBarHeight,
-            let cli = AeroSpaceCLI.locate(),
-            let output = try? cli.run([
-                "list-windows", "--workspace", "focused",
-                "--format", "%{window-id} %{window-layout}",
-            ])
+            point.y - window.frame.minY <= Self.titleBarHeight
         else {
             return
         }
-        var tiledIDs: Set<CGWindowID> = []
-        for line in output.split(separator: "\n") {
-            let parts = line.split(separator: " ")
-            if parts.count >= 2, let id = CGWindowID(parts[0]), parts[1].hasSuffix("tiles") {
-                tiledIDs.insert(id)
-            }
-        }
+        var tiledIDs = cachedTiledIDs
         guard tiledIDs.contains(window.id) else { return }
         tiledIDs.remove(window.id)
         DragLog.log("armed: window=\(window.id) owner=\(window.ownerName)")
