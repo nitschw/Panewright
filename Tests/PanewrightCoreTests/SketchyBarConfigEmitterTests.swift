@@ -139,6 +139,24 @@ import Testing
         #expect(PanewrightConfigSerializer.emit(custom).contains("[[binding]]"))
     }
 
+    @Test func normalizesHumanFriendlyLeaderKeys() throws {
+        // `+` separators and punctuation glyphs must become AeroSpace syntax,
+        // or an invalid binding silently breaks every keybinding.
+        #expect(ConfigParser.normalizeKeySpec("cmd+`") == "cmd-backtick")
+        #expect(ConfigParser.normalizeKeySpec("cmd+~") == "cmd-shift-backtick")
+        #expect(ConfigParser.normalizeKeySpec("ctrl-cmd-space") == "ctrl-cmd-space")
+        #expect(ConfigParser.normalizeKeySpec("cmd-minus") == "cmd-minus")
+        // An explicit shift plus a shifted glyph shouldn't double up.
+        #expect(ConfigParser.normalizeKeySpec("cmd+shift+~") == "cmd-shift-backtick")
+        // And it actually lands on the config through the parser.
+        let config = try ConfigParser.parse(
+            toml: """
+                modifier = "leader"
+                leader-key = "cmd+`"
+                """)
+        #expect(config.leaderKey == "cmd-backtick")
+    }
+
     @Test func rejectsUnknownTheme() {
         let toml = """
             [bar]

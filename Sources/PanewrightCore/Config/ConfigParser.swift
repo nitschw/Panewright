@@ -53,7 +53,7 @@ public enum ConfigParser {
             config.modifier = parsed
         }
         if let leaderKey = raw.leaderKey {
-            config.leaderKey = leaderKey
+            config.leaderKey = normalizeKeySpec(leaderKey)
         }
         if let focusFollowsMouse = raw.focusFollowsMouse {
             config.focusFollowsMouse = focusFollowsMouse
@@ -228,6 +228,33 @@ public enum ConfigParser {
             return .enterMode(words[1])
         }
         throw ConfigError.invalidAction(string)
+    }
+
+    /// Translates a human-friendly key chord into AeroSpace's binding syntax so
+    /// a natural `cmd+`` or `cmd+~` doesn't silently emit an invalid binding and
+    /// break every keybinding. Accepts `+` or `-` separators and punctuation
+    /// glyphs, and expands shifted glyphs (`~` → `shift-backtick`). AeroSpace
+    /// modifiers are dash-joined and keys are named, never glyphs.
+    static func normalizeKeySpec(_ raw: String) -> String {
+        // Named keys for punctuation; `~` and friends carry an implicit shift.
+        let glyphs: [String: [String]] = [
+            "`": ["backtick"], "~": ["shift", "backtick"],
+            "-": ["minus"], "_": ["shift", "minus"],
+            "=": ["equal"], "+": ["shift", "equal"],
+        ]
+        // Split on `+`/`-` into modifiers + key. (The literal minus key is
+        // inherently ambiguous with the separator — write it as `cmd-minus`.)
+        let tokens = raw.replacingOccurrences(of: "+", with: "-")
+            .split(separator: "-", omittingEmptySubsequences: true)
+            .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+        guard !tokens.isEmpty else { return raw }
+        var out: [String] = []
+        for token in tokens {
+            out.append(contentsOf: glyphs[token] ?? [token])
+        }
+        // De-dupe an implicit shift that was also written explicitly.
+        var seen = Set<String>()
+        return out.filter { seen.insert($0).inserted }.joined(separator: "-")
     }
 }
 
