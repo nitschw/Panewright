@@ -8,6 +8,12 @@ public enum AeroSpaceConfigEmitter {
         lines.append("config-version = 2")
         lines.append("start-at-login = false")
         lines.append("")
+        // i3 split behavior: workspaces come up tiling, nested splits alternate
+        // orientation, and redundant single-child containers are flattened.
+        lines.append("default-root-container-layout = 'tiles'")
+        lines.append("enable-normalization-flatten-containers = true")
+        lines.append("enable-normalization-opposite-orientation-for-nested-containers = true")
+        lines.append("")
         // i3 mental model: numbered workspaces always exist, even when empty.
         let workspaces = workspaceNumbers(in: config.bindings)
         if !workspaces.isEmpty {
@@ -53,7 +59,7 @@ public enum AeroSpaceConfigEmitter {
             switch binding.action {
             case .workspace(let n), .moveToWorkspace(let n):
                 numbers.insert(n)
-            case .focus, .move:
+            case .focus, .move, .layoutTiles, .layoutAccordion:
                 break
             }
         }
@@ -66,6 +72,8 @@ public enum AeroSpaceConfigEmitter {
         case .moveToWorkspace(let n): "move-node-to-workspace \(n)"
         case .focus(let direction): "focus \(direction.rawValue)"
         case .move(let direction): "move \(direction.rawValue)"
+        case .layoutTiles: "layout tiles horizontal vertical"
+        case .layoutAccordion: "layout accordion horizontal vertical"
         }
     }
 }

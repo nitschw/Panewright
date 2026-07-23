@@ -50,6 +50,11 @@ import Testing
         #expect(config == .default)
     }
 
+    @Test func parsesLayoutActions() throws {
+        #expect(try ConfigParser.parseAction("layout tiles") == .layoutTiles)
+        #expect(try ConfigParser.parseAction("layout accordion") == .layoutAccordion)
+    }
+
     @Test func rejectsUnknownModifier() {
         #expect(throws: ConfigError.invalidModifier("super")) {
             try ConfigParser.parse(toml: "modifier = \"super\"")

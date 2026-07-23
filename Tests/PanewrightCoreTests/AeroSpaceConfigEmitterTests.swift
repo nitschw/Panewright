@@ -46,5 +46,13 @@ import Testing
         #expect(toml.contains("cmd-alt-ctrl-shift-1 = 'move-node-to-workspace 1'"))
         #expect(toml.contains("cmd-alt-ctrl-h = 'focus left'"))
         #expect(toml.contains("cmd-alt-ctrl-shift-l = 'move right'"))
+        #expect(toml.contains("cmd-alt-ctrl-e = 'layout tiles horizontal vertical'"))
+        #expect(toml.contains("cmd-alt-ctrl-s = 'layout accordion horizontal vertical'"))
+    }
+
+    @Test func defaultsToTilesRootLayout() {
+        let toml = AeroSpaceConfigEmitter.emit(.default)
+        #expect(toml.contains("default-root-container-layout = 'tiles'"))
+        #expect(toml.contains("enable-normalization-flatten-containers = true"))
     }
 }

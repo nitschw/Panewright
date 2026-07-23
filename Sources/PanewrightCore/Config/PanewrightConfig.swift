@@ -45,6 +45,10 @@ public struct PanewrightConfig: Equatable, Sendable {
         case moveToWorkspace(Int)
         case focus(Direction)
         case move(Direction)
+        /// i3's split layout — windows share the screen.
+        case layoutTiles
+        /// i3's stacking/tabbed equivalent — windows layered full-screen.
+        case layoutAccordion
     }
 
     public struct Binding: Equatable, Sendable {
@@ -86,6 +90,9 @@ public struct PanewrightConfig: Equatable, Sendable {
             bindings.append(Binding(key: key, action: .focus(direction)))
             bindings.append(Binding(key: "shift-\(key)", action: .move(direction)))
         }
+        // i3's $mod+e (split) and $mod+s (stacking).
+        bindings.append(Binding(key: "e", action: .layoutTiles))
+        bindings.append(Binding(key: "s", action: .layoutAccordion))
         return PanewrightConfig(bindings: bindings)
     }
 }

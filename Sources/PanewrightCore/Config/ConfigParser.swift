@@ -79,6 +79,12 @@ public enum ConfigParser {
             let direction = PanewrightConfig.Direction(rawValue: words[1]) {
             return .move(direction)
         }
+        if words.count == 2, words[0] == "layout", words[1] == "tiles" {
+            return .layoutTiles
+        }
+        if words.count == 2, words[0] == "layout", words[1] == "accordion" {
+            return .layoutAccordion
+        }
         throw ConfigError.invalidAction(string)
     }
 }
