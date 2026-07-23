@@ -5,5 +5,13 @@
     <link>https://panewright.com</link>
     <description>Truly tiled windows for macOS</description>
     <language>en</language>
+    <item>
+      <title>0.1.0</title>
+      <pubDate>Thu, 23 Jul 2026 00:13:32 -0700</pubDate>
+      <sparkle:version>202607230012</sparkle:version>
+      <sparkle:shortVersionString>0.1.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure url="https://github.com/nitschw/Panewright/releases/download/v0.1.0/Panewright-0.1.0.zip" type="application/octet-stream" sparkle:edSignature="Q7p3BvbgwvgxpwsfU/Yl4YfEq8H9onCy4/3t0BDLbRaSDp0WjxfZjgy971XN53MnLrlAJtbxcF8AaxDpRiUUDQ==" length="5173794" />
+    </item>
   </channel>
 </rss>

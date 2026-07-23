@@ -4,33 +4,33 @@
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Panewright</string>
 	<key>CFBundleExecutable</key>
 	<string>panewright</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.panewright.app</string>
 	<key>CFBundleName</key>
 	<string>Panewright</string>
-	<key>CFBundleDisplayName</key>
-	<string>Panewright</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
-	<key>CFBundleIconFile</key>
-	<string>AppIcon</string>
 	<key>CFBundleShortVersionString</key>
 	<string>0.1.0</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>202607230012</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>14.0</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 William Nitsch — MIT License</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
 	<key>SUFeedURL</key>
 	<string>https://raw.githubusercontent.com/nitschw/Panewright/main/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>wZcwTixX7FKBwPgRopA2Tt7xRPmdyrDrldYa1PwXzio=</string>
-	<key>SUEnableAutomaticChecks</key>
-	<true/>
 </dict>
 </plist>
