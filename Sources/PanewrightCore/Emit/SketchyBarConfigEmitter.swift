@@ -66,7 +66,11 @@ public enum SketchyBarConfigEmitter {
             SCRIPTS_DIR="$HOME/.config/panewright/scripts"
             BAR=/opt/homebrew/bin/sketchybar
 
-            $BAR --bar position=top sticky=on \(palette.barProps)
+            # Bottom bar: the top edge is the native menu bar's auto-reveal
+            # zone, which fought our drag-to-park and workspace clicks. The
+            # bottom edge triggers nothing, needs no menu-bar hiding, and is
+            # consistent across a notched primary and flat externals.
+            $BAR --bar position=bottom sticky=on \(palette.barProps)
             $BAR --default icon.font="\(palette.font)" label.font="\(palette.font)" \\
                 icon.color=\(palette.text) label.color=\(palette.text) \\
                 padding_left=4 padding_right=4

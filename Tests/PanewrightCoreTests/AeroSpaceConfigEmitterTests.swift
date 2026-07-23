@@ -14,16 +14,16 @@ import Testing
         #expect(toml.contains("outer.left = 6"))
     }
 
-    @Test func statusBarBecomesTheTopEdge() {
+    @Test func statusBarReservesTheBottomEdge() {
         var config = PanewrightConfig.default
         config.gaps = .init(inner: 8, outer: 8)
-        #expect(AeroSpaceConfigEmitter.emit(config).contains("outer.top = 48"))
+        #expect(AeroSpaceConfigEmitter.emit(config).contains("outer.bottom = 48"))
         config.statusBar.theme = .technical
-        #expect(AeroSpaceConfigEmitter.emit(config).contains("outer.top = 40"))
+        #expect(AeroSpaceConfigEmitter.emit(config).contains("outer.bottom = 40"))
         config.statusBar.enabled = false
-        #expect(AeroSpaceConfigEmitter.emit(config).contains("outer.top = 8"))
-        // Only the top edge reserves bar space.
         #expect(AeroSpaceConfigEmitter.emit(config).contains("outer.bottom = 8"))
+        // Only the bottom edge reserves bar space.
+        #expect(AeroSpaceConfigEmitter.emit(config).contains("outer.top = 8"))
     }
 
     @Test func hyperBaseComboExcludesShift() {

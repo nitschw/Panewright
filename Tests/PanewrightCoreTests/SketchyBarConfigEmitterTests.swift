@@ -5,7 +5,7 @@ import Testing
 @Suite struct SketchyBarConfigEmitterTests {
     @Test func nativeThemeEmitsBarAndWorkspaceItems() throws {
         let files = try SketchyBarConfigEmitter.emit(.default)
-        #expect(files.sketchybarrc.contains("position=top"))
+        #expect(files.sketchybarrc.contains("position=bottom"))
         #expect(files.sketchybarrc.contains("corner_radius=9"))
         #expect(files.sketchybarrc.contains("SF Pro"))
         #expect(files.sketchybarrc.contains("for sid in 1 2 3 4 5 6 7 8 9 0"))

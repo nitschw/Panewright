@@ -148,6 +148,7 @@ public struct Orchestrator: Sendable {
         if let bar = SketchyBarSupervisor.locate(), bar.isRunning() {
             bar.stop()
         }
+        setSystemMenuBarHidden(false)
         if let cli = AeroSpaceCLI.locate() {
             try? cli.run(["enable", "off"])
             Thread.sleep(forTimeInterval: 0.5)
@@ -333,9 +334,41 @@ public struct Orchestrator: Sendable {
             } else {
                 try bar.launch()
             }
-        } else if bar.isRunning() {
-            bar.stop()
+            // Bottom bar coexists with the native menu bar — no hiding.
+            setSystemMenuBarHidden(false)
+        } else {
+            if bar.isRunning() {
+                bar.stop()
+            }
+            setSystemMenuBarHidden(false)
         }
+    }
+
+    /// Toggle "Automatically hide and show the menu bar". Kicking Dock and
+    /// SystemUIServer makes it take effect without a logout.
+    func setSystemMenuBarHidden(_ hidden: Bool) {
+        let current = runToolCapture(
+            "/usr/bin/defaults", ["read", "NSGlobalDomain", "_HIHideMenuBar"])
+        guard (current == "1") != hidden else { return }
+        try? runTool(
+            "/usr/bin/defaults",
+            ["write", "NSGlobalDomain", "_HIHideMenuBar", "-bool", hidden ? "true" : "false"])
+        try? runTool("/usr/bin/killall", ["SystemUIServer"])
+        try? runTool("/usr/bin/killall", ["Dock"])
+    }
+
+    private func runToolCapture(_ path: String, _ arguments: [String]) -> String? {
+        let process = Process()
+        process.executableURL = URL(filePath: path)
+        process.arguments = arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        guard (try? process.run()) != nil else { return nil }
+        process.waitUntilExit()
+        return String(
+            decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     func writeSketchyBarConfig(_ config: PanewrightConfig) throws {

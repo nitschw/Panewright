@@ -54,15 +54,15 @@ public enum AeroSpaceConfigEmitter {
         lines.append("[gaps]")
         lines.append("inner.horizontal = \(config.gaps.inner)")
         lines.append("inner.vertical = \(config.gaps.inner)")
-        // The status bar, when present, becomes the top edge of the desktop:
-        // tiles reserve its strip; without it the normal edge applies.
-        let topGap =
+        // The status bar sits at the bottom, so tiles reserve that strip;
+        // without it the normal edge applies.
+        let bottomGap =
             config.gaps.outer
             + (config.statusBar.enabled
                 ? SketchyBarConfigEmitter.reservedTopGap(for: config.statusBar.theme) : 0)
         lines.append("outer.left = \(config.gaps.outer)")
-        lines.append("outer.bottom = \(config.gaps.outer)")
-        lines.append("outer.top = \(topGap)")
+        lines.append("outer.top = \(config.gaps.outer)")
+        lines.append("outer.bottom = \(bottomGap)")
         lines.append("outer.right = \(config.gaps.outer)")
         lines.append("")
         let barEnabled = config.statusBar.enabled
