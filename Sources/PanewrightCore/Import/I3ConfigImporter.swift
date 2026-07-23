@@ -147,6 +147,12 @@ public enum I3ConfigImporter {
                 }
             case "exec", "exec_always":
                 flag("startup command not imported — use macOS login items")
+            case "focus_follows_mouse":
+                switch words.count > 1 ? words[1] : "" {
+                case "yes": config.focusFollowsMouse = true
+                case "no": config.focusFollowsMouse = false
+                default: flag("unsupported focus_follows_mouse value")
+                }
             default:
                 flag("directive '\(directive)' has no Panewright equivalent")
             }

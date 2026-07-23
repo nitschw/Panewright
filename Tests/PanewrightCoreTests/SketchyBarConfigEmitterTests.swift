@@ -11,6 +11,8 @@ import Testing
         #expect(files.sketchybarrc.contains("for sid in 1 2 3 4 5 6 7 8 9 0"))
         #expect(files.sketchybarrc.contains("aerospace workspace $sid"))
         #expect(files.sketchybarrc.contains("--add event panewright_mode"))
+        // Initial highlight retries until AeroSpace answers (any launch order).
+        #expect(files.sketchybarrc.contains("for attempt in $(seq 1 20)"))
     }
 
     @Test func technicalThemeIsSquareAndMonospace() throws {

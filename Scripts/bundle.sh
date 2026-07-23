@@ -21,6 +21,7 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp Support/Info.plist "$APP/Contents/Info.plist"
 cp ".build/$CONFIGURATION/panewright" "$APP/Contents/MacOS/panewright"
 cp Assets/logo.png "$APP/Contents/Resources/logo.png"
+cp Assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
     | awk -F'"' '/Apple Development/ {print $2; exit}')"

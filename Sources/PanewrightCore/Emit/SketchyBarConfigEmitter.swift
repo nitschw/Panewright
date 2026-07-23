@@ -88,8 +88,14 @@ public enum SketchyBarConfigEmitter {
               --subscribe front_app front_app_switched
 
             $BAR --update
-            $BAR --trigger aerospace_workspace_change \\
-              FOCUSED_WORKSPACE="$(/opt/homebrew/bin/aerospace list-workspaces --focused)"
+            # AeroSpace may still be starting (any launch order must work) —
+            # retry before painting the initial highlight.
+            for attempt in $(seq 1 20); do
+              FOCUSED="$(/opt/homebrew/bin/aerospace list-workspaces --focused 2>/dev/null)"
+              [ -n "$FOCUSED" ] && break
+              sleep 0.5
+            done
+            $BAR --trigger aerospace_workspace_change FOCUSED_WORKSPACE="$FOCUSED"
             """
 
         let workspacesPlugin = """

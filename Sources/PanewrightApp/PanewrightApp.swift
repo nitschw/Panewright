@@ -343,6 +343,11 @@ final class AppModel {
                 try orchestrator.restartAeroSpace()
                 lastMessage = "AeroSpace restarted"
             }
+            // Self-heal the layouts a restart scrambles.
+            let orchestrator = orchestrator
+            Task.detached(priority: .utility) {
+                orchestrator.healLayoutsWhenReady()
+            }
         } catch {
             report(error: "\(error)")
         }

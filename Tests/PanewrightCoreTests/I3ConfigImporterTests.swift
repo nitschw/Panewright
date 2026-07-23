@@ -29,6 +29,7 @@ import Testing
         }
         gaps inner 10
         gaps outer 4
+        focus_follows_mouse yes
         client.focused #4c7899 #285577 #ffffff #2e9ef4 #285577
         for_window [class="Pavucontrol"] floating enable
         workspace 9 output HDMI-1
@@ -69,6 +70,8 @@ import Testing
         #expect(result.config.focusBorder.activeColor == "#4c7899")
         #expect(result.config.workspaceMonitors[9] == "HDMI-1")
         #expect(result.config.modifier == .hyper)
+        #expect(result.config.focusFollowsMouse == true)
+        #expect(!result.issues.contains { $0.text.contains("focus_follows_mouse") })
     }
 
     @Test func flagsEverythingUntranslatableWithLineNumbers() {

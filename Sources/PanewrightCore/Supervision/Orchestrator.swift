@@ -295,6 +295,25 @@ public struct Orchestrator: Sendable {
         try launchAeroSpace()
     }
 
+    /// Restarts scramble workspace tree roots (the accordion surprise).
+    /// Once the server answers, force every root back to horizontal tiles.
+    /// Blocking — callers run it off the main thread.
+    public func healLayoutsWhenReady() {
+        guard let cli = AeroSpaceCLI.locate() else { return }
+        for _ in 0..<16 {
+            Thread.sleep(forTimeInterval: 0.5)
+            guard let output = try? cli.run(["list-workspaces", "--all"]) else {
+                continue
+            }
+            for workspace in output.split(separator: "\n") {
+                try? cli.run([
+                    "layout", "--workspace", String(workspace), "--root", "h_tiles",
+                ])
+            }
+            return
+        }
+    }
+
     func isAeroSpaceProcessRunning() -> Bool {
         (try? runTool("/usr/bin/pgrep", ["-x", "AeroSpace"])) != nil
     }
