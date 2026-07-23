@@ -25,6 +25,21 @@ import Testing
         #expect(base != shifted)
     }
 
+    @Test func emitsConfigVersion2WithPersistentWorkspaces() {
+        let toml = AeroSpaceConfigEmitter.emit(.default)
+        #expect(toml.contains("config-version = 2"))
+        #expect(
+            toml.contains(
+                "persistent-workspaces = ['1', '2', '3', '4', '5', '6', '7', '8', '9']"))
+    }
+
+    @Test func omitsPersistentWorkspacesWhenNoWorkspaceBindings() {
+        var config = PanewrightConfig.default
+        config.bindings = [.init(key: "h", action: .focus(.left))]
+        let toml = AeroSpaceConfigEmitter.emit(config)
+        #expect(!toml.contains("persistent-workspaces"))
+    }
+
     @Test func emitsI3StyleDefaultBindings() {
         let toml = AeroSpaceConfigEmitter.emit(.default)
         #expect(toml.contains("cmd-alt-ctrl-1 = 'workspace 1'"))

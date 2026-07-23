@@ -7,6 +7,7 @@ let package = Package(
     products: [
         .library(name: "PanewrightCore", targets: ["PanewrightCore"]),
         .executable(name: "panewright", targets: ["PanewrightApp"]),
+        .executable(name: "panewright-dev", targets: ["PanewrightDev"]),
     ],
     dependencies: [
         .package(url: "https://github.com/LebJe/TOMLKit.git", from: "0.5.0"),
@@ -18,6 +19,10 @@ let package = Package(
         ),
         .executableTarget(
             name: "PanewrightApp",
+            dependencies: ["PanewrightCore"]
+        ),
+        .executableTarget(
+            name: "PanewrightDev",
             dependencies: ["PanewrightCore"]
         ),
         .testTarget(
