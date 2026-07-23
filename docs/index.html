@@ -262,8 +262,8 @@
     <div class="row">
       <div>
         <h3>Every drop means something</h3>
-        <p>Drop on a window's <strong>center</strong> to swap places. Drop on an <strong>edge</strong> to split its cell and take that half. Drop on a <strong>workspace number</strong> in the bar to send the window there. Drop on nothing to cancel — the layout never even flinched.</p>
-        <p>Modeled on i3 4.21's tiling drag, built on macOS event taps. It's the interaction every Mac tiler has been missing, and it's the reason this app exists.</p>
+        <p>Drop on a window's <strong>center</strong> to swap. Drop on an <strong>edge</strong> to split its cell. Drop on a <strong>bar number</strong> to send it to that workspace. Drop on nothing to cancel.</p>
+        <p>It's the interaction Mac tiling has been missing.</p>
       </div>
       <div class="panel">
         <div class="bar-demo">
@@ -285,7 +285,7 @@
   <section>
     <div class="kicker">Muscle memory, intact</div>
     <h2>It types like i3</h2>
-    <p class="sub">Ten instant workspaces, vim-keys focus, modal resize and join modes, scratchpad, per-app rules. Pick your modifier — a Karabiner hyper key, Ctrl-Opt, or a tmux-style leader prefix.</p>
+    <p class="sub">Ten instant workspaces, vim-keys focus, modal modes, scratchpad, per-app rules. Pick your modifier: hyper key, Ctrl-Opt, or a leader prefix.</p>
     <div class="keyrow">
       <kbd>⌃⌥ 1–0</kbd><span>workspaces</span>
       <kbd>⌃⌥ ⇥</kbd><span>back &amp; forth</span>
@@ -297,9 +297,9 @@
       <kbd>⌃⌥ F</kbd><span>fullscreen</span>
     </div>
     <div class="pillars">
-      <div class="pillar"><span class="num">01</span><h3>Workspaces that don't animate</h3><p>Virtual workspaces, not macOS Spaces. Switching is a frame, not a Mission Control cruise. Pin them to monitors; throw windows across displays.</p></div>
-      <div class="pillar"><span class="num">02</span><h3>One config, live</h3><p>A single TOML file with i3's vocabulary. Save it and watch the desktop follow — or drag sliders in the visual editor and watch your windows reshuffle in real time.</p></div>
-      <div class="pillar"><span class="num">03</span><h3>Profiles</h3><p>Snapshot your whole setup under a name. Work, docked, demo-rice — switch from the menu bar, validated before it ever touches your live config.</p></div>
+      <div class="pillar"><span class="num">01</span><h3>Workspaces that don't animate</h3><p>Virtual workspaces, not macOS Spaces — switching is a frame, not a cruise.</p></div>
+      <div class="pillar"><span class="num">02</span><h3>One config, live</h3><p>A single TOML file. Save it — or drag sliders in the editor — and the desktop follows.</p></div>
+      <div class="pillar"><span class="num">03</span><h3>Profiles</h3><p>Snapshot named setups. Switch from the menu.</p></div>
     </div>
   </section>
 
@@ -362,7 +362,7 @@
         <ul>
           <li><b>Setup checklist</b> installs the stack — no terminal needed</li>
           <li><b>Auto-updates</b> via Sparkle, cryptographically signed</li>
-          <li><b>Crash reports as GitHub issues</b> — consent-first, you see every byte</li>
+          <li><b>Crash reports as GitHub issues</b> — consent-first</li>
           <li>Errors surface as notifications, never silence</li>
           <li><b>Quit restores stock macOS</b> — every window comes back</li>
         </ul>
@@ -390,8 +390,8 @@
       </div>
       <div>
         <h3>Honest translation</h3>
-        <p>Mod4 becomes your hyper key. <code style="font-family:var(--mono);font-size:13px">kill</code>, <code style="font-family:var(--mono);font-size:13px">scratchpad</code>, modes, gaps, and your <code style="font-family:var(--mono);font-size:13px">client.focused</code> colors all come across. X11-isms get flagged, never dropped silently.</p>
-        <p>The result lands as a profile you can inspect before activating. Worst case, you're one menu click from your old setup.</p>
+        <p>Bindings, modes, gaps, scratchpad, colors — all come across. X11-isms get flagged, never dropped silently.</p>
+        <p>The result lands as a profile you inspect before activating.</p>
       </div>
     </div>
   </section>
@@ -402,19 +402,19 @@
     <div class="qa">
       <div class="qa-item">
         <h4>Does it disable SIP?</h4>
-        <p>Never. Panewright orchestrates <a href="https://github.com/nikitabobko/AeroSpace">AeroSpace</a>, <a href="https://github.com/FelixKratz/JankyBorders">JankyBorders</a>, and <a href="https://github.com/FelixKratz/SketchyBar">SketchyBar</a> over public APIs — the same primitives, one brain, one config instead of three.</p>
+        <p>Never. Panewright orchestrates <a href="https://github.com/nikitabobko/AeroSpace">AeroSpace</a>, <a href="https://github.com/FelixKratz/JankyBorders">JankyBorders</a>, and <a href="https://github.com/FelixKratz/SketchyBar">SketchyBar</a> over public APIs — one brain, one config.</p>
       </div>
       <div class="qa-item">
         <h4>Why isn't it on the App Store?</h4>
-        <p>The sandbox forbids the Accessibility API that all window management requires. Every serious tiler ships direct; so do we — signed, and notarized as the project matures.</p>
+        <p>The sandbox forbids the Accessibility API that window management requires. Every serious tiler ships direct.</p>
       </div>
       <div class="qa-item">
         <h4>What happens when I quit?</h4>
-        <p>Everything comes back. Borders off, bar gone, every hidden window returned on-screen, macOS exactly as Apple shipped it. Panewright is the single on/off switch for the whole experience.</p>
+        <p>Everything comes back — borders off, bar gone, every hidden window returned. macOS exactly as Apple shipped it.</p>
       </div>
       <div class="qa-item">
         <h4>What does it cost?</h4>
-        <p>Nothing — MIT, source on GitHub, forever. Patrons get early-access builds and a louder vote on the roadmap. That's the whole business model.</p>
+        <p>Nothing. MIT, source on GitHub, forever. It does cost evenings and weekends to build — if Panewright earns a spot in your day, consider <a href="https://patreon.com/panewright">buying me a coffee</a>.</p>
       </div>
     </div>
   </section>

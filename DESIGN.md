@@ -37,15 +37,15 @@ Instead:
 - Free, open-source core on GitHub (MIT — see resolved questions).
 - Notarized direct-download builds (Developer ID signing + notarization,
   Sparkle for auto-updates).
-- Monetization (settled 2026-07-23): **fully open source, Patreon as tip
-  jar + early access.** Everything — including the visual editor — ships
-  MIT on the public repo. Patrons get *time*, not gated features: an
-  early-access release channel (patron builds get new features first,
-  main gets them shortly after — the Obsidian-Catalyst/insider-build
-  model), priority on issues/feature votes, and credits. Deliberately
-  low-commitment: no license keys, no support contracts. The open-core
-  split (closed Pro layer) was considered and rejected in favor of
-  community trust with the i3 audience.
+- Monetization (settled 2026-07-23, refined same day): **fully open
+  source, Patreon as a pure tip jar.** Everything ships MIT on the public
+  repo; the Patreon pitch is simply "building this costs evenings and
+  weekends — buy me a coffee." No gated features, no promised perks, no
+  early-access obligations (the Sparkle second-channel infrastructure
+  exists if that ever changes). Zero commitments is the point: no license
+  keys, no support contracts, no delivery schedule owed to anyone. The
+  open-core split was considered and rejected in favor of community trust
+  with the i3 audience.
 
 ## Architecture decisions (settled)
 

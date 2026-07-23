@@ -95,6 +95,7 @@ the drag-to-tile spec, and the long-term path to a fully self-contained app.
 
 ## License
 
-[MIT](LICENSE) © 2026 William Nitsch. Fully open source — the
-[Patreon](https://patreon.com/panewright) is a tip jar with early-access
-builds, not a paywall.
+[MIT](LICENSE) © 2026 William Nitsch. Fully open source, no paywall, no
+gated features. Building this costs evenings and weekends — if Panewright
+earns a spot in your day, consider
+[buying me a coffee](https://patreon.com/panewright).
