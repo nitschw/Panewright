@@ -235,8 +235,15 @@ public struct Orchestrator: Sendable {
             PILLS="$HOME/.config/panewright/pills.tsv"
             touch "$PILLS"
             # AeroSpace doesn't expand \\t in format strings — it has a token.
-            LINE=$("$A" list-windows --focused \\
-              --format '%{window-id}%{tab}%{app-name}%{tab}%{window-title}')
+            # $1 = window id (from a bar drop); default is the focused window.
+            if [ -n "$1" ]; then
+              LINE=$("$A" list-windows --all \\
+                --format '%{window-id}%{tab}%{app-name}%{tab}%{window-title}' \\
+                | awk -F'\\t' -v id="$1" '$1 + 0 == id + 0')
+            else
+              LINE=$("$A" list-windows --focused \\
+                --format '%{window-id}%{tab}%{app-name}%{tab}%{window-title}')
+            fi
             ID=$(printf '%s' "$LINE" | cut -f1 | tr -d ' ')
             [ -z "$ID" ] && exit 0
             awk -F'\\t' -v id="$ID" '$1 == id { found = 1 } END { exit !found }' "$PILLS" \\

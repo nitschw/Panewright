@@ -36,11 +36,21 @@ final class DragTileController {
         case window(OnScreenWindow, DropZone)
         /// A workspace number item on the status bar.
         case workspace(Int)
+        /// Empty space on the bar — park the window as a pill.
+        case parkAsPill
     }
 
     private var destination: DropDestination?
     /// Screen rects of the bar's workspace numbers, fetched at drag start.
     private var workspaceZones: [(number: Int, frame: CGRect)] = []
+    /// The bar's vertical band, inferred from its items — dropping in it
+    /// (away from a workspace number) parks the window as a pill.
+    private var barBand: CGRect?
+    private(set) var dragToBarEnabled = true
+
+    func configure(dragToBar: Bool) {
+        dragToBarEnabled = dragToBar
+    }
     var onStatus: (@Sendable (String) -> Void)?
 
     // Focus-follows-mouse (opt-in via config).
@@ -238,14 +248,26 @@ final class DragTileController {
         // Bar geometry can shift with workspaces/theme; refresh per drag.
         // (MainActor closure built here so `self` never crosses the
         // detachment boundary — Swift 6.0 compilers insist.)
-        let assign: @MainActor @Sendable ([(number: Int, frame: CGRect)]) -> Void =
-            { [weak self] zones in
+        let assign: @MainActor @Sendable ([(number: Int, frame: CGRect)], CGRect?) -> Void =
+            { [weak self] zones, band in
                 self?.workspaceZones = zones
+                self?.barBand = band
             }
         Task.detached {
             let zones = Self.queryWorkspaceZones()
-            await assign(zones)
+            await assign(zones, Self.barBand(from: zones))
         }
+    }
+
+    /// Full-width strip at the bar's height, padded a little so near-misses
+    /// still count as "on the bar".
+    nonisolated static func barBand(from zones: [(number: Int, frame: CGRect)]) -> CGRect? {
+        guard let first = zones.first else { return nil }
+        let top = zones.map(\.frame.minY).min() ?? first.frame.minY
+        let bottom = zones.map(\.frame.maxY).max() ?? first.frame.maxY
+        let width = NSScreen.screens.map(\.frame.maxX).max() ?? first.frame.maxX
+        return CGRect(
+            x: 0, y: top - 6, width: width, height: (bottom - top) + 12)
     }
 
     private func refreshManagedWindowsIfStale(now: CFTimeInterval) {
@@ -311,6 +333,15 @@ final class DragTileController {
             targetOverlay.show(cgFrame: zone.frame.insetBy(dx: -4, dy: -4))
             return
         }
+        // Anywhere else on the bar parks the window as a pill.
+        if dragToBarEnabled, let band = barBand, band.contains(point) {
+            if case .parkAsPill = destination {} else {
+                DragLog.log("target: bar (park as pill)")
+            }
+            destination = .parkAsPill
+            targetOverlay.show(cgFrame: band)
+            return
+        }
         guard
             let target = WindowSnapshot.capture().first(where: {
                 targets.contains($0.id) && $0.frame.contains(point)
@@ -351,6 +382,19 @@ final class DragTileController {
                     DragLog.log("drop result: workspace move failed: \(error)")
                     onStatus?("drag-to-tile: move to workspace \(number) failed")
                 }
+            }
+        case .parkAsPill:
+            DragLog.log("drop: window=\(windowID) → parked as pill")
+            Task.detached(priority: .userInitiated) {
+                let process = Process()
+                process.executableURL = URL(filePath: "/bin/bash")
+                process.arguments = [
+                    NSHomeDirectory() + "/.config/panewright/scripts/pill-window.sh",
+                    "\(windowID)",
+                ]
+                try? process.run()
+                process.waitUntilExit()
+                onStatus?("parked in the bar")
             }
         case .window, .none:
             var executorTarget: (CGWindowID, CGRect, DropZone)?

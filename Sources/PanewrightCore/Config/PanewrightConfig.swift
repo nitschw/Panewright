@@ -161,7 +161,20 @@ public struct PanewrightConfig: Equatable, Sendable {
     public var modifier: Modifier
     /// The prefix chord when `modifier == .leader`, in AeroSpace key syntax.
     public var leaderKey: String
+    /// Parking windows into bar pills.
+    public struct Pills: Equatable, Sendable {
+        public var enabled: Bool
+        /// Drop a dragged window on an empty part of the bar to park it.
+        public var dragToBar: Bool
+
+        public init(enabled: Bool = true, dragToBar: Bool = true) {
+            self.enabled = enabled
+            self.dragToBar = dragToBar
+        }
+    }
+
     public var todo: TodoList
+    public var pills: Pills
     public var integrations: IntegrationsConfig
     /// i3's `focus_follows_mouse` — hover moves focus, no click. Implemented
     /// by Panewright's event tap (AeroSpace has no native support).
@@ -192,6 +205,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         // modifiers alone. Space keeps it one thumb press away.
         leaderKey: String = "ctrl-cmd-space",
         todo: TodoList = TodoList(),
+        pills: Pills = Pills(),
         integrations: IntegrationsConfig = IntegrationsConfig(),
         focusFollowsMouse: Bool = false,
         statusBar: StatusBar = StatusBar(),
@@ -207,6 +221,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         self.modifier = modifier
         self.leaderKey = leaderKey
         self.todo = todo
+        self.pills = pills
         self.integrations = integrations
         self.focusFollowsMouse = focusFollowsMouse
         self.statusBar = statusBar

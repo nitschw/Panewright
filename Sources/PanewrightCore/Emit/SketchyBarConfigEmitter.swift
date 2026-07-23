@@ -77,10 +77,12 @@ public enum SketchyBarConfigEmitter {
             $BAR --add event panewright_integrations
             $BAR --add event panewright_pills
 
+            \(config.pills.enabled ? """
             $BAR --add item pills left \\
               --set pills update_freq=90 drawing=off \\
                 script="$PLUGINS/panewright_pills.sh" \\
               --subscribe pills panewright_pills
+            """ : "")
 
             for sid in \(workspaceList); do
               $BAR --add item space.$sid left \\

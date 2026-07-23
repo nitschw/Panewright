@@ -73,6 +73,28 @@ import Testing
     }
 }
 
+@Suite struct PillsConfigTests {
+    @Test func parsesAndRoundTripsPillSettings() throws {
+        let config = try ConfigParser.parse(
+            toml: """
+                [pills]
+                enabled = true
+                drag-to-bar = false
+                """)
+        #expect(config.pills.enabled)
+        #expect(config.pills.dragToBar == false)
+        let toml = PanewrightConfigSerializer.emit(config)
+        #expect(try ConfigParser.parse(toml: toml) == config)
+    }
+
+    @Test func barItemDisappearsWhenPillsAreOff() throws {
+        var config = PanewrightConfig.default
+        config.pills.enabled = false
+        let files = try SketchyBarConfigEmitter.emit(config)
+        #expect(!files.sketchybarrc.contains("--add item pills"))
+    }
+}
+
 @Suite struct ConfluenceFavoritesTests {
     @Test func favoritesRoundTripThroughDisk() throws {
         let url = FileManager.default.temporaryDirectory

@@ -119,6 +119,10 @@ public enum ConfigParser {
         if let todo = raw.todo {
             config.todo.enabled = todo.enabled ?? config.todo.enabled
         }
+        if let pills = raw.pills {
+            config.pills.enabled = pills.enabled ?? config.pills.enabled
+            config.pills.dragToBar = pills.dragToBar ?? config.pills.dragToBar
+        }
         if let integrations = raw.integrations {
             func service(_ raw: RawConfig.RawService?) -> IntegrationsConfig.Service {
                 IntegrationsConfig.Service(
@@ -242,9 +246,10 @@ private struct RawConfig: Codable {
     var hooks: RawHooks?
     var todo: RawTodo?
     var integrations: RawIntegrations?
+    var pills: RawPills?
 
     enum CodingKeys: String, CodingKey {
-        case modifier, gaps, border, bar, binding, mode, hooks, todo, integrations
+        case modifier, gaps, border, bar, binding, mode, hooks, todo, integrations, pills
         case leaderKey = "leader-key"
         case focusFollowsMouse = "focus-follows-mouse"
         case floatingApps = "floating-apps"
@@ -254,6 +259,16 @@ private struct RawConfig: Codable {
 
     struct RawTodo: Codable {
         var enabled: Bool?
+    }
+
+    struct RawPills: Codable {
+        var enabled: Bool?
+        var dragToBar: Bool?
+
+        enum CodingKeys: String, CodingKey {
+            case enabled
+            case dragToBar = "drag-to-bar"
+        }
     }
 
     struct RawService: Codable {

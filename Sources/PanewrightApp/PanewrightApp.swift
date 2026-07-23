@@ -274,6 +274,8 @@ final class AppModel {
                 self.profiles = profiles
                 self.dragController?.configure(
                     focusFollowsMouse: config?.focusFollowsMouse ?? false)
+                self.dragController?.configure(
+                    dragToBar: config?.pills.dragToBar ?? true)
                 self.integrations.configure(config?.integrations ?? IntegrationsConfig())
                 self.confluenceEnabled = config?.integrations.confluence.enabled ?? false
                 if self.isBundled {
@@ -464,8 +466,9 @@ final class AppModel {
     func startDragToTileIfPermitted() {
         guard DragTileController.hasPermission else { return }
         let controller = dragController ?? DragTileController()
-        controller.configure(
-            focusFollowsMouse: (try? orchestrator.loadConfig())?.focusFollowsMouse ?? false)
+        let config = try? orchestrator.loadConfig()
+        controller.configure(focusFollowsMouse: config?.focusFollowsMouse ?? false)
+        controller.configure(dragToBar: config?.pills.dragToBar ?? true)
         controller.onStatus = { [weak self] message in
             Task { @MainActor in
                 self?.reportDropResult(message)

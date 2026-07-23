@@ -17,6 +17,8 @@ struct EditorView: View {
                     Divider()
                     barSection
                     Divider()
+                    pillsSection
+                    Divider()
                     floatingAppsSection
                     Divider()
                     integrationsSection
@@ -76,6 +78,23 @@ struct EditorView: View {
                 intSlider("Width", value: bind(\.focusBorder.width), range: 1...12)
                 colorRow("Active", hex: bind(\.focusBorder.activeColor))
                 colorRow("Inactive", hex: bind(\.focusBorder.inactiveColor))
+            }
+        }
+    }
+
+    private var pillsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(isOn: bind(\.pills.enabled)) {
+                Text("Window Pills").font(.headline)
+            }
+            if model.config.pills.enabled {
+                Toggle("Drag a window onto the bar to park it", isOn: bind(\.pills.dragToBar))
+                Text(
+                    "$mod+P parks the focused window. Click its pill to peek, "
+                        + "right-click to return it to tiling."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
         }
     }
