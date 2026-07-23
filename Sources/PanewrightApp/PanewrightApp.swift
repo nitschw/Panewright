@@ -621,7 +621,6 @@ struct PanewrightMenu: View {
         Button("Apply Config Now") {
             model.apply()
         }
-        aeroSpaceButton
         if model.bordersInfo == "not installed" {
             Text("Borders: not installed")
         } else {
@@ -681,19 +680,4 @@ struct PanewrightMenu: View {
         "AeroSpace: \(model.status.description)"
     }
 
-    @ViewBuilder
-    private var aeroSpaceButton: some View {
-        switch model.status {
-        case .notRunning:
-            Button("Launch AeroSpace") {
-                model.launchOrRestartAeroSpace()
-            }
-        case .unresponsive, .running:
-            Button("Restart AeroSpace") {
-                model.launchOrRestartAeroSpace()
-            }
-        case .notInstalled:
-            EmptyView()
-        }
-    }
 }
