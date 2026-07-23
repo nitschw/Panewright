@@ -99,6 +99,11 @@ final class AppModel {
         if !DragTileController.hasPermission {
             DragTileController.requestPermission()
         }
+        // Offer to report last session's crash — after launch settles.
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            CrashReporter.checkAndOffer()
+        }
     }
 
     var launchAtLogin = false
