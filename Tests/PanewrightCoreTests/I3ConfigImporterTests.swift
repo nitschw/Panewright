@@ -51,6 +51,7 @@ import Testing
         #expect(bindings.contains(.init(key: "shift-space", action: .toggleFloating)))
         #expect(bindings.contains(.init(key: "w", action: .layoutAccordion)))
         #expect(bindings.contains(.init(key: "r", action: .enterMode("resize"))))
+        #expect(bindings.contains(.init(key: "minus", action: .scratchpadShow)))
     }
 
     @Test func translatesModesWithDefaultMappedToMain() {
@@ -80,7 +81,7 @@ import Testing
         #expect(reasons.contains("font"))
         #expect(reasons.contains("floating_modifier"))
         #expect(reasons.contains("join mode"))  // split v
-        #expect(reasons.contains("scratchpad"))
+        #expect(!reasons.contains("scratchpad"))  // now supported
         #expect(reasons.contains("dmenu_run"))
         #expect(reasons.contains("i3bar"))
         #expect(reasons.contains("bundle ID"))  // for_window floating

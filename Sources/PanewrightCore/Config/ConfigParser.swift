@@ -113,6 +113,9 @@ public enum ConfigParser {
             }
             config.workspaceMonitors = monitors
         }
+        if let appWorkspaces = raw.workspaceApps {
+            config.appWorkspaces = appWorkspaces
+        }
         return config
     }
 
@@ -172,6 +175,12 @@ public enum ConfigParser {
             let delta = Int(words[2]) {
             return .resize(dimension, delta)
         }
+        if words == ["scratchpad", "show"] {
+            return .scratchpadShow
+        }
+        if words == ["move", "scratchpad"] {
+            return .scratchpadMove
+        }
         if words.count == 2, words[0] == "join",
             let direction = PanewrightConfig.Direction(rawValue: words[1]) {
             return .joinWith(direction)
@@ -200,6 +209,7 @@ private struct RawConfig: Codable {
     var focusFollowsMouse: Bool?
     var floatingApps: [String]?
     var workspaceMonitors: [String: String]?
+    var workspaceApps: [String: Int]?
 
     enum CodingKeys: String, CodingKey {
         case modifier, gaps, border, bar, binding, mode
@@ -207,6 +217,7 @@ private struct RawConfig: Codable {
         case focusFollowsMouse = "focus-follows-mouse"
         case floatingApps = "floating-apps"
         case workspaceMonitors = "workspace-monitors"
+        case workspaceApps = "workspace-apps"
     }
 
     struct RawMode: Codable {

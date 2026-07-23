@@ -39,6 +39,13 @@ public enum AeroSpaceConfigEmitter {
             lines.append("run = 'layout floating'")
             lines.append("")
         }
+        // i3's assign: apps that always open on a given workspace.
+        for (appId, workspace) in config.appWorkspaces.sorted(by: { $0.key < $1.key }) {
+            lines.append("[[on-window-detected]]")
+            lines.append("if.app-id = '\(appId)'")
+            lines.append("run = 'move-node-to-workspace \(workspace)'")
+            lines.append("")
+        }
         lines.append("[gaps]")
         lines.append("inner.horizontal = \(config.gaps.inner)")
         lines.append("inner.vertical = \(config.gaps.inner)")
@@ -144,12 +151,26 @@ public enum AeroSpaceConfigEmitter {
     ) -> String {
         var commands: [String] = []
         for action in binding.actions {
-            commands.append("'\(command(for: action))'")
+            for command in Self.commands(for: action) {
+                commands.append("'\(command)'")
+            }
             if statusBarEnabled, case .enterMode(let name) = action {
                 commands.append("'\(modeTrigger(name))'")
             }
         }
         return commands.count == 1 ? commands[0] : "[\(commands.joined(separator: ", "))]"
+    }
+
+    /// Most actions are one AeroSpace command; a few expand to several.
+    static func commands(for action: PanewrightConfig.Action) -> [String] {
+        switch action {
+        case .scratchpadMove:
+            // Stash: float (i3 scratchpad windows are floating) and park on
+            // the hidden "S" workspace (letters never appear in the bar).
+            ["layout floating", "move-node-to-workspace S"]
+        default:
+            [command(for: action)]
+        }
     }
 
     /// Leader-mode value: one-shot — every chain falls back to main unless it
@@ -191,6 +212,12 @@ public enum AeroSpaceConfigEmitter {
         case .enterMode(let name): "mode \(name)"
         case .exec(let command): "exec-and-forget \(command)"
         case .close: "close"
+        case .scratchpadShow:
+            "exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/scratchpad-show.sh\""
+        case .scratchpadMove:
+            // Multi-command action; see commands(for:). This single-command
+            // fallback covers direct callers.
+            "move-node-to-workspace S"
         }
     }
 }

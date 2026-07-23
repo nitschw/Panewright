@@ -58,6 +58,26 @@ import Testing
         #expect(config.statusBar.theme == .technical)
     }
 
+    @Test func parsesScratchpadAndWorkspaceApps() throws {
+        #expect(try ConfigParser.parseAction("scratchpad show") == .scratchpadShow)
+        #expect(try ConfigParser.parseAction("move scratchpad") == .scratchpadMove)
+        let config = try ConfigParser.parse(
+            toml: """
+                [workspace-apps]
+                "com.apple.Music" = 3
+                """)
+        #expect(config.appWorkspaces == ["com.apple.Music": 3])
+    }
+
+    @Test func serializerOmitsDefaultBindings() throws {
+        let toml = PanewrightConfigSerializer.emit(.default)
+        #expect(!toml.contains("[[binding]]"))
+        #expect(!toml.contains("[[mode]]"))
+        var custom = PanewrightConfig.default
+        custom.bindings.append(.init(key: "t", action: .workspace(4)))
+        #expect(PanewrightConfigSerializer.emit(custom).contains("[[binding]]"))
+    }
+
     @Test func rejectsUnknownTheme() {
         let toml = """
             [bar]

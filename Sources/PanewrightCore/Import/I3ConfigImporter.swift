@@ -137,7 +137,7 @@ public enum I3ConfigImporter {
                     flag("for_window rules aren't supported")
                 }
             case "assign":
-                flag("assign rules aren't supported — see workspace-monitors")
+                flag("assign rule: add the app's macOS bundle ID to [workspace-apps] instead of the X11 class")
             case "workspace":
                 if words.count >= 4, words[2] == "output", let n = Int(words[1]) {
                     config.workspaceMonitors[n] = words[3]
@@ -279,8 +279,8 @@ public enum I3ConfigImporter {
             if words.count == 2, let direction = PanewrightConfig.Direction(rawValue: words[1]) {
                 return (.move(direction), nil)
             }
-            if text.contains("scratchpad") {
-                return (nil, "scratchpad isn't supported yet")
+            if text == "move scratchpad" {
+                return (.scratchpadMove, nil)
             }
             return (nil, "unsupported move command '\(text)'")
         case "focus":
@@ -339,7 +339,9 @@ public enum I3ConfigImporter {
             }
             return (.exec(command), "verify '\(command)' exists on macOS")
         case "scratchpad":
-            return (nil, "scratchpad isn't supported yet")
+            return words.count == 2 && words[1] == "show"
+                ? (.scratchpadShow, nil)
+                : (nil, "unsupported scratchpad command '\(text)'")
         case "reload", "restart":
             return (nil, "'\(first)' isn't needed — Panewright applies config changes automatically")
         case "nop":

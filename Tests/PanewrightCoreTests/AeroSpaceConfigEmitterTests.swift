@@ -124,6 +124,22 @@ import Testing
         #expect(!toml.contains("cmd-alt-ctrl"))
     }
 
+    @Test func emitsScratchpadBindingsAndAssignRules() {
+        var config = PanewrightConfig.default
+        config.statusBar.enabled = false
+        config.appWorkspaces = ["com.apple.Music": 3]
+        let toml = AeroSpaceConfigEmitter.emit(config)
+        #expect(
+            toml.contains(
+                "cmd-alt-ctrl-minus = 'exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/scratchpad-show.sh\"'"
+            ))
+        #expect(
+            toml.contains(
+                "cmd-alt-ctrl-shift-minus = ['layout floating', 'move-node-to-workspace S']"))
+        #expect(toml.contains("if.app-id = 'com.apple.Music'"))
+        #expect(toml.contains("run = 'move-node-to-workspace 3'"))
+    }
+
     @Test func emitsFlattenBinding() {
         let toml = AeroSpaceConfigEmitter.emit(.default)
         #expect(toml.contains("cmd-alt-ctrl-shift-g = 'flatten-workspace-tree'"))

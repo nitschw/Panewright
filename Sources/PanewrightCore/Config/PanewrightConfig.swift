@@ -79,6 +79,10 @@ public struct PanewrightConfig: Equatable, Sendable {
         case exec(String)
         /// i3's `kill` — close the focused window.
         case close
+        /// i3's `scratchpad show` — summon the stashed window, floating.
+        case scratchpadShow
+        /// i3's `move scratchpad` — stash the focused window away.
+        case scratchpadMove
     }
 
     public enum MonitorTarget: String, Equatable, Sendable, CaseIterable {
@@ -149,6 +153,9 @@ public struct PanewrightConfig: Equatable, Sendable {
     /// Workspace number → AeroSpace monitor pattern (`main`, `secondary`, a
     /// 1-based index, or a display-name regex).
     public var workspaceMonitors: [Int: String]
+    /// Bundle ID → workspace number: apps that always open on a given
+    /// workspace (i3's `assign`).
+    public var appWorkspaces: [String: Int]
 
     public init(
         modifier: Modifier = .hyper,
@@ -160,7 +167,8 @@ public struct PanewrightConfig: Equatable, Sendable {
         bindings: [Binding] = [],
         modes: [Mode] = [],
         floatingApps: [String] = [],
-        workspaceMonitors: [Int: String] = [:]
+        workspaceMonitors: [Int: String] = [:],
+        appWorkspaces: [String: Int] = [:]
     ) {
         self.modifier = modifier
         self.leaderKey = leaderKey
@@ -172,6 +180,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         self.modes = modes
         self.floatingApps = floatingApps
         self.workspaceMonitors = workspaceMonitors
+        self.appWorkspaces = appWorkspaces
     }
 
     /// i3-familiar defaults: workspaces 1–9 on number keys, vim-style focus/move.
@@ -204,6 +213,9 @@ public struct PanewrightConfig: Equatable, Sendable {
         // $mod+shift+g: un-group everything on the workspace.
         bindings.append(Binding(key: "g", action: .enterMode("join")))
         bindings.append(Binding(key: "shift-g", action: .flattenWorkspace))
+        // i3's scratchpad: $mod+minus summons, $mod+shift+minus stashes.
+        bindings.append(Binding(key: "minus", action: .scratchpadShow))
+        bindings.append(Binding(key: "shift-minus", action: .scratchpadMove))
 
         // i3's default resize mode: h/l shrink and grow width, j/k grow and
         // shrink height; Enter or Escape returns to normal bindings.

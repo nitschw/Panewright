@@ -38,21 +38,34 @@ public enum PanewrightConfigSerializer {
                 lines.append("\(workspace) = \"\(monitor)\"")
             }
         }
-        for binding in config.bindings {
+        if !config.appWorkspaces.isEmpty {
             lines.append("")
-            lines.append("[[binding]]")
-            lines.append("key = \"\(binding.key)\"")
-            lines.append("action = \"\(chainString(binding.actions))\"")
+            lines.append("[workspace-apps]")
+            for (app, workspace) in config.appWorkspaces.sorted(by: { $0.key < $1.key }) {
+                lines.append("\"\(app)\" = \(workspace)")
+            }
         }
-        for mode in config.modes {
-            lines.append("")
-            lines.append("[[mode]]")
-            lines.append("name = \"\(mode.name)\"")
-            for binding in mode.bindings {
+        // Binding-merge: configs whose bindings/modes match the defaults stay
+        // implicit, so future default improvements reach them automatically.
+        if config.bindings != PanewrightConfig.default.bindings {
+            for binding in config.bindings {
                 lines.append("")
-                lines.append("[[mode.binding]]")
+                lines.append("[[binding]]")
                 lines.append("key = \"\(binding.key)\"")
                 lines.append("action = \"\(chainString(binding.actions))\"")
+            }
+        }
+        if config.modes != PanewrightConfig.default.modes {
+            for mode in config.modes {
+                lines.append("")
+                lines.append("[[mode]]")
+                lines.append("name = \"\(mode.name)\"")
+                for binding in mode.bindings {
+                    lines.append("")
+                    lines.append("[[mode.binding]]")
+                    lines.append("key = \"\(binding.key)\"")
+                    lines.append("action = \"\(chainString(binding.actions))\"")
+                }
             }
         }
         return lines.joined(separator: "\n") + "\n"
@@ -80,6 +93,8 @@ public enum PanewrightConfigSerializer {
         case .enterMode(let name): "mode \(name)"
         case .exec(let command): "exec \(command)"
         case .close: "close"
+        case .scratchpadShow: "scratchpad show"
+        case .scratchpadMove: "move scratchpad"
         }
     }
 }

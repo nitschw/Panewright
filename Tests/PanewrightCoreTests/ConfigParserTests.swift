@@ -129,9 +129,9 @@ import Testing
         let toml = """
             [[binding]]
             key = "x"
-            action = "scratchpad show"
+            action = "focus parent"
             """
-        #expect(throws: ConfigError.invalidAction("scratchpad show")) {
+        #expect(throws: ConfigError.invalidAction("focus parent")) {
             try ConfigParser.parse(toml: toml)
         }
     }
