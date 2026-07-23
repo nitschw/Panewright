@@ -84,6 +84,8 @@ public enum AeroSpaceConfigEmitter {
             case .hyper: "cmd-alt-ctrl"
             case .alt: "alt"
             case .cmd: "cmd"
+            case .ctrlAlt: "ctrl-alt"
+            case .ctrlCmd: "ctrl-cmd"
             case .leader: ""
             }
         if key.hasPrefix("shift-") {

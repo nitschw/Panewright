@@ -10,6 +10,10 @@ public struct PanewrightConfig: Equatable, Sendable {
         case hyper
         case alt
         case cmd
+        /// Ctrl+Opt — types no characters, near-zero macOS collisions.
+        case ctrlAlt = "ctrl-alt"
+        /// Ctrl+Cmd — beware macOS's own ctrl-cmd-space/f/q shortcuts.
+        case ctrlCmd = "ctrl-cmd"
         /// No chord at all: a tmux-style prefix (``PanewrightConfig/leaderKey``)
         /// enters a one-shot command mode where every binding is a bare key.
         case leader

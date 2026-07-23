@@ -1,5 +1,6 @@
 import AppKit
 import PanewrightCore
+import ServiceManagement
 import SwiftUI
 
 @main
@@ -57,8 +58,29 @@ final class AppModel {
         refreshStatus()
     }
 
+    var launchAtLogin = false
+    /// SMAppService needs a real bundle; the bare dev binary has no identifier.
+    let isBundled = Bundle.main.bundleIdentifier != nil
+
     func refreshStatus() {
         status = orchestrator.status()
+        if isBundled {
+            launchAtLogin = SMAppService.mainApp.status == .enabled
+        }
+    }
+
+    func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                try SMAppService.mainApp.register()
+            } else {
+                try SMAppService.mainApp.unregister()
+            }
+            lastMessage = enabled ? "Launch at login enabled" : "Launch at login disabled"
+        } catch {
+            lastMessage = "\(error)"
+        }
+        refreshStatus()
     }
 
     func apply() {
@@ -118,6 +140,14 @@ struct PanewrightMenu: View {
             model.apply()
         }
         aeroSpaceButton
+        if model.isBundled {
+            Toggle(
+                "Launch at Login",
+                isOn: Binding(
+                    get: { model.launchAtLogin },
+                    set: { model.setLaunchAtLogin($0) }
+                ))
+        }
         if !model.lastMessage.isEmpty {
             Divider()
             Text(model.lastMessage)

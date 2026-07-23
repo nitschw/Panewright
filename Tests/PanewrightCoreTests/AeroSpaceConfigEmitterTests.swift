@@ -84,6 +84,14 @@ import Testing
         #expect(toml.contains("6 = 'secondary'"))
     }
 
+    @Test func emitsCtrlAltAndCtrlCmdCombos() {
+        #expect(AeroSpaceConfigEmitter.keyCombo(modifier: .ctrlAlt, key: "1") == "ctrl-alt-1")
+        #expect(
+            AeroSpaceConfigEmitter.keyCombo(modifier: .ctrlAlt, key: "shift-h")
+                == "ctrl-alt-shift-h")
+        #expect(AeroSpaceConfigEmitter.keyCombo(modifier: .ctrlCmd, key: "f") == "ctrl-cmd-f")
+    }
+
     @Test func emitsLeaderStyleAsOneShotMode() {
         var config = PanewrightConfig.default
         config.modifier = .leader
