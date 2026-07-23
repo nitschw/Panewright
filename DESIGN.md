@@ -1,4 +1,4 @@
-# Panewright — Design Document
+        # Panewright — Design Document
 
 An i3-style tiling window manager experience for macOS that stays visually and
 behaviorally Mac-native.
@@ -23,18 +23,26 @@ AeroSpace's model can't be extended.
 
 ## Distribution & monetization
 
-**No App Store.** Confirmed technically impossible: the Mac App Store's
-mandatory App Sandbox is incompatible with the Accessibility API
-(`AXIsProcessTrusted` returns false under sandboxing regardless of
-entitlements; Apple's own developer forums confirm this, and it's why
-yabai/AeroSpace/Rectangle Pro all ship direct).
+**No App Store.** Re-verified 2026-07-22: new Mac App Store submissions must
+enable the App Sandbox, and under the sandbox the Accessibility API is dead —
+the permission prompt never fires, the app cannot be added manually in System
+Settings, and `AXIsProcessTrusted` always returns false. The window managers
+on the Store today (Magnet, BetterSnapTool, Divvy) were grandfathered in
+unsandboxed before the 2012 sandbox mandate; Moom 4 had to leave the Store
+over exactly this. New entrants ship direct — as do yabai, AeroSpace, and
+Rectangle Pro.
 
 Instead:
 
-- Free, open-source core on GitHub (MIT or GPL — undecided).
-- Notarized direct-download builds.
-- Patreon for monetization. Tiers TBD — early-build access, priority issues,
-  and/or a gated Pro layer of theme packs and the visual config editor.
+- Free, open-source core on GitHub (MIT — see resolved questions).
+- Notarized direct-download builds (Developer ID signing + notarization,
+  Sparkle for auto-updates).
+- Monetization: Patreon-first — tiers for early-build access, priority
+  issues, and/or gated Pro features (theme packs, visual config editor).
+  Deliberately low-commitment: patronage sets lighter support expectations
+  than selling licenses. Direct website sales (merchant-of-record such as
+  Paddle, the Rectangle Pro model) stay open as a later option if demand
+  warrants.
 
 ## Architecture decisions (settled)
 
@@ -51,7 +59,8 @@ Instead implement (or reuse AeroSpace's) virtual workspace model:
 
 `fn` is not reliably capturable as a global hotkey modifier via public APIs.
 Use the established "hyper key" pattern instead: remap Caps Lock to
-Cmd+Opt+Ctrl+Shift fired together, then bind all commands off that. This is
+Cmd+Opt+Ctrl fired together (leaving Shift out of the base combo so i3-style
+`$mod+Shift+…` chords stay distinguishable), then bind all commands off that. This is
 what AeroSpace/yabai/skhd users already do via Karabiner-Elements. Open
 question: does Panewright ship its own remap mechanism, or document/automate
 the Karabiner setup during onboarding?
@@ -104,12 +113,22 @@ What justifies charging money when the underlying stack is free:
 5. SwiftUI visual config editor — the real product differentiator.
 6. Patreon-gated theme packs / Pro features.
 
+## Resolved questions (2026-07-22)
+
+- **Orchestration model:** subprocess-orchestrate AeroSpace / JankyBorders /
+  SketchyBar via their CLIs and generated config files. Fork only if a
+  concrete feature can't be expressed through the CLI surface.
+- **License:** MIT for Panewright. JankyBorders and SketchyBar are GPL-3.0,
+  but running them as separate processes (never linking or vendoring their
+  source) keeps Panewright's own code MIT-clean, which the paid Pro layer
+  requires.
+- **Hyper key:** delegate to Karabiner-Elements for the MVP; automate its
+  setup during onboarding later. The remap emits Cmd+Opt+Ctrl without Shift
+  (see "Mod key" above).
+- **Minimum macOS:** 14 (Sonoma). AeroSpace itself requires 13+.
+
 ## Open questions
 
-- Vendor vs. fork vs. subprocess-orchestrate AeroSpace / JankyBorders /
-  SketchyBar.
-- License choice (MIT vs. GPL).
-- Ship our own Caps Lock → hyper-key remap, or delegate to Karabiner-Elements?
-- Minimum supported macOS version.
 - Onboarding flow for granting Accessibility permissions outside the App
   Store's trusted-install context.
+- Patreon tier structure (what goes in early-access vs. gated Pro).

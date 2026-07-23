@@ -1,0 +1,29 @@
+# Panewright example configuration.
+# i3 mental model, TOML syntax. Every key is optional — omitted keys use
+# i3-familiar defaults (workspaces 1-9, vim-style focus/move on hjkl).
+
+modifier = "hyper"  # Caps Lock via Karabiner-Elements; or "alt" / "cmd"
+
+[gaps]
+inner = 8
+outer = 8
+
+[border]
+width = 4
+active-color = "#0A84FF"
+
+[[binding]]
+key = "1"
+action = "workspace 1"
+
+[[binding]]
+key = "shift-1"
+action = "move to workspace 1"
+
+[[binding]]
+key = "h"
+action = "focus left"
+
+[[binding]]
+key = "shift-h"
+action = "move left"
