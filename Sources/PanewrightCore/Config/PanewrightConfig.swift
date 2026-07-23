@@ -6,10 +6,13 @@
 public struct PanewrightConfig: Equatable, Sendable {
     /// The modifier every binding hangs off — i3's `$mod`.
     public enum Modifier: String, Equatable, Sendable, CaseIterable {
-        /// Caps Lock remapped to Cmd+Opt+Ctrl+Shift (via Karabiner-Elements).
+        /// Caps Lock remapped to Cmd+Opt+Ctrl (via Karabiner-Elements).
         case hyper
         case alt
         case cmd
+        /// No chord at all: a tmux-style prefix (``PanewrightConfig/leaderKey``)
+        /// enters a one-shot command mode where every binding is a bare key.
+        case leader
     }
 
     public struct Gaps: Equatable, Sendable {
@@ -101,6 +104,8 @@ public struct PanewrightConfig: Equatable, Sendable {
     }
 
     public var modifier: Modifier
+    /// The prefix chord when `modifier == .leader`, in AeroSpace key syntax.
+    public var leaderKey: String
     public var gaps: Gaps
     public var focusBorder: FocusBorder
     public var bindings: [Binding]
@@ -113,6 +118,7 @@ public struct PanewrightConfig: Equatable, Sendable {
 
     public init(
         modifier: Modifier = .hyper,
+        leaderKey: String = "cmd-semicolon",
         gaps: Gaps = Gaps(),
         focusBorder: FocusBorder = FocusBorder(),
         bindings: [Binding] = [],
@@ -121,6 +127,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         workspaceMonitors: [Int: String] = [:]
     ) {
         self.modifier = modifier
+        self.leaderKey = leaderKey
         self.gaps = gaps
         self.focusBorder = focusBorder
         self.bindings = bindings

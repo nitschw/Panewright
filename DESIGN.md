@@ -109,11 +109,28 @@ What justifies charging money when the underlying stack is free:
   hand-edited TOML/Lua spread across three separate tools.
 - The i3-config importer.
 - Theme packs.
-- Visual polish the underlying stack can't do alone — e.g. a translucent
-  accent-colored drop overlay while dragging a window that previews the
-  split it will land in. Panewright draws its own overlay windows, so this
-  needs no private APIs (unlike altering other apps' windows).
+- Visual polish the underlying stack can't do alone — headlined by
+  drag-to-tile (see below).
 - Ongoing support and updates via Patreon.
+
+## Drag-to-tile semantics (planned; the flagship interaction)
+
+Modeled on i3 4.21's tiling drag. While a tiled window is dragged over
+another window:
+
+- Drop on the target's **center** → swap the two windows.
+- Drop on an **edge zone** (left/right/top/bottom band) → split the target's
+  cell on that axis and stack the dragged window on that side, within the
+  cell the target occupies.
+- From the moment the pointer enters a zone, a translucent accent-colored
+  overlay previews the exact frame the dragged window will occupy on release.
+
+Implementation sketch: detect the drag via a CGEventTap / AX window-moved
+observers, hit-test the pointer against AeroSpace's window frames, draw the
+overlay (Panewright's own windows — no private APIs), and on drop realize
+the layout with window-id-addressed AeroSpace commands (`focus --window-id`,
+`join-with`, `move`). AeroSpace's native drag behavior is much cruder; this
+layer is pure Panewright and cannot be expressed in config.
 
 ## Build order
 

@@ -43,6 +43,9 @@ public enum ConfigParser {
             }
             config.modifier = parsed
         }
+        if let leaderKey = raw.leaderKey {
+            config.leaderKey = leaderKey
+        }
         if let gaps = raw.gaps {
             config.gaps.inner = gaps.inner ?? config.gaps.inner
             config.gaps.outer = gaps.outer ?? config.gaps.outer
@@ -151,11 +154,13 @@ private struct RawConfig: Codable {
     var gaps: RawGaps?
     var border: RawBorder?
     var binding: [RawBinding]?
+    var leaderKey: String?
     var floatingApps: [String]?
     var workspaceMonitors: [String: String]?
 
     enum CodingKeys: String, CodingKey {
         case modifier, gaps, border, binding
+        case leaderKey = "leader-key"
         case floatingApps = "floating-apps"
         case workspaceMonitors = "workspace-monitors"
     }

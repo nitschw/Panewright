@@ -42,9 +42,21 @@ public enum AeroSpaceConfigEmitter {
         }
         lines.append("")
         lines.append("[mode.main.binding]")
-        for binding in config.bindings {
-            let combo = keyCombo(modifier: config.modifier, key: binding.key)
-            lines.append("\(combo) = \(bindingValue(binding))")
+        if config.modifier == .leader {
+            // tmux-style: the prefix is the only global binding; commands are
+            // bare keys in a one-shot mode that falls back to main.
+            lines.append("\(config.leaderKey) = 'mode panewright'")
+            lines.append("")
+            lines.append("[mode.panewright.binding]")
+            lines.append("esc = 'mode main'")
+            for binding in config.bindings {
+                lines.append("\(binding.key) = \(leaderBindingValue(binding))")
+            }
+        } else {
+            for binding in config.bindings {
+                let combo = keyCombo(modifier: config.modifier, key: binding.key)
+                lines.append("\(combo) = \(bindingValue(binding))")
+            }
         }
         // Mode bindings are bare keys — that's the point of a mode.
         for mode in config.modes {
@@ -62,11 +74,17 @@ public enum AeroSpaceConfigEmitter {
     /// The hyper base is Cmd+Opt+Ctrl *without* Shift so that i3-style
     /// `$mod+Shift+…` chords remain distinguishable from plain `$mod+…`.
     static func keyCombo(modifier: PanewrightConfig.Modifier, key: String) -> String {
+        // Leader style never chords: bindings live bare inside the
+        // panewright mode, so a combo request passes the key through.
+        if modifier == .leader {
+            return key
+        }
         let base =
             switch modifier {
             case .hyper: "cmd-alt-ctrl"
             case .alt: "alt"
             case .cmd: "cmd"
+            case .leader: ""
             }
         if key.hasPrefix("shift-") {
             return "\(base)-shift-\(key.dropFirst("shift-".count))"
@@ -91,6 +109,22 @@ public enum AeroSpaceConfigEmitter {
     static func bindingValue(_ binding: PanewrightConfig.Binding) -> String {
         let commands = binding.actions.map { "'\(command(for: $0))'" }
         return commands.count == 1 ? commands[0] : "[\(commands.joined(separator: ", "))]"
+    }
+
+    /// Leader-mode value: one-shot — every chain falls back to main unless it
+    /// already ends by entering another mode.
+    static func leaderBindingValue(_ binding: PanewrightConfig.Binding) -> String {
+        var actions = binding.actions
+        let endsInModeChange: Bool
+        if let last = actions.last, case .enterMode = last {
+            endsInModeChange = true
+        } else {
+            endsInModeChange = false
+        }
+        if !endsInModeChange {
+            actions.append(.enterMode("main"))
+        }
+        return bindingValue(PanewrightConfig.Binding(key: binding.key, actions: actions))
     }
 
     static func command(for action: PanewrightConfig.Action) -> String {

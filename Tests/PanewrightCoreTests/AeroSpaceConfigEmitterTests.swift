@@ -84,6 +84,22 @@ import Testing
         #expect(toml.contains("6 = 'secondary'"))
     }
 
+    @Test func emitsLeaderStyleAsOneShotMode() {
+        var config = PanewrightConfig.default
+        config.modifier = .leader
+        let toml = AeroSpaceConfigEmitter.emit(config)
+        #expect(toml.contains("cmd-semicolon = 'mode panewright'"))
+        #expect(toml.contains("[mode.panewright.binding]"))
+        #expect(toml.contains("1 = ['workspace 1', 'mode main']"))
+        #expect(toml.contains("h = ['focus left', 'mode main']"))
+        // Mode entries must not chain back to main, or the mode would be dead.
+        #expect(toml.contains("r = 'mode resize'"))
+        #expect(toml.contains("g = 'mode join'"))
+        #expect(toml.contains("esc = 'mode main'"))
+        // No hyper chords anywhere in leader style.
+        #expect(!toml.contains("cmd-alt-ctrl"))
+    }
+
     @Test func emitsFlattenBinding() {
         let toml = AeroSpaceConfigEmitter.emit(.default)
         #expect(toml.contains("cmd-alt-ctrl-shift-g = 'flatten-workspace-tree'"))

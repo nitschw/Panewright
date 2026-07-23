@@ -106,6 +106,13 @@ import Testing
         }
     }
 
+    @Test func parsesLeaderModifierAndKey() throws {
+        let config = try ConfigParser.parse(
+            toml: "modifier = \"leader\"\nleader-key = \"cmd-slash\"")
+        #expect(config.modifier == .leader)
+        #expect(config.leaderKey == "cmd-slash")
+    }
+
     @Test func rejectsUnknownModifier() {
         #expect(throws: ConfigError.invalidModifier("super")) {
             try ConfigParser.parse(toml: "modifier = \"super\"")
