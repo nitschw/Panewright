@@ -118,6 +118,13 @@
       <a href="#bar">Status bar</a>
     </div>
     <div class="toc-group">
+      <h5>Companions</h5>
+      <a href="#todo">To-do list</a>
+      <a href="#pills">Window pills</a>
+      <a href="#workitems">Work items</a>
+      <a href="#confluence">Confluence</a>
+    </div>
+    <div class="toc-group">
       <h5>Tooling</h5>
       <a href="#editor">Visual editor</a>
       <a href="#profiles">Profiles</a>
@@ -214,6 +221,9 @@ action = "workspace 4; layout accordion"   <span class="c"># chains run in order
     <tr><td><code>scratchpad show</code></td><td>Summon the stashed window (see Scratchpad)</td></tr>
     <tr><td><code>move scratchpad</code></td><td>Stash the focused window</td></tr>
     <tr><td><code>close</code></td><td>Close the focused window (i3's <code>kill</code>)</td></tr>
+    <tr><td><code>workspace back_and_forth</code></td><td>Bounce to the previous workspace</td></tr>
+    <tr><td><code>todo add</code></td><td>Open the to-do editor for a new task</td></tr>
+    <tr><td><code>pill window</code></td><td>Park the focused window in the bar</td></tr>
     <tr><td><code>exec open -a Ghostty</code></td><td>Run any shell command</td></tr>
   </table>
 
@@ -249,6 +259,8 @@ action = "mode main"</pre>
     <tr><td><kbd>$mod ⇧ G</kbd></td><td>Flatten the workspace</td></tr>
     <tr><td><kbd>$mod −</kbd> / <kbd>$mod ⇧ −</kbd></td><td>Summon / stash scratchpad</td></tr>
     <tr><td><kbd>$mod ⏎</kbd></td><td>Open a terminal</td></tr>
+    <tr><td><kbd>$mod T</kbd></td><td>Capture a to-do</td></tr>
+    <tr><td><kbd>$mod P</kbd></td><td>Park the focused window as a bar pill</td></tr>
     <tr><td><kbd>$mod ← →</kbd> / <kbd>+⇧</kbd></td><td>Focus / move window to next monitor</td></tr>
   </table>
 
@@ -313,6 +325,69 @@ enabled = true
 theme = "native"     <span class="c"># vibrancy + SF Pro — or "technical": square, monospace</span></pre>
   <p>Shows workspace numbers (clickable, drag targets, accent highlight on the active one), a <b>mode badge</b> while resize/join is active, and the frontmost app. Disabling the bar returns everything to the native macOS menu bar. Quick toggles for the bar and borders live in the menu bar icon's dropdown.</p>
 
+  <h2 id="todo">To-do list</h2>
+  <p>Tasks live as pills on the right of the bar, newest last, with a <b>+</b> button at the end.</p>
+  <ul>
+    <li><b>Add</b> — click <b>+</b>, press <kbd>$mod T</kbd>, or use <b>Add Task…</b> in the menu</li>
+    <li><b>Edit</b> — click a pill for a window with a title field and freeform notes; <b>Resolve</b> removes it</li>
+    <li>A <code>·</code> after a title means the task carries notes</li>
+  </ul>
+  <p>Storage is <code>~/.config/panewright/todo.txt</code>: one task per line, <code>title</code> tab <code>notes</code>. Plain text on purpose — edit it in vim, grep it, sync it in a dotfile repo; the bar picks up outside changes.</p>
+  <pre>[todo]
+enabled = true</pre>
+
+  <h2 id="pills">Window pills</h2>
+  <p>Park a window you want out of the way but close at hand — a per-window scratchpad you can see.</p>
+  <ul>
+    <li><b>Park</b> — drag the window onto empty bar space, or press <kbd>$mod P</kbd></li>
+    <li><b>Peek</b> — click its pill; the window floats over your current workspace, focused</li>
+    <li><b>Re-park</b> — click the pill again (<code>▸</code> parked, <code>▾</code> showing)</li>
+    <li><b>Release</b> — right-click the pill to give the window back to the tiling tree</li>
+  </ul>
+  <p>Parked windows wait on a hidden workspace, and a pill disappears by itself when its window closes.</p>
+  <pre>[pills]
+enabled = true
+drag-to-bar = true   <span class="c"># drop a dragged window on the bar to park it</span></pre>
+
+  <h2 id="workitems">Work items</h2>
+  <p>Pills on the right show how much is waiting on you in each service; click one for a panel listing everything, one click from the browser.</p>
+  <table>
+    <tr><th>Service</th><th>Shows</th><th>Credentials</th></tr>
+    <tr><td>GitHub</td><td>PRs awaiting your review, plus your own open PRs</td><td>A token, or your <code>gh</code> CLI login automatically</td></tr>
+    <tr><td>GitLab</td><td>MRs you opened or were assigned, with pipeline status bubbles</td><td>Personal access token, <code>api</code> or <code>read_api</code> scope</td></tr>
+    <tr><td>Jira</td><td>Unresolved issues assigned to you</td><td>Atlassian API token + your account email</td></tr>
+  </table>
+  <pre>[integrations.github]
+enabled = true
+
+[integrations.gitlab]
+enabled = true
+host = "gitlab.example.com"
+
+[integrations.jira]
+enabled = true
+host = "company.atlassian.net"
+user = "you@example.com"</pre>
+  <div class="note">Tokens are never written to <code>panewright.toml</code> — they live in your login Keychain. Add them in <b>Open Editor… → Integrations</b>, or from the panel when a service reports missing credentials.</div>
+  <h3>Panel</h3>
+  <p>Search across titles and statuses, sort by updated, priority, status, or title, and filter to one status. Status pills are color-coded — blue in progress, purple in review, red blocked, green done — using the same vocabulary across every service.</p>
+  <h3>Jira hierarchy</h3>
+  <p>The tree toggle in the panel header shows your issues in context: parents and epics above, subtasks below, your own work bolded with a <b>you</b> badge. Double-click any node to open it.</p>
+
+  <h2 id="confluence">Confluence</h2>
+  <p>A reader, not a list. The <b>WIKI</b> pill opens a split-view window.</p>
+  <ul>
+    <li><b>Activity home</b> — recently edited pages with who edited them, when, and creation date, so you can see what the workspace is working on</li>
+    <li><b>Search</b> scoped to <b>All</b>, <b>Title</b>, <b>Content</b>, or <b>Author</b></li>
+    <li><b>Favorites</b> — star an article to pin it; stored in <code>~/.config/panewright/confluence-favorites.tsv</code></li>
+    <li><b>Reader</b> — click headings to collapse sections; collapse state <em>and</em> scroll position are saved per article, so reopening lands you where you left off</li>
+    <li><b>Images</b> render inline (fetched with your credentials); click one to zoom — scroll to scale, drag to pan, <kbd>Esc</kbd> to close</li>
+  </ul>
+  <pre>[integrations.confluence]
+enabled = true
+host = "company.atlassian.net"
+user = "you@example.com"</pre>
+
   <h2 id="editor">Visual editor</h2>
   <p>Menu → <b>Open Editor…</b> Sliders, pickers, and binding rows over the same config file — drag the gap slider and your windows reshuffle live. Invalid binding entries highlight in red and are never silently dropped. Saving from the editor rewrites <code>panewright.toml</code> cleanly (hand-written comments don't survive).</p>
 
@@ -357,8 +432,15 @@ aerospace move-node-to-workspace --window-id 12345 3</pre>
     <tr><td colspan="4" style="color:var(--ink-faint)">First release coming soon.</td></tr>
   </table>
 
+  <h3>URL scheme</h3>
+  <p>Panewright answers <code>panewright://</code> links, so scripts and bar items can drive its windows:</p>
+  <pre>open "panewright://todo/add"
+open "panewright://confluence"
+open "panewright://confluence/page/123456"
+open "panewright://integrations/jira"</pre>
+
   <h2 id="updates">Updates &amp; crash reports</h2>
-  <p><b>Check for Updates…</b> in the menu; updates are cryptographically signed and delivered via Sparkle. If Panewright crashes, the next launch shows the full report text and offers to open a <b>pre-filled GitHub issue</b> — nothing is ever sent except by your own submit click.</p>
+  <p>Panewright checks for new versions once a day and offers them; <b>Check for Updates…</b> in the menu asks immediately. Updates are cryptographically signed and delivered via Sparkle. If Panewright crashes, the next launch shows the full report text and offers to open a <b>pre-filled GitHub issue</b> — nothing is ever sent except by your own submit click.</p>
 
   <h2 id="quit">Quitting</h2>
   <p>Quit Panewright and macOS returns to stock: borders off, bar gone, every hidden window brought back on-screen, tiling stopped. Relaunch and the whole environment reassembles. <b>Launch at Login</b> (in the menu) makes it part of your Mac's boot.</p>
