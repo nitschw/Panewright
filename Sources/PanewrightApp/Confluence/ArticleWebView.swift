@@ -240,7 +240,31 @@ struct ArticleWebView: NSViewRepresentable {
             border-left: 3px solid #d6295f; opacity: .9;
           }
           .pw-section { overflow: hidden; }
+          #pw-content img { cursor: zoom-in; border-radius: 4px; }
+          #pw-lightbox {
+            position: fixed; inset: 0; z-index: 999; display: none;
+            align-items: center; justify-content: center;
+            background: rgba(8, 8, 12, .93); cursor: zoom-out;
+            backdrop-filter: blur(3px);
+          }
+          #pw-lightbox.open { display: flex; }
+          #pw-lightbox img {
+            max-width: 94vw; max-height: 92vh;
+            transform-origin: center center;
+            transition: transform .12s ease-out;
+            box-shadow: 0 18px 60px rgba(0, 0, 0, .55);
+          }
+          #pw-lightbox.zoomed img { cursor: grab; max-width: none; max-height: none; }
+          #pw-lightbox.dragging img { cursor: grabbing; transition: none; }
+          #pw-hint {
+            position: fixed; bottom: 16px; left: 0; right: 0; text-align: center;
+            font: 11px ui-monospace, "SF Mono", monospace; color: rgba(255,255,255,.55);
+            pointer-events: none;
+          }
         </style></head><body>
+        <div id="pw-lightbox"><img alt=""><div id="pw-hint">
+          click to zoom · scroll to scale · drag to pan · esc to close
+        </div></div>
         <div id="pw-content">\(body)</div>
         <script>
         (function () {
@@ -256,6 +280,74 @@ struct ArticleWebView: NSViewRepresentable {
             img.removeAttribute('srcset');
             img.setAttribute('loading', 'eager');
           });
+
+          // Lightbox: inspect diagrams without leaving the reader.
+          (function () {
+            const box = document.getElementById('pw-lightbox');
+            const full = box.querySelector('img');
+            let scale = 1, panX = 0, panY = 0, dragging = false, startX = 0, startY = 0;
+
+            function apply() {
+              full.style.transform =
+                'translate(' + panX + 'px,' + panY + 'px) scale(' + scale + ')';
+              box.classList.toggle('zoomed', scale !== 1);
+            }
+            function open(src) {
+              full.src = src;
+              scale = 1; panX = 0; panY = 0;
+              apply();
+              box.classList.add('open');
+            }
+            function close() {
+              box.classList.remove('open', 'zoomed', 'dragging');
+              full.src = '';
+            }
+
+            Array.from(document.querySelectorAll('#pw-content img')).forEach(function (img) {
+              img.addEventListener('click', function (event) {
+                event.stopPropagation();
+                open(img.currentSrc || img.src);
+              });
+            });
+
+            box.addEventListener('click', function (event) {
+              if (event.target === full) {
+                // Toggle between fit and 2x for a closer look.
+                scale = scale === 1 ? 2 : 1;
+                panX = 0; panY = 0;
+                apply();
+                return;
+              }
+              close();
+            });
+            box.addEventListener('wheel', function (event) {
+              if (!box.classList.contains('open')) return;
+              event.preventDefault();
+              scale = Math.min(8, Math.max(0.5, scale - event.deltaY * 0.0025));
+              apply();
+            }, { passive: false });
+            full.addEventListener('mousedown', function (event) {
+              if (scale === 1) return;
+              dragging = true;
+              startX = event.clientX - panX;
+              startY = event.clientY - panY;
+              box.classList.add('dragging');
+              event.preventDefault();
+            });
+            window.addEventListener('mousemove', function (event) {
+              if (!dragging) return;
+              panX = event.clientX - startX;
+              panY = event.clientY - startY;
+              apply();
+            });
+            window.addEventListener('mouseup', function () {
+              dragging = false;
+              box.classList.remove('dragging');
+            });
+            window.addEventListener('keydown', function (event) {
+              if (event.key === 'Escape') close();
+            });
+          })();
 
           const headings = Array.from(document.querySelectorAll('#pw-content h1, #pw-content h2, #pw-content h3'));
           headings.forEach(function (heading, index) {
