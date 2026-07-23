@@ -44,24 +44,74 @@ enum MonitorMap {
         var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
         guard CGGetActiveDisplayList(count, &ids, &count) == .success else { return }
 
+        // SketchyBar does NOT number displays in CGGetActiveDisplayList order,
+        // so binding "display-N" to the N-th active display swaps monitors.
+        // Instead, ask SketchyBar where each of its displays actually sits (the
+        // CG origin it reports for a bar-wide item) and match that point to the
+        // physical display that contains it — geometry, not list order.
+        let displayOrigins = sketchyBarDisplayOrigins()
         var lines: [String] = []
-        for (index, displayID) in ids.enumerated() {
-            guard let name = screenName(for: displayID),
-                let monitor = monitorByName[normalize(name)]
-            else { continue }
-            lines.append("\(index + 1)\t\(monitor)")
+        if !displayOrigins.isEmpty {
+            for (sketchyDisplay, origin) in displayOrigins {
+                guard
+                    let displayID = ids.first(where: { CGDisplayBounds($0).contains(origin) }),
+                    let name = screenName(for: displayID),
+                    let monitor = monitorByName[normalize(name)]
+                else { continue }
+                lines.append("\(sketchyDisplay)\t\(monitor)")
+            }
+        } else {
+            // No bar yet (first boot): fall back to list order; observe()
+            // rewrites the map once the bar is up.
+            for (index, displayID) in ids.enumerated() {
+                guard let name = screenName(for: displayID),
+                    let monitor = monitorByName[normalize(name)]
+                else { continue }
+                lines.append("\(index + 1)\t\(monitor)")
+            }
         }
+        lines.sort { $0 < $1 }
         DragLog.log("monitor-map: \(lines.joined(separator: " "))")
         try? (lines.joined(separator: "\n") + (lines.isEmpty ? "" : "\n"))
             .write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    /// SketchyBar display index → the CG origin it reports for a full-bar item
+    /// (`front_app`, present on every display). The origin lands inside that
+    /// display's `CGDisplayBounds`, so it pins each SketchyBar display to a
+    /// physical one regardless of how SketchyBar orders them.
+    nonisolated private static func sketchyBarDisplayOrigins() -> [Int: CGPoint] {
+        let process = Process()
+        process.executableURL = URL(filePath: "/opt/homebrew/bin/sketchybar")
+        process.arguments = ["--query", "front_app"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+        guard (try? process.run()) != nil else { return [:] }
+        process.waitUntilExit()
+        guard process.terminationStatus == 0,
+            let json = try? JSONSerialization.jsonObject(
+                with: pipe.fileHandleForReading.readDataToEndOfFile()) as? [String: Any],
+            let rects = json["bounding_rects"] as? [String: Any]
+        else { return [:] }
+
+        var origins: [Int: CGPoint] = [:]
+        for (key, value) in rects {
+            guard let index = Int(key.replacingOccurrences(of: "display-", with: "")),
+                let rect = value as? [String: Any],
+                let origin = rect["origin"] as? [Double], origin.count == 2,
+                origin[0] > -9000, origin[1] > -9000  // skip off-screen sentinels
+            else { continue }
+            origins[index] = CGPoint(x: origin[0], y: origin[1])
+        }
+        return origins
     }
 
     /// Rewrite the map and repaint the bar whenever the display layout changes.
     /// Plugging or unplugging a monitor also re-spreads workspaces so the new
     /// display gets one (and an unplugged one's workspaces return home).
     static func observe() {
-        write()
-        reloadBar()
+        refreshMap()
         // Initial spread: bootstrap left AeroSpace settled but with everything
         // piled on the primary, so distribute once now that we know the true
         // main display.
@@ -71,8 +121,29 @@ enum MonitorMap {
             object: nil, queue: .main
         ) { _ in
             MainActor.assumeIsolated {
-                write()
+                refreshMap()
                 redistribute()
+            }
+        }
+    }
+
+    /// Seed the map immediately (may fall back to list order for the first
+    /// paint), then off-thread wait for the bar to actually position its items
+    /// and rewrite the map from real SketchyBar geometry. The first write can't
+    /// use geometry because SketchyBar reports off-screen sentinels until it has
+    /// laid the bar out, and blocking the main thread to wait would freeze the
+    /// UI.
+    private static func refreshMap() {
+        write()
+        reloadBar()
+        Task.detached(priority: .userInitiated) {
+            for _ in 0..<30 {
+                if !sketchyBarDisplayOrigins().isEmpty { break }
+                try? await Task.sleep(for: .milliseconds(400))
+            }
+            await MainActor.run {
+                write()
+                reloadBar()
             }
         }
     }
