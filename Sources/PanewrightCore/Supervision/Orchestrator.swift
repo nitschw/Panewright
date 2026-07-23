@@ -142,6 +142,9 @@ public struct Orchestrator: Sendable {
               $A move-node-to-workspace --window-id "$WIN" "$FOCUSED_WS"
               $A layout --window-id "$WIN" floating
               $A focus --window-id "$WIN"
+            else
+              # Empty stash must not be a silent no-op.
+              osascript -e 'display notification "Nothing stashed — use $mod+Shift+minus to stash the focused window." with title "Scratchpad is empty"' 2>/dev/null
             fi
             """
         let url = directory.appending(path: "scratchpad-show.sh")
