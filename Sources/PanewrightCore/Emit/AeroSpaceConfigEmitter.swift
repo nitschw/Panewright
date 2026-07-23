@@ -126,7 +126,10 @@ public enum AeroSpaceConfigEmitter {
                 break
             }
         }
-        return numbers.sorted()
+        // Keyboard-row order: 0 sits after 9, not before 1.
+        return numbers.sorted { lhs, rhs in
+            (lhs == 0 ? 10 : lhs) < (rhs == 0 ? 10 : rhs)
+        }
     }
 
     /// The status bar can't observe mode changes, so every mode switch pings

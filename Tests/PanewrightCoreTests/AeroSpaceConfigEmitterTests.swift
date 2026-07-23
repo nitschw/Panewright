@@ -43,7 +43,7 @@ import Testing
         #expect(toml.contains("config-version = 2"))
         #expect(
             toml.contains(
-                "persistent-workspaces = ['1', '2', '3', '4', '5', '6', '7', '8', '9']"))
+                "persistent-workspaces = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']"))
     }
 
     @Test func omitsPersistentWorkspacesWhenNoWorkspaceBindings() {

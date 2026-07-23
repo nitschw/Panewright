@@ -236,7 +236,7 @@ final class DragTileController {
         let sketchybar = "/opt/homebrew/bin/sketchybar"
         guard FileManager.default.isExecutableFile(atPath: sketchybar) else { return [] }
         var zones: [(number: Int, frame: CGRect)] = []
-        for number in 1...9 {
+        for number in Array(1...9) + [0] {
             let process = Process()
             process.executableURL = URL(filePath: sketchybar)
             process.arguments = ["--query", "space.\(number)"]

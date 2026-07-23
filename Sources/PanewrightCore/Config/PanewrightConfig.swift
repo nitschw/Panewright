@@ -177,7 +177,8 @@ public struct PanewrightConfig: Equatable, Sendable {
     /// i3-familiar defaults: workspaces 1–9 on number keys, vim-style focus/move.
     public static var `default`: PanewrightConfig {
         var bindings: [Binding] = []
-        for n in 1...9 {
+        // Keyboard-row order: 1–9, then 0 as the tenth workspace.
+        for n in Array(1...9) + [0] {
             bindings.append(Binding(key: "\(n)", action: .workspace(n)))
             bindings.append(Binding(key: "shift-\(n)", action: .moveToWorkspace(n)))
         }
