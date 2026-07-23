@@ -203,6 +203,7 @@ final class AppModel {
             self?.refreshStatus()
             self?.offerSetupIfIncomplete()
             self?.startPermissionWatch()
+            MonitorMap.observe()
         }
         Task.detached(priority: .userInitiated) {
             orchestrator.bootstrap()
