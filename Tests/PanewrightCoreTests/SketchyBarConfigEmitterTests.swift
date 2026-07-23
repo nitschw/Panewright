@@ -39,6 +39,16 @@ import Testing
         #expect(files.sketchybarrc.contains("front_app"))
     }
 
+    @Test func pluginsDoNotDependOnInheritedPATH() throws {
+        // GUI-launched daemons inherit a minimal PATH, so a bare `sketchybar`
+        // in a plugin silently fails — every plugin must set PATH itself.
+        let files = try SketchyBarConfigEmitter.emit(.default)
+        for plugin in [files.workspacesPlugin, files.modePlugin, files.frontAppPlugin] {
+            #expect(plugin.contains("export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\""))
+            #expect(!plugin.contains("\nsketchybar "))
+        }
+    }
+
     @Test func modePluginUppercasesAndClears() throws {
         let files = try SketchyBarConfigEmitter.emit(.default)
         #expect(files.modePlugin.contains(#"[ "$MODE" = "main" ]"#))
