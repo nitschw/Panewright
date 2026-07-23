@@ -18,6 +18,17 @@ struct PanewrightApp: App {
     @State private var model = AppModel()
 
     init() {
+        // A window-layout exception must not take down the whole tiling
+        // environment: log it (with its reason, unlike the crash reporter)
+        // and carry on.
+        UserDefaults.standard.register(defaults: ["NSApplicationCrashOnExceptions": false])
+        NSSetUncaughtExceptionHandler { exception in
+            DragLog.log(
+                "UNCAUGHT EXCEPTION: \(exception.name.rawValue): \(exception.reason ?? "?")")
+            for frame in exception.callStackSymbols.prefix(12) {
+                DragLog.log("  \(frame)")
+            }
+        }
         Self.terminateIfAlreadyRunning()
     }
 
