@@ -55,12 +55,12 @@ import Testing
 
     @Test func emitsI3StyleDefaultBindings() {
         let toml = AeroSpaceConfigEmitter.emit(.default)
-        #expect(toml.contains("cmd-alt-ctrl-1 = 'workspace 1'"))
-        #expect(toml.contains("cmd-alt-ctrl-shift-1 = 'move-node-to-workspace 1'"))
-        #expect(toml.contains("cmd-alt-ctrl-h = 'focus left'"))
-        #expect(toml.contains("cmd-alt-ctrl-shift-l = 'move right'"))
-        #expect(toml.contains("cmd-alt-ctrl-e = 'layout tiles horizontal vertical'"))
-        #expect(toml.contains("cmd-alt-ctrl-s = 'layout accordion horizontal vertical'"))
+        #expect(toml.contains("ctrl-cmd-1 = 'workspace 1'"))
+        #expect(toml.contains("ctrl-cmd-shift-1 = 'move-node-to-workspace 1'"))
+        #expect(toml.contains("ctrl-cmd-h = 'focus left'"))
+        #expect(toml.contains("ctrl-cmd-shift-l = 'move right'"))
+        #expect(toml.contains("ctrl-cmd-e = 'layout tiles horizontal vertical'"))
+        #expect(toml.contains("ctrl-cmd-s = 'layout accordion horizontal vertical'"))
     }
 
     @Test func emitsFloatingAppRules() {
@@ -74,7 +74,7 @@ import Testing
         var config = PanewrightConfig.default
         config.statusBar.enabled = false
         let toml = AeroSpaceConfigEmitter.emit(config)
-        #expect(toml.contains("cmd-alt-ctrl-r = 'mode resize'"))
+        #expect(toml.contains("ctrl-cmd-r = 'mode resize'"))
         #expect(toml.contains("[mode.resize.binding]"))
         #expect(toml.contains("h = 'resize width -50'"))
         #expect(toml.contains("j = 'resize height +50'"))
@@ -83,11 +83,11 @@ import Testing
 
     @Test func emitsWindowAndMonitorBindings() {
         let toml = AeroSpaceConfigEmitter.emit(.default)
-        #expect(toml.contains("cmd-alt-ctrl-f = 'fullscreen'"))
-        #expect(toml.contains("cmd-alt-ctrl-shift-space = 'layout floating tiling'"))
-        #expect(toml.contains("cmd-alt-ctrl-left = 'focus-monitor left'"))
-        #expect(toml.contains("cmd-alt-ctrl-shift-right = 'move-node-to-monitor right'"))
-        #expect(toml.contains("cmd-alt-ctrl-enter = 'exec-and-forget open -a Terminal'"))
+        #expect(toml.contains("ctrl-cmd-f = 'fullscreen'"))
+        #expect(toml.contains("ctrl-cmd-shift-space = 'layout floating tiling'"))
+        #expect(toml.contains("ctrl-cmd-left = 'focus-monitor left'"))
+        #expect(toml.contains("ctrl-cmd-shift-right = 'move-node-to-monitor right'"))
+        #expect(toml.contains("ctrl-cmd-enter = 'exec-and-forget open -a Terminal'"))
     }
 
     @Test func emitsWorkspaceMonitorAssignments() {
@@ -120,8 +120,8 @@ import Testing
         #expect(toml.contains("r = 'mode resize'"))
         #expect(toml.contains("g = 'mode join'"))
         #expect(toml.contains("esc = 'mode main'"))
-        // No hyper chords anywhere in leader style.
-        #expect(!toml.contains("cmd-alt-ctrl"))
+        // No held chords anywhere in leader style.
+        #expect(!toml.contains("ctrl-cmd-1"))
     }
 
     @Test func emitsScratchpadBindingsAndAssignRules() {
@@ -131,18 +131,18 @@ import Testing
         let toml = AeroSpaceConfigEmitter.emit(config)
         #expect(
             toml.contains(
-                "cmd-alt-ctrl-minus = 'exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/scratchpad-show.sh\"'"
+                "ctrl-cmd-minus = 'exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/scratchpad-show.sh\"'"
             ))
         #expect(
             toml.contains(
-                "cmd-alt-ctrl-shift-minus = ['layout floating', 'move-node-to-workspace S']"))
+                "ctrl-cmd-shift-minus = ['layout floating', 'move-node-to-workspace S']"))
         #expect(toml.contains("if.app-id = 'com.apple.Music'"))
         #expect(toml.contains("run = 'move-node-to-workspace 3'"))
     }
 
     @Test func emitsFlattenBinding() {
         let toml = AeroSpaceConfigEmitter.emit(.default)
-        #expect(toml.contains("cmd-alt-ctrl-shift-g = 'flatten-workspace-tree'"))
+        #expect(toml.contains("ctrl-cmd-shift-g = 'flatten-workspace-tree'"))
     }
 
     @Test func emitsWorkspaceCallbackAndModeTriggersWhenBarEnabled() {
@@ -169,7 +169,7 @@ import Testing
         var config = PanewrightConfig.default
         config.statusBar.enabled = false
         let toml = AeroSpaceConfigEmitter.emit(config)
-        #expect(toml.contains("cmd-alt-ctrl-g = 'mode join'"))
+        #expect(toml.contains("ctrl-cmd-g = 'mode join'"))
         #expect(toml.contains("[mode.join.binding]"))
         #expect(toml.contains("h = ['join-with left', 'mode main']"))
         #expect(toml.contains("l = ['join-with right', 'mode main']"))

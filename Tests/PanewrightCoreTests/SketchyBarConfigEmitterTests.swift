@@ -81,7 +81,7 @@ import Testing
         #expect(try ConfigParser.parse(toml: toml) == config)
         let aerospace = AeroSpaceConfigEmitter.emit(config)
         #expect(aerospace.contains("on-workspace-change.sh"))
-        #expect(aerospace.contains("cmd-alt-ctrl-tab = 'workspace-back-and-forth'"))
+        #expect(aerospace.contains("ctrl-cmd-tab = 'workspace-back-and-forth'"))
     }
 
     @Test func parsesScratchpadAndWorkspaceApps() throws {

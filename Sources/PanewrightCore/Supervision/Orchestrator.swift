@@ -58,7 +58,7 @@ public struct Orchestrator: Sendable {
         # Every key is optional; omitted keys use i3-familiar defaults
         # (workspaces 1-9, hjkl focus/move, $mod+r resize, $mod+g join).
 
-        modifier = "hyper"  # or "alt" / "cmd"
+        modifier = "ctrl-cmd"  # or "hyper" (Caps Lock via Karabiner) / "alt" / "cmd" / "ctrl" / "leader"
         """ + "\n"
 
     /// First-run: create `panewright.toml` so the user has something to edit.

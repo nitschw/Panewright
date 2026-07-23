@@ -2,7 +2,7 @@
 # i3 mental model, TOML syntax. Every key is optional — omitted keys use
 # i3-familiar defaults (workspaces 1-9, vim-style focus/move on hjkl).
 
-modifier = "hyper"  # Caps Lock via Karabiner-Elements; or "alt" / "cmd"
+modifier = "ctrl-cmd"  # default; or "hyper" (Caps Lock via Karabiner) / "alt" / "ctrl" / "leader"
 
 # Apps that float instead of tiling (bundle IDs).
 floating-apps = [
