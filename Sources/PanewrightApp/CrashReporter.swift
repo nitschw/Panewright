@@ -12,8 +12,11 @@ enum CrashReporter {
 
     static func checkAndOffer() {
         let defaults = UserDefaults.standard
-        let lastCheck = defaults.object(forKey: lastCheckKey) as? Date ?? .distantPast
+        let stored = defaults.object(forKey: lastCheckKey) as? Date
         defaults.set(Date(), forKey: lastCheckKey)
+        // First run (fresh install or bundle-ID change): baseline only —
+        // never report crashes that predate this install.
+        guard let lastCheck = stored else { return }
 
         var sections: [String] = []
         if let crash = latestCrashReport(since: lastCheck) {
