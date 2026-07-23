@@ -104,6 +104,20 @@ public struct Orchestrator: Sendable {
         return emitted
     }
 
+    /// Quitting Panewright restores pre-existing macOS behavior: the border
+    /// and bar daemons stop, and the tiling engine exits (AeroSpace restores
+    /// parked windows on graceful termination). Launch Panewright again and
+    /// everything reassembles.
+    public func teardown() {
+        if let borders = JankyBordersSupervisor.locate(), borders.isRunning() {
+            borders.stop()
+        }
+        if let bar = SketchyBarSupervisor.locate(), bar.isRunning() {
+            bar.stop()
+        }
+        try? runTool("/usr/bin/pkill", ["-x", "AeroSpace"])
+    }
+
     /// Summons the first stashed scratchpad window onto the focused
     /// workspace. Generated because keybindings can't branch — scripts can.
     func writeSupportScripts() throws {

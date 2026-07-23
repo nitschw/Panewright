@@ -4,8 +4,16 @@ import ServiceManagement
 import SwiftUI
 import UserNotifications
 
+/// Quit = restore vanilla macOS: tear the whole environment down.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationWillTerminate(_ notification: Notification) {
+        Orchestrator().teardown()
+    }
+}
+
 @main
 struct PanewrightApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var model = AppModel()
 
     init() {
@@ -14,23 +22,33 @@ struct PanewrightApp: App {
 
     /// Bare-executable dev builds have no bundle ID for the usual
     /// single-instance check, so match on process name instead.
+    /// Deterministic tie-break — the eldest (lowest-pid) instance survives —
+    /// so simultaneous launches can't mutually annihilate.
     private static func terminateIfAlreadyRunning() {
+        let mine = ProcessInfo.processInfo.processIdentifier
+        let others = otherInstancePIDs()
+        DragLog.log("guard: mine=\(mine) others=\(others)")
+        if others.contains(where: { $0 < mine }) {
+            DragLog.log("guard: deferring to elder instance")
+            exit(0)
+        }
+    }
+
+    private static func otherInstancePIDs() -> [Int32] {
         let mine = ProcessInfo.processInfo.processIdentifier
         let pgrep = Process()
         pgrep.executableURL = URL(filePath: "/usr/bin/pgrep")
         pgrep.arguments = ["-x", "panewright"]
         let pipe = Pipe()
         pgrep.standardOutput = pipe
-        guard (try? pgrep.run()) != nil else { return }
+        pgrep.standardError = Pipe()
+        guard (try? pgrep.run()) != nil else { return [] }
         pgrep.waitUntilExit()
         let output = String(
             decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        let others = output.split(separator: "\n")
+        return output.split(separator: "\n")
             .compactMap { Int32($0) }
             .filter { $0 != mine }
-        if !others.isEmpty {
-            exit(0)
-        }
     }
 
     var body: some Scene {
@@ -62,14 +80,10 @@ final class AppModel {
         refreshStatus()
         // Drag-to-tile is core behavior, not an option: ask for its
         // permission on first launch rather than waiting to be enabled.
-        if !dragToTileActive {
+        // (First-run setup auto-opens from refreshStatus once real status
+        // is known — never synchronously during launch.)
+        if !DragTileController.hasPermission {
             DragTileController.requestPermission()
-        }
-        // First-run: open the setup checklist when essentials are missing.
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(600))
-            guard let self, self.setupIncomplete else { return }
-            self.openSetup()
         }
     }
 
@@ -98,22 +112,42 @@ final class AppModel {
     let isBundled = Bundle.main.bundleIdentifier != nil
     private var dragController: DragTileController?
 
+    /// Status checks spawn processes; waitUntilExit on the main thread pumps
+    /// the run loop, which lets AppKit re-enter mid-layout and crash. So:
+    /// compute off-main, apply on main.
+    private var autoOpenedSetup = false
+
     func refreshStatus() {
-        status = orchestrator.status()
-        bordersInfo = orchestrator.bordersInfo()
-        barInfo = orchestrator.barInfo()
-        let config = try? orchestrator.loadConfig()
-        bordersEnabled = config?.focusBorder.enabled ?? true
-        barEnabled = config?.statusBar.enabled ?? true
-        dragController?.configure(focusFollowsMouse: config?.focusFollowsMouse ?? false)
-        if isBundled {
-            launchAtLogin = SMAppService.mainApp.status == .enabled
+        let orchestrator = orchestrator
+        Task.detached(priority: .utility) { [weak self] in
+            let status = orchestrator.status()
+            let bordersInfo = orchestrator.bordersInfo()
+            let barInfo = orchestrator.barInfo()
+            let config = try? orchestrator.loadConfig()
+            let profiles = orchestrator.listProfiles()
+            Task { @MainActor in
+                guard let self else { return }
+                self.status = status
+                self.bordersInfo = bordersInfo
+                self.barInfo = barInfo
+                self.bordersEnabled = config?.focusBorder.enabled ?? true
+                self.barEnabled = config?.statusBar.enabled ?? true
+                self.profiles = profiles
+                self.dragController?.configure(
+                    focusFollowsMouse: config?.focusFollowsMouse ?? false)
+                if self.isBundled {
+                    self.launchAtLogin = SMAppService.mainApp.status == .enabled
+                }
+                if !self.dragToTileActive {
+                    self.startDragToTileIfPermitted()
+                }
+                self.needsDragSetup = !DragTileController.hasPermission
+                if self.setupIncomplete, !self.autoOpenedSetup {
+                    self.autoOpenedSetup = true
+                    self.openSetup()
+                }
+            }
         }
-        if !dragToTileActive {
-            startDragToTileIfPermitted()
-        }
-        needsDragSetup = !DragTileController.hasPermission
-        profiles = orchestrator.listProfiles()
     }
 
     // MARK: Setup window
@@ -140,7 +174,6 @@ final class AppModel {
         }
         controller.show(model: self)
         setupVisible = true
-        refreshStatus()
     }
 
     // MARK: Tool installation (Homebrew, no password required)
