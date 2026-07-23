@@ -32,8 +32,13 @@ if [ -n "$SPARKLE_FW" ]; then
         "$APP/Contents/MacOS/panewright" 2>/dev/null || true
 fi
 
+# Prefer the distribution-grade identity once the paid program provides it.
 IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
-    | awk -F'"' '/Apple Development/ {print $2; exit}')"
+    | awk -F'"' '/Developer ID Application/ {print $2; exit}')"
+if [ -z "${IDENTITY:-}" ]; then
+    IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
+        | awk -F'"' '/Apple Development/ {print $2; exit}')"
+fi
 if [ -n "${IDENTITY:-}" ]; then
     if [ -d "$APP/Contents/Frameworks/Sparkle.framework" ]; then
         codesign --force --options runtime --deep --sign "$IDENTITY" \

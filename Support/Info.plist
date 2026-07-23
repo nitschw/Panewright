@@ -7,7 +7,7 @@
 	<key>CFBundleExecutable</key>
 	<string>panewright</string>
 	<key>CFBundleIdentifier</key>
-	<string>dev.panewright.app</string>
+	<string>com.panewright.app</string>
 	<key>CFBundleName</key>
 	<string>Panewright</string>
 	<key>CFBundleDisplayName</key>
