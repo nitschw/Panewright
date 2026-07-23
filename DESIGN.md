@@ -37,12 +37,15 @@ Instead:
 - Free, open-source core on GitHub (MIT — see resolved questions).
 - Notarized direct-download builds (Developer ID signing + notarization,
   Sparkle for auto-updates).
-- Monetization: Patreon-first — tiers for early-build access, priority
-  issues, and/or gated Pro features (theme packs, visual config editor).
-  Deliberately low-commitment: patronage sets lighter support expectations
-  than selling licenses. Direct website sales (merchant-of-record such as
-  Paddle, the Rectangle Pro model) stay open as a later option if demand
-  warrants.
+- Monetization (settled 2026-07-23): **fully open source, Patreon as tip
+  jar + early access.** Everything — including the visual editor — ships
+  MIT on the public repo. Patrons get *time*, not gated features: an
+  early-access release channel (patron builds get new features first,
+  main gets them shortly after — the Obsidian-Catalyst/insider-build
+  model), priority on issues/feature votes, and credits. Deliberately
+  low-commitment: no license keys, no support contracts. The open-core
+  split (closed Pro layer) was considered and rejected in favor of
+  community trust with the i3 audience.
 
 ## Architecture decisions (settled)
 

@@ -86,6 +86,7 @@ final class AppModel {
     var activeProfile: String? = UserDefaults.standard.string(forKey: "activeProfile")
     private var setupWindowController: OnboardingWindowController?
     private var aboutWindowController: AboutWindowController?
+    private var editorWindowController: EditorWindowController?
 
     var aerospaceInstalled: Bool { AeroSpaceCLI.locate() != nil }
     var bordersInstalled: Bool { JankyBordersSupervisor.locate() != nil }
@@ -115,6 +116,12 @@ final class AppModel {
     }
 
     // MARK: Setup window
+
+    func openEditor() {
+        let controller = editorWindowController ?? EditorWindowController()
+        editorWindowController = controller
+        controller.show(appModel: self)
+    }
 
     func openAbout() {
         let controller = aboutWindowController ?? AboutWindowController()
@@ -382,7 +389,10 @@ struct PanewrightMenu: View {
                 model.saveCurrentAsProfile()
             }
         }
-        Button("Edit Config…") {
+        Button("Open Editor…") {
+            model.openEditor()
+        }
+        Button("Edit Config File…") {
             model.openConfig()
         }
         Button("Setup…") {

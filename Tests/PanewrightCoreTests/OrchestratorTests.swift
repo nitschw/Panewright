@@ -77,6 +77,16 @@ import Testing
         #expect(config.focusBorder.enabled == false)
     }
 
+    @Test func writeConfigRoundTripsThroughParser() throws {
+        let (orchestrator, dir) = makeOrchestrator()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var config = PanewrightConfig.default
+        config.gaps.inner = 17
+        config.focusBorder.activeColor = "#FF375F"
+        try orchestrator.writeConfig(config)
+        #expect(try orchestrator.loadConfig() == config)
+    }
+
     @Test func profilesSaveListAndValidateOnActivate() throws {
         let (orchestrator, dir) = makeOrchestrator()
         defer { try? FileManager.default.removeItem(at: dir) }

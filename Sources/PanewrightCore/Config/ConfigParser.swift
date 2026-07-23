@@ -114,7 +114,7 @@ public enum ConfigParser {
     }
 
     /// Parses a `;`-separated chain of actions (i3's command chains).
-    static func parseActionChain(_ string: String) throws -> [PanewrightConfig.Action] {
+    public static func parseActionChain(_ string: String) throws -> [PanewrightConfig.Action] {
         try string.split(separator: ";").map {
             try parseAction($0.trimmingCharacters(in: .whitespaces))
         }

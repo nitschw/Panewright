@@ -83,6 +83,16 @@ public struct Orchestrator: Sendable {
         return try ConfigParser.parse(toml: toml)
     }
 
+    /// The editor's save path: serialize a config model over panewright.toml.
+    /// Note: rewrites the file — hand-written comments are replaced.
+    public func writeConfig(_ config: PanewrightConfig) throws {
+        let toml = PanewrightConfigSerializer.emit(config)
+        try FileManager.default.createDirectory(
+            at: paths.panewrightConfigFile.deletingLastPathComponent(),
+            withIntermediateDirectories: true)
+        try toml.write(to: paths.panewrightConfigFile, atomically: true, encoding: .utf8)
+    }
+
     /// Parse → emit → write. Returns the emitted AeroSpace TOML.
     @discardableResult
     public func writeAerospaceConfig() throws -> String {
