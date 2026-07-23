@@ -31,7 +31,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         break
                     }
                 case "integrations":
-                    AppDelegate.model?.openIntegrations(service: parts.dropFirst().first)
+                    if parts.dropFirst().first == "confluence" {
+                        AppDelegate.model?.openConfluence()
+                    } else {
+                        AppDelegate.model?.openIntegrations(service: parts.dropFirst().first)
+                    }
+                case "confluence":
+                    AppDelegate.model?.openConfluence()
                 default:
                     break
                 }
@@ -218,6 +224,7 @@ final class AppModel {
     var isBootstrapping = false
     var autoOpenedSetup = false
     var pendingCrashReport: String?
+    var confluenceEnabled = false
     var awaitingPermissions = false
     private var permissionWatch: Timer?
     var installing: Set<String> = []
@@ -229,6 +236,7 @@ final class AppModel {
     private var editorWindowController: EditorWindowController?
     private var todoWindowController: TodoEditorWindowController?
     private var integrationsWindowController: IntegrationsWindowController?
+    private var confluenceWindowController: ConfluenceWindowController?
     let integrations = IntegrationsModel()
     /// Sparkle needs a real bundle; nil in bare dev runs.
     private var updaterController: SPUStandardUpdaterController?
@@ -263,6 +271,7 @@ final class AppModel {
                 self.dragController?.configure(
                     focusFollowsMouse: config?.focusFollowsMouse ?? false)
                 self.integrations.configure(config?.integrations ?? IntegrationsConfig())
+                self.confluenceEnabled = config?.integrations.confluence.enabled ?? false
                 if self.isBundled {
                     self.launchAtLogin = SMAppService.mainApp.status == .enabled
                 }
@@ -282,6 +291,13 @@ final class AppModel {
     }
 
     // MARK: Setup window
+
+    func openConfluence() {
+        let config = (try? orchestrator.loadConfig())?.integrations.confluence
+        let controller = confluenceWindowController ?? ConfluenceWindowController()
+        confluenceWindowController = controller
+        controller.show(host: config?.host ?? "", email: config?.user ?? "")
+    }
 
     func openIntegrations(service: String?) {
         let controller = integrationsWindowController ?? IntegrationsWindowController()
@@ -660,6 +676,11 @@ struct PanewrightMenu: View {
         if !model.integrations.services.isEmpty {
             Button("Work Items…") {
                 model.openIntegrations(service: nil)
+            }
+        }
+        if model.confluenceEnabled {
+            Button("Confluence…") {
+                model.openConfluence()
             }
         }
         Button("Open Editor…") {

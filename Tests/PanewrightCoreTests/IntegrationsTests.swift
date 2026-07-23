@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import PanewrightCore
@@ -69,6 +70,32 @@ import Testing
         #expect(JiraProvider.parseDate("2026-07-23T01:22:33.000-0700") != nil)
         #expect(JiraProvider.parseDate("2026-07-23T01:22:33-0700") != nil)
         #expect(JiraProvider.parseDate("not a date") == nil)
+    }
+}
+
+@Suite struct ConfluenceFavoritesTests {
+    @Test func favoritesRoundTripThroughDisk() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appending(path: "pw-favs-\(UUID().uuidString).tsv")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let pages = [
+            ConfluencePage(
+                id: "123", title: "Runbook: deploys", space: "Platform",
+                url: URL(string: "https://example.atlassian.net/wiki/x/123")!),
+            ConfluencePage(
+                id: "456", title: "Onboarding", space: "People",
+                url: URL(string: "https://example.atlassian.net/wiki/x/456")!),
+        ]
+        try ConfluenceFavorites.save(pages, to: url)
+        #expect(ConfluenceFavorites.load(from: url) == pages)
+    }
+
+    @Test func emptyFavoritesFileLoadsEmpty() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appending(path: "pw-favs-\(UUID().uuidString).tsv")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try ConfluenceFavorites.save([], to: url)
+        #expect(ConfluenceFavorites.load(from: url).isEmpty)
     }
 }
 
