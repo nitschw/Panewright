@@ -223,11 +223,15 @@ final class DragTileController {
         phase = .armed(
             windowID: window.id, start: point, targets: tiledIDs, sourceFrame: window.frame)
         // Bar geometry can shift with workspaces/theme; refresh per drag.
-        Task.detached { [weak self] in
-            let zones = Self.queryWorkspaceZones()
-            Task { @MainActor in
+        // (MainActor closure built here so `self` never crosses the
+        // detachment boundary — Swift 6.0 compilers insist.)
+        let assign: @MainActor @Sendable ([(number: Int, frame: CGRect)]) -> Void =
+            { [weak self] zones in
                 self?.workspaceZones = zones
             }
+        Task.detached {
+            let zones = Self.queryWorkspaceZones()
+            await assign(zones)
         }
     }
 

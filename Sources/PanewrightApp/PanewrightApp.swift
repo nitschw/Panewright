@@ -140,13 +140,11 @@ final class AppModel {
 
     func refreshStatus() {
         let orchestrator = orchestrator
-        Task.detached(priority: .utility) { [weak self] in
-            let status = orchestrator.status()
-            let bordersInfo = orchestrator.bordersInfo()
-            let barInfo = orchestrator.barInfo()
-            let config = try? orchestrator.loadConfig()
-            let profiles = orchestrator.listProfiles()
-            Task { @MainActor in
+        // MainActor closure built here so `self` never crosses the
+        // detachment boundary — Swift 6.0 compilers insist.
+        let apply:
+            @MainActor @Sendable (AeroSpaceStatus, String, String, PanewrightConfig?, [String])
+                -> Void = { [weak self] status, bordersInfo, barInfo, config, profiles in
                 guard let self else { return }
                 self.status = status
                 self.bordersInfo = bordersInfo
@@ -168,6 +166,13 @@ final class AppModel {
                     self.openSetup()
                 }
             }
+        Task.detached(priority: .utility) {
+            let status = orchestrator.status()
+            let bordersInfo = orchestrator.bordersInfo()
+            let barInfo = orchestrator.barInfo()
+            let config = try? orchestrator.loadConfig()
+            let profiles = orchestrator.listProfiles()
+            await apply(status, bordersInfo, barInfo, config, profiles)
         }
     }
 
