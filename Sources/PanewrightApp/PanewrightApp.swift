@@ -1,6 +1,7 @@
 import AppKit
 import PanewrightCore
 import ServiceManagement
+import Sparkle
 import SwiftUI
 import UserNotifications
 
@@ -68,6 +69,8 @@ final class AppModel {
     init() {
         if isBundled {
             UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
+            updaterController = SPUStandardUpdaterController(
+                startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
         }
         do {
             try orchestrator.writeDefaultConfigIfMissing()
@@ -101,6 +104,8 @@ final class AppModel {
     private var setupWindowController: OnboardingWindowController?
     private var aboutWindowController: AboutWindowController?
     private var editorWindowController: EditorWindowController?
+    /// Sparkle needs a real bundle; nil in bare dev runs.
+    private var updaterController: SPUStandardUpdaterController?
 
     var aerospaceInstalled: Bool { AeroSpaceCLI.locate() != nil }
     var bordersInstalled: Bool { JankyBordersSupervisor.locate() != nil }
@@ -156,6 +161,14 @@ final class AppModel {
         let controller = editorWindowController ?? EditorWindowController()
         editorWindowController = controller
         controller.show(appModel: self)
+    }
+
+    func checkForUpdates() {
+        updaterController?.checkForUpdates(nil)
+    }
+
+    var canCheckForUpdates: Bool {
+        updaterController != nil
     }
 
     func openAbout() {
@@ -483,6 +496,11 @@ struct PanewrightMenu: View {
         Divider()
         Button("About Panewright") {
             model.openAbout()
+        }
+        if model.canCheckForUpdates {
+            Button("Check for Updates…") {
+                model.checkForUpdates()
+            }
         }
         Button("Quit Panewright") {
             NSApp.terminate(nil)

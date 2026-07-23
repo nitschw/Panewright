@@ -23,12 +23,28 @@ cp ".build/$CONFIGURATION/panewright" "$APP/Contents/MacOS/panewright"
 cp Assets/logo.png "$APP/Contents/Resources/logo.png"
 cp Assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
+# Embed Sparkle (SwiftPM links it from build artifacts; ship a copy).
+SPARKLE_FW="$(find .build/artifacts -name "Sparkle.framework" -type d | head -1)"
+if [ -n "$SPARKLE_FW" ]; then
+    mkdir -p "$APP/Contents/Frameworks"
+    cp -R "$SPARKLE_FW" "$APP/Contents/Frameworks/"
+    install_name_tool -add_rpath "@executable_path/../Frameworks" \
+        "$APP/Contents/MacOS/panewright" 2>/dev/null || true
+fi
+
 IDENTITY="$(security find-identity -v -p codesigning 2>/dev/null \
     | awk -F'"' '/Apple Development/ {print $2; exit}')"
 if [ -n "${IDENTITY:-}" ]; then
+    if [ -d "$APP/Contents/Frameworks/Sparkle.framework" ]; then
+        codesign --force --options runtime --deep --sign "$IDENTITY" \
+            "$APP/Contents/Frameworks/Sparkle.framework"
+    fi
     codesign --force --options runtime --sign "$IDENTITY" "$APP"
     echo "signed with: $IDENTITY"
 else
+    if [ -d "$APP/Contents/Frameworks/Sparkle.framework" ]; then
+        codesign --force --deep --sign - "$APP/Contents/Frameworks/Sparkle.framework"
+    fi
     codesign --force --sign - "$APP"
     echo "warning: no Apple Development identity found — ad-hoc signed."
     echo "         TCC permission grants to Panewright won't survive rebuilds."

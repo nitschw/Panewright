@@ -1,57 +1,100 @@
-# Panewright
+<p align="center">
+  <img src="Assets/logo.png" width="180" alt="Panewright">
+</p>
 
-Truly tiled windows for MacOS — an i3-style tiling experience that stays
-visually and behaviorally Mac-native.
+<h1 align="center">Panewright</h1>
+<p align="center"><b>Truly tiled windows for macOS.</b> i3's brain, the Mac's manners.</p>
+<p align="center">
+  <a href="https://github.com/nitschw/Panewright/releases">Download</a> ·
+  <a href="https://panewright.com">panewright.com</a> ·
+  <a href="DESIGN.md">Design doc</a> ·
+  <a href="https://patreon.com/panewright">Patreon</a>
+</p>
 
-Panewright is not a from-scratch window manager. It is a polished GUI and
-config layer that orchestrates best-in-class existing tools:
+---
 
-- [AeroSpace](https://github.com/nikitabobko/AeroSpace) — tiling and virtual
-  workspaces via the public Accessibility API (no SIP disable)
-- [JankyBorders](https://github.com/FelixKratz/JankyBorders) — gaps and
-  colored focus borders
-- [SketchyBar](https://github.com/FelixKratz/SketchyBar) — themeable status
-  bar
+Panewright is an i3-grade tiling window manager experience for macOS —
+instant virtual workspaces, vim-keys navigation, modal keybindings,
+scratchpad, per-app rules — delivered as **one menu bar app reading one
+config file**, with the platform's manners intact: native window chrome,
+no SIP disable, and a quit that restores your Mac to stock.
 
-You write one i3-flavored `panewright.toml` (or, eventually, click through a
-native SwiftUI editor); Panewright generates and supervises the configs of the
-underlying tools. See [DESIGN.md](DESIGN.md) for the full architecture and
-roadmap.
+It orchestrates best-in-class open primitives —
+[AeroSpace](https://github.com/nikitabobko/AeroSpace) (tiling),
+[JankyBorders](https://github.com/FelixKratz/JankyBorders) (focus borders),
+[SketchyBar](https://github.com/FelixKratz/SketchyBar) (status bar) —
+so you configure one system, not three.
 
-## Status
+## The headline: ghost drag-to-tile
 
-Early development. Working today: config parsing, AeroSpace config generation
-(workspaces, focus/move, layouts, float rules, monitor bindings, resize mode),
-and live control of a running AeroSpace instance.
+Drag a tiled window by its title bar and **the window doesn't move**. A red
+ghost marks the cell it came from; a blue ghost previews where it lands —
+drop on a window's center to swap, on an edge to split its cell, on a
+workspace number in the bar to send it there, on nothing to cancel. The
+tree reshapes on release, in one motion. No other macOS tiler has this.
 
-## Requirements
+## Everything else
 
-- macOS 14+
-- [AeroSpace](https://github.com/nikitabobko/AeroSpace):
-  `brew install --cask nikitabobko/tap/aerospace`
-- [JankyBorders](https://github.com/FelixKratz/JankyBorders):
-  `brew install FelixKratz/formulae/borders`
+- **Ten instant workspaces** (1–9, 0) — virtual, not macOS Spaces: zero
+  animation, monitor-pinnable, drag-a-window-onto-the-bar-number support
+- **i3 muscle memory** — `$mod+hjkl` focus/move, modal **resize** and
+  **join** modes with a live mode badge in the bar, fullscreen/float
+  toggles, `$mod+minus` scratchpad, flatten-tree panic button
+- **Your choice of `$mod`** — Karabiner hyper key, Ctrl-Opt, Cmd, or a
+  tmux-style leader prefix; focus-follows-mouse optional
+- **One TOML config, live** — save and the desktop follows in under a
+  second; or use the **visual editor** (gap sliders reshuffle your windows
+  in real time, color pickers drive the borders and bar accent)
+- **i3 config importer** — reads your real `~/.config/i3/config`,
+  translates bindings/modes/gaps/colors/scratchpad, and flags every
+  untranslatable line with a line number and a reason. Never silent.
+- **Profiles** — snapshot full configs by name, switch from the menu
+- **Status bar** — clickable workspace numbers with accent highlight, mode
+  badge, front app; native-vibrancy or square-monospace "technical" theme,
+  one toggle apart
+- **A real off switch** — quitting stops the daemons, un-parks every
+  hidden window, and leaves macOS exactly as Apple shipped it
 
-## Build & test
+## Install
 
 ```sh
-swift build
-swift test
+brew install --cask nikitabobko/tap/aerospace   # tiling engine (required)
+brew install FelixKratz/formulae/borders        # focus borders (optional)
+brew install FelixKratz/formulae/sketchybar     # status bar (optional)
 ```
 
-Generate an AeroSpace config from a Panewright config:
+Then grab [the latest release](https://github.com/nitschw/Panewright/releases),
+drop `Panewright.app` in Applications, and launch. The built-in setup
+checklist walks through the two permission grants (Accessibility for
+AeroSpace; Accessibility + Input Monitoring for Panewright's drag engine)
+and can install any missing tools itself — no terminal required.
+
+Coming from i3?
 
 ```sh
-swift run panewright-dev emit Examples/panewright.toml
+panewright-dev import ~/.config/i3/config
 ```
 
-## Configuration
+## Building from source
 
-See [Examples/panewright.toml](Examples/panewright.toml). Every key is
-optional; the defaults give you i3's muscle memory (workspaces 1–9,
-vim-style hjkl focus/move, `$mod+r` resize mode) with `$mod` as the hyper
-key (Caps Lock via Karabiner-Elements, or `alt`/`cmd`).
+```sh
+swift build && swift test        # library + 70 tests
+Scripts/bundle.sh release        # → build/Panewright.app (signed if you have a dev cert)
+Scripts/release.sh 0.1.0         # full release: version, zip, appcast, tag, GH release
+```
+
+macOS 14+, Swift 6. The config model, parsers, emitters, and importer live
+in `PanewrightCore` (fully unit-tested, CI on every push); the menu bar
+app, drag engine, and editor in `PanewrightApp`.
+
+## Philosophy
+
+Read [DESIGN.md](DESIGN.md) — positioning, the wrap-don't-rewrite
+architecture, the licensing rules (MIT here; GPL tools stay out-of-process),
+the drag-to-tile spec, and the long-term path to a fully self-contained app.
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE) © 2026 William Nitsch. Fully open source — the
+[Patreon](https://patreon.com/panewright) is a tip jar with early-access
+builds, not a paywall.

@@ -26,5 +26,11 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 William Nitsch — MIT License</string>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/nitschw/Panewright/main/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>wZcwTixX7FKBwPgRopA2Tt7xRPmdyrDrldYa1PwXzio=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
 </dict>
 </plist>
