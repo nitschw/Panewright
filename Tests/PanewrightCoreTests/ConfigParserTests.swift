@@ -55,6 +55,23 @@ import Testing
         #expect(try ConfigParser.parseAction("layout accordion") == .layoutAccordion)
     }
 
+    @Test func parsesJoinAndActionChains() throws {
+        #expect(try ConfigParser.parseAction("join left") == .joinWith(.left))
+        #expect(
+            try ConfigParser.parseActionChain("join down; mode main")
+                == [.joinWith(.down), .enterMode("main")])
+        let toml = """
+            [[binding]]
+            key = "t"
+            action = "workspace 4; layout accordion"
+            """
+        let config = try ConfigParser.parse(toml: toml)
+        #expect(
+            config.bindings == [
+                .init(key: "t", actions: [.workspace(4), .layoutAccordion])
+            ])
+    }
+
     @Test func parsesWindowMonitorAndModeActions() throws {
         #expect(try ConfigParser.parseAction("fullscreen") == .fullscreen)
         #expect(try ConfigParser.parseAction("floating toggle") == .toggleFloating)

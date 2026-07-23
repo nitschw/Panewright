@@ -56,7 +56,7 @@ public enum ConfigParser {
             config.bindings = try bindings.map { rawBinding in
                 PanewrightConfig.Binding(
                     key: rawBinding.key,
-                    action: try parseAction(rawBinding.action)
+                    actions: try parseActionChain(rawBinding.action)
                 )
             }
         }
@@ -76,9 +76,17 @@ public enum ConfigParser {
         return config
     }
 
+    /// Parses a `;`-separated chain of actions (i3's command chains).
+    static func parseActionChain(_ string: String) throws -> [PanewrightConfig.Action] {
+        try string.split(separator: ";").map {
+            try parseAction($0.trimmingCharacters(in: .whitespaces))
+        }
+    }
+
     /// Parses an i3-flavored action string: `workspace 3`, `move to workspace 3`,
     /// `focus left`, `move right`, `fullscreen`, `floating toggle`,
-    /// `focus monitor next`, `resize width -50`, `mode resize`, `exec …`.
+    /// `focus monitor next`, `resize width -50`, `join left`, `mode resize`,
+    /// `exec …`.
     static func parseAction(_ string: String) throws -> PanewrightConfig.Action {
         if string.hasPrefix("exec ") {
             return .exec(String(string.dropFirst("exec ".count)))
@@ -123,6 +131,10 @@ public enum ConfigParser {
             let dimension = PanewrightConfig.ResizeDimension(rawValue: words[1]),
             let delta = Int(words[2]) {
             return .resize(dimension, delta)
+        }
+        if words.count == 2, words[0] == "join",
+            let direction = PanewrightConfig.Direction(rawValue: words[1]) {
+            return .joinWith(direction)
         }
         if words.count == 2, words[0] == "mode" {
             return .enterMode(words[1])

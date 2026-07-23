@@ -44,14 +44,14 @@ public enum AeroSpaceConfigEmitter {
         lines.append("[mode.main.binding]")
         for binding in config.bindings {
             let combo = keyCombo(modifier: config.modifier, key: binding.key)
-            lines.append("\(combo) = '\(command(for: binding.action))'")
+            lines.append("\(combo) = \(bindingValue(binding))")
         }
         // Mode bindings are bare keys — that's the point of a mode.
         for mode in config.modes {
             lines.append("")
             lines.append("[mode.\(mode.name).binding]")
             for binding in mode.bindings {
-                lines.append("\(binding.key) = '\(command(for: binding.action))'")
+                lines.append("\(binding.key) = \(bindingValue(binding))")
             }
         }
         return lines.joined(separator: "\n") + "\n"
@@ -76,8 +76,8 @@ public enum AeroSpaceConfigEmitter {
 
     static func workspaceNumbers(in bindings: [PanewrightConfig.Binding]) -> [Int] {
         var numbers: Set<Int> = []
-        for binding in bindings {
-            switch binding.action {
+        for action in bindings.flatMap(\.actions) {
+            switch action {
             case .workspace(let n), .moveToWorkspace(let n):
                 numbers.insert(n)
             default:
@@ -85,6 +85,12 @@ public enum AeroSpaceConfigEmitter {
             }
         }
         return numbers.sorted()
+    }
+
+    /// A binding's TOML value: a single command as a string, a chain as an array.
+    static func bindingValue(_ binding: PanewrightConfig.Binding) -> String {
+        let commands = binding.actions.map { "'\(command(for: $0))'" }
+        return commands.count == 1 ? commands[0] : "[\(commands.joined(separator: ", "))]"
     }
 
     static func command(for action: PanewrightConfig.Action) -> String {
@@ -101,6 +107,7 @@ public enum AeroSpaceConfigEmitter {
         case .moveToMonitor(let target): "move-node-to-monitor \(target.rawValue)"
         case .resize(let dimension, let delta):
             "resize \(dimension.rawValue) \(delta >= 0 ? "+\(delta)" : "\(delta)")"
+        case .joinWith(let direction): "join-with \(direction.rawValue)"
         case .enterMode(let name): "mode \(name)"
         case .exec(let command): "exec-and-forget \(command)"
         }

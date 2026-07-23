@@ -84,6 +84,14 @@ import Testing
         #expect(toml.contains("6 = 'secondary'"))
     }
 
+    @Test func emitsJoinModeWithCommandChains() {
+        let toml = AeroSpaceConfigEmitter.emit(.default)
+        #expect(toml.contains("cmd-alt-ctrl-g = 'mode join'"))
+        #expect(toml.contains("[mode.join.binding]"))
+        #expect(toml.contains("h = ['join-with left', 'mode main']"))
+        #expect(toml.contains("l = ['join-with right', 'mode main']"))
+    }
+
     @Test func defaultsToTilesRootLayout() {
         let toml = AeroSpaceConfigEmitter.emit(.default)
         #expect(toml.contains("default-root-container-layout = 'tiles'"))

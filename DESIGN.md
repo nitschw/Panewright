@@ -102,6 +102,10 @@ What justifies charging money when the underlying stack is free:
   hand-edited TOML/Lua spread across three separate tools.
 - The i3-config importer.
 - Theme packs.
+- Visual polish the underlying stack can't do alone — e.g. a translucent
+  accent-colored drop overlay while dragging a window that previews the
+  split it will land in. Panewright draws its own overlay windows, so this
+  needs no private APIs (unlike altering other apps' windows).
 - Ongoing support and updates via Patreon.
 
 ## Build order

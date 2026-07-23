@@ -54,6 +54,9 @@ public struct PanewrightConfig: Equatable, Sendable {
         case focusMonitor(MonitorTarget)
         case moveToMonitor(MonitorTarget)
         case resize(ResizeDimension, Int)
+        /// Group the focused window with its neighbor into a nested
+        /// opposite-orientation container (AeroSpace's `join-with`).
+        case joinWith(Direction)
         case enterMode(String)
         /// i3's `exec` — run a shell command (usually `open -a <App>`).
         case exec(String)
@@ -81,11 +84,16 @@ public struct PanewrightConfig: Equatable, Sendable {
 
     public struct Binding: Equatable, Sendable {
         public var key: String
-        public var action: Action
+        /// One key can chain several commands (i3's `cmd; cmd` chains).
+        public var actions: [Action]
+
+        public init(key: String, actions: [Action]) {
+            self.key = key
+            self.actions = actions
+        }
 
         public init(key: String, action: Action) {
-            self.key = key
-            self.action = action
+            self.init(key: key, actions: [action])
         }
     }
 
@@ -143,6 +151,8 @@ public struct PanewrightConfig: Equatable, Sendable {
         bindings.append(Binding(key: "right", action: .focusMonitor(.right)))
         bindings.append(Binding(key: "shift-left", action: .moveToMonitor(.left)))
         bindings.append(Binding(key: "shift-right", action: .moveToMonitor(.right)))
+        // $mod+g: join mode — group the focused window with a neighbor.
+        bindings.append(Binding(key: "g", action: .enterMode("join")))
 
         // i3's default resize mode: h/l shrink and grow width, j/k grow and
         // shrink height; Enter or Escape returns to normal bindings.
@@ -157,9 +167,23 @@ public struct PanewrightConfig: Equatable, Sendable {
                 Binding(key: "esc", action: .enterMode("main")),
             ])
 
+        // Join mode replaces i3's "split then open" pre-declaration, which
+        // AeroSpace's flatten normalization rules out: group after the fact,
+        // then fall straight back to the main bindings.
+        let join = Mode(
+            name: "join",
+            bindings: [
+                Binding(key: "h", actions: [.joinWith(.left), .enterMode("main")]),
+                Binding(key: "j", actions: [.joinWith(.down), .enterMode("main")]),
+                Binding(key: "k", actions: [.joinWith(.up), .enterMode("main")]),
+                Binding(key: "l", actions: [.joinWith(.right), .enterMode("main")]),
+                Binding(key: "enter", action: .enterMode("main")),
+                Binding(key: "esc", action: .enterMode("main")),
+            ])
+
         return PanewrightConfig(
             bindings: bindings,
-            modes: [resize],
+            modes: [resize, join],
             floatingApps: [
                 "com.apple.systempreferences",
                 "com.apple.calculator",
