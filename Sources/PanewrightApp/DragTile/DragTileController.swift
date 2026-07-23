@@ -32,7 +32,15 @@ final class DragTileController {
     private var runLoopSource: CFRunLoopSource?
     private let sourceOverlay = DropOverlayWindow(style: .source)
     private let targetOverlay = DropOverlayWindow(style: .target)
-    private var dropTarget: (window: OnScreenWindow, zone: DropZone)?
+    private enum DropDestination {
+        case window(OnScreenWindow, DropZone)
+        /// A workspace number item on the status bar.
+        case workspace(Int)
+    }
+
+    private var destination: DropDestination?
+    /// Screen rects of the bar's workspace numbers, fetched at drag start.
+    private var workspaceZones: [(number: Int, frame: CGRect)] = []
     var onStatus: (@Sendable (String) -> Void)?
 
     // Focus-follows-mouse (opt-in via config).
@@ -214,42 +222,112 @@ final class DragTileController {
         DragLog.log("armed: window=\(window.id) owner=\(window.ownerName)")
         phase = .armed(
             windowID: window.id, start: point, targets: tiledIDs, sourceFrame: window.frame)
+        // Bar geometry can shift with workspaces/theme; refresh per drag.
+        Task.detached { [weak self] in
+            let zones = Self.queryWorkspaceZones()
+            Task { @MainActor in
+                self?.workspaceZones = zones
+            }
+        }
+    }
+
+    /// Asks SketchyBar where its workspace items are (empty if no bar).
+    nonisolated private static func queryWorkspaceZones() -> [(number: Int, frame: CGRect)] {
+        let sketchybar = "/opt/homebrew/bin/sketchybar"
+        guard FileManager.default.isExecutableFile(atPath: sketchybar) else { return [] }
+        var zones: [(number: Int, frame: CGRect)] = []
+        for number in 1...9 {
+            let process = Process()
+            process.executableURL = URL(filePath: sketchybar)
+            process.arguments = ["--query", "space.\(number)"]
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = Pipe()
+            guard (try? process.run()) != nil else { continue }
+            process.waitUntilExit()
+            guard process.terminationStatus == 0,
+                let json = try? JSONSerialization.jsonObject(
+                    with: pipe.fileHandleForReading.readDataToEndOfFile()) as? [String: Any],
+                let rects = json["bounding_rects"] as? [String: Any],
+                let first = rects.values.first as? [String: Any],
+                let origin = first["origin"] as? [Double], origin.count == 2,
+                let size = first["size"] as? [Double], size.count == 2
+            else {
+                continue
+            }
+            zones.append(
+                (number, CGRect(x: origin[0], y: origin[1], width: size[0], height: size[1])))
+        }
+        return zones
     }
 
     private func updateDrag(windowID: CGWindowID, targets: Set<CGWindowID>, at point: CGPoint) {
+        // Bar workspace numbers take priority — they're above any window.
+        if let zone = workspaceZones.first(where: {
+            $0.frame.insetBy(dx: -8, dy: -8).contains(point)
+        }) {
+            if case .workspace(zone.number) = destination {} else {
+                DragLog.log("target: workspace item \(zone.number)")
+            }
+            destination = .workspace(zone.number)
+            targetOverlay.show(cgFrame: zone.frame.insetBy(dx: -4, dy: -4))
+            return
+        }
         guard
             let target = WindowSnapshot.capture().first(where: {
                 targets.contains($0.id) && $0.frame.contains(point)
             }),
             let zone = DropZone.zone(at: point, in: target.frame)
         else {
-            dropTarget = nil
+            destination = nil
             targetOverlay.hide()
             return
         }
-        if dropTarget?.window.id != target.id || dropTarget?.zone != zone {
+        if case .window(let previous, let previousZone) = destination,
+            previous.id == target.id, previousZone == zone {
+        } else {
             DragLog.log("target: window=\(target.id) owner=\(target.ownerName) zone=\(zone.rawValue)")
         }
-        dropTarget = (target, zone)
+        destination = .window(target, zone)
         targetOverlay.show(cgFrame: zone.previewFrame(in: target.frame))
     }
 
     private func finishDrag(windowID: CGWindowID) {
         sourceOverlay.hide()
         targetOverlay.hide()
-        let target = dropTarget
-        dropTarget = nil
+        let destination = destination
+        self.destination = nil
         guard let cli = AeroSpaceCLI.locate() else { return }
         let onStatus = onStatus
-        let executorTarget = target.map { ($0.window.id, $0.window.frame, $0.zone) }
-        DragLog.log(
-            "drop: window=\(windowID) target=\(String(describing: executorTarget?.0)) zone=\(executorTarget?.2.rawValue ?? "none")"
-        )
-        Task.detached(priority: .userInitiated) {
-            let executor = DropExecutor(cli: cli)
-            let message = executor.execute(dragged: windowID, target: executorTarget)
-            DragLog.log("drop result: \(message)")
-            onStatus?(message)
+        switch destination {
+        case .workspace(let number):
+            DragLog.log("drop: window=\(windowID) → workspace \(number)")
+            Task.detached(priority: .userInitiated) {
+                do {
+                    try cli.run([
+                        "move-node-to-workspace", "--window-id", "\(windowID)", "\(number)",
+                    ])
+                    DragLog.log("drop result: sent to workspace \(number)")
+                    onStatus?("drag-to-tile: sent to workspace \(number)")
+                } catch {
+                    DragLog.log("drop result: workspace move failed: \(error)")
+                    onStatus?("drag-to-tile: move to workspace \(number) failed")
+                }
+            }
+        case .window, .none:
+            var executorTarget: (CGWindowID, CGRect, DropZone)?
+            if case .window(let target, let zone) = destination {
+                executorTarget = (target.id, target.frame, zone)
+            }
+            DragLog.log(
+                "drop: window=\(windowID) target=\(String(describing: executorTarget?.0)) zone=\(executorTarget?.2.rawValue ?? "none")"
+            )
+            Task.detached(priority: .userInitiated) {
+                let executor = DropExecutor(cli: cli)
+                let message = executor.execute(dragged: windowID, target: executorTarget)
+                DragLog.log("drop result: \(message)")
+                onStatus?(message)
+            }
         }
     }
 }
