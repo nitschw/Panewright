@@ -59,13 +59,40 @@ final class AppModel {
     }
 
     var launchAtLogin = false
+    var dragToTileActive = false
     /// SMAppService needs a real bundle; the bare dev binary has no identifier.
     let isBundled = Bundle.main.bundleIdentifier != nil
+    private var dragController: DragTileController?
 
     func refreshStatus() {
         status = orchestrator.status()
         if isBundled {
             launchAtLogin = SMAppService.mainApp.status == .enabled
+        }
+        if !dragToTileActive {
+            startDragToTileIfPermitted()
+        }
+    }
+
+    func startDragToTileIfPermitted() {
+        guard DragTileController.hasPermission else { return }
+        let controller = dragController ?? DragTileController()
+        controller.onStatus = { [weak self] message in
+            Task { @MainActor in
+                self?.lastMessage = message
+            }
+        }
+        dragController = controller
+        dragToTileActive = controller.start()
+    }
+
+    func enableDragToTile() {
+        if DragTileController.hasPermission {
+            startDragToTileIfPermitted()
+            lastMessage = dragToTileActive ? "Drag-to-Tile active" : "Could not start event tap"
+        } else {
+            DragTileController.requestPermission()
+            lastMessage = "Grant Input Monitoring to Panewright, then reopen this menu"
         }
     }
 
@@ -140,6 +167,13 @@ struct PanewrightMenu: View {
             model.apply()
         }
         aeroSpaceButton
+        if model.dragToTileActive {
+            Text("Drag-to-Tile: active")
+        } else {
+            Button("Enable Drag-to-Tile…") {
+                model.enableDragToTile()
+            }
+        }
         if model.isBundled {
             Toggle(
                 "Launch at Login",
