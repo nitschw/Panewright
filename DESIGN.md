@@ -129,8 +129,15 @@ Implementation sketch: detect the drag via a CGEventTap / AX window-moved
 observers, hit-test the pointer against AeroSpace's window frames, draw the
 overlay (Panewright's own windows — no private APIs), and on drop realize
 the layout with window-id-addressed AeroSpace commands (`focus --window-id`,
-`join-with`, `move`). AeroSpace's native drag behavior is much cruder; this
-layer is pure Panewright and cannot be expressed in config.
+`join-with`, `move`). AeroSpace's native drag behavior — an instant swap on
+any frame overlap, verified unconfigurable (no disable/threshold options) —
+must be neutralized: on drag-start, immediately float the dragged window
+(floating windows are exempt from AeroSpace's drag-swap), run the
+zone/overlay interaction under Panewright's control, and re-tile on drop.
+
+Prerequisite: Panewright itself needs Accessibility/Input Monitoring
+permission for the event tap, which requires the stable code signature of a
+real .app bundle — the bundle work is a hard dependency of this feature.
 
 ## Build order
 
