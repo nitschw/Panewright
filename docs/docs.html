@@ -141,7 +141,8 @@
   <h2 id="install">Install &amp; permissions</h2>
   <pre>brew install --cask nikitabobko/tap/aerospace   <span class="c"># tiling engine (required)</span>
 brew install FelixKratz/formulae/borders        <span class="c"># focus borders (optional)</span>
-brew install FelixKratz/formulae/sketchybar     <span class="c"># status bar (optional)</span></pre>
+brew install FelixKratz/formulae/sketchybar     <span class="c"># status bar (optional)</span>
+brew install --cask karabiner-elements          <span class="c"># Caps Lock as $mod (optional)</span></pre>
   <p>Then drop <b>Panewright.app</b> into Applications and launch it. The <b>setup checklist</b> (menu bar icon → Setup…) walks through everything below and can run the brew installs itself.</p>
   <table>
     <tr><th>Who</th><th>Permission</th><th>Why</th></tr>
@@ -155,6 +156,20 @@ brew install FelixKratz/formulae/sketchybar     <span class="c"># status bar (op
 
   <h2 id="mod">The mod key</h2>
   <p>Every binding hangs off <code>$mod</code>. Pick a style:</p>
+  <table>
+    <tr><th>Value</th><th>Press</th><th>Needs</th></tr>
+    <tr><td><code>"hyper"</code></td><td>Caps Lock</td><td><b>Karabiner-Elements</b> — see below. The closest thing to a real i3 <code>$mod</code>: no collisions with anything.</td></tr>
+    <tr><td><code>"ctrl"</code></td><td>Control (or Caps Lock, remapped)</td><td>Nothing — macOS remaps Caps Lock → Control natively. Watch for terminal bindings (<code>Ctrl+C</code>, <code>Ctrl+L</code>).</td></tr>
+    <tr><td><code>"alt"</code></td><td>Option (or Caps Lock, remapped)</td><td>Nothing — same native remap, fewer collisions than Control.</td></tr>
+    <tr><td><code>"ctrl-alt"</code>, <code>"ctrl-cmd"</code>, <code>"cmd"</code></td><td>That chord</td><td>Nothing.</td></tr>
+    <tr><td><code>"leader"</code></td><td>A prefix, then a bare key</td><td>Nothing — tmux-style, no chord at all.</td></tr>
+  </table>
+  <h3>Caps Lock without extra software</h3>
+  <p>System Settings → Keyboard → <b>Keyboard Shortcuts…</b> → <b>Modifier Keys</b> → set <b>Caps Lock</b> to <b>Control</b> or <b>Option</b>, then use the matching <code>modifier</code> value. Caps Lock becomes your mod key with nothing installed.</p>
+  <h3>Caps Lock as a true hyper key</h3>
+  <p>For a mod key that collides with nothing, install Karabiner-Elements and let it map Caps Lock to Cmd+Opt+Ctrl:</p>
+  <pre>brew install --cask karabiner-elements</pre>
+  <p>Launch it once and approve the driver extension and Input Monitoring when macOS asks. Panewright writes the remap rule to <code>~/.config/karabiner/karabiner.json</code>, so with <code>modifier = "hyper"</code> Caps Lock immediately becomes <code>$mod</code> (and a solo tap still sends Escape).</p>
   <pre>modifier = "ctrl-alt"     <span class="c"># Ctrl+Option held — no typing collisions</span>
 <span class="c"># or: "hyper"    — Caps Lock via Karabiner-Elements (Cmd+Opt+Ctrl)</span>
 <span class="c"># or: "alt", "cmd", "ctrl-cmd"</span>

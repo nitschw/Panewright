@@ -38,6 +38,8 @@ struct EditorView: View {
                 Text("Hyper (Caps Lock via Karabiner)").tag(PanewrightConfig.Modifier.hyper)
                 Text("Option").tag(PanewrightConfig.Modifier.alt)
                 Text("Command").tag(PanewrightConfig.Modifier.cmd)
+                Text("Control (pairs with Caps Lock → Control)")
+                    .tag(PanewrightConfig.Modifier.ctrl)
                 Text("Ctrl+Option").tag(PanewrightConfig.Modifier.ctrlAlt)
                 Text("Ctrl+Command").tag(PanewrightConfig.Modifier.ctrlCmd)
                 Text("Leader key (tmux-style prefix)").tag(PanewrightConfig.Modifier.leader)

@@ -15,7 +15,7 @@ public enum ConfigError: Error, Equatable, CustomStringConvertible {
         case .invalidTOML(let detail):
             "invalid TOML: \(detail)"
         case .invalidModifier(let value):
-            "unknown modifier '\(value)' (expected hyper, alt, cmd, ctrl-alt, ctrl-cmd, or leader)"
+            "unknown modifier '\(value)' (expected hyper, alt, cmd, ctrl, ctrl-alt, ctrl-cmd, or leader)"
         case .invalidAction(let value):
             "unrecognized action '\(value)'"
         case .invalidWorkspaceNumber(let value):

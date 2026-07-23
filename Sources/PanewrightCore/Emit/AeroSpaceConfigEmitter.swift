@@ -116,6 +116,7 @@ public enum AeroSpaceConfigEmitter {
             case .hyper: "cmd-alt-ctrl"
             case .alt: "alt"
             case .cmd: "cmd"
+            case .ctrl: "ctrl"
             case .ctrlAlt: "ctrl-alt"
             case .ctrlCmd: "ctrl-cmd"
             case .leader: ""

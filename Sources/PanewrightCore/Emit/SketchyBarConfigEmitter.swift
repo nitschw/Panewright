@@ -88,6 +88,10 @@ public enum SketchyBarConfigEmitter {
               --set front_app script="$PLUGINS/panewright_front_app.sh" \\
               --subscribe front_app front_app_switched
 
+            # Pin the order explicitly: without this, items can shuffle when
+            # the bar re-renders (a screenshot or display change is enough).
+            $BAR --reorder \(workspaces.map { "space.\($0)" }.joined(separator: " ")) mode front_app
+
             $BAR --update
             # AeroSpace may still be starting (any launch order must work) —
             # retry before painting the initial highlight.

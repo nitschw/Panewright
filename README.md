@@ -61,7 +61,12 @@ tree reshapes on release, in one motion. No other macOS tiler has this.
 brew install --cask nikitabobko/tap/aerospace   # tiling engine (required)
 brew install FelixKratz/formulae/borders        # focus borders (optional)
 brew install FelixKratz/formulae/sketchybar     # status bar (optional)
+brew install --cask karabiner-elements          # Caps Lock as $mod (optional)
 ```
+
+Prefer no extra software? macOS can remap Caps Lock to Control or Option
+natively (System Settings → Keyboard → Modifier Keys); pair that with
+`modifier = "ctrl"` or `"alt"`.
 
 Then grab [the latest release](https://github.com/nitschw/Panewright/releases),
 drop `Panewright.app` in Applications, and launch. The built-in setup

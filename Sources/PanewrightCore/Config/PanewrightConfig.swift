@@ -10,6 +10,10 @@ public struct PanewrightConfig: Equatable, Sendable {
         case hyper
         case alt
         case cmd
+        /// Ctrl alone — pairs with macOS's built-in Caps Lock → Control
+        /// remap for a Caps Lock mod key with no third-party software.
+        /// Beware terminal bindings (Ctrl+C, Ctrl+L…).
+        case ctrl
         /// Ctrl+Opt — types no characters, near-zero macOS collisions.
         case ctrlAlt = "ctrl-alt"
         /// Ctrl+Cmd — beware macOS's own ctrl-cmd-space/f/q shortcuts.
