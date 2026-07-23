@@ -116,6 +116,9 @@ public enum ConfigParser {
         if let appWorkspaces = raw.workspaceApps {
             config.appWorkspaces = appWorkspaces
         }
+        if let hooks = raw.hooks {
+            config.workspaceChangedHook = hooks.workspaceChanged
+        }
         return config
     }
 
@@ -178,6 +181,9 @@ public enum ConfigParser {
         if words == ["scratchpad", "show"] {
             return .scratchpadShow
         }
+        if words == ["workspace", "back_and_forth"] {
+            return .workspaceBackAndForth
+        }
         if words == ["move", "scratchpad"] {
             return .scratchpadMove
         }
@@ -210,14 +216,23 @@ private struct RawConfig: Codable {
     var floatingApps: [String]?
     var workspaceMonitors: [String: String]?
     var workspaceApps: [String: Int]?
+    var hooks: RawHooks?
 
     enum CodingKeys: String, CodingKey {
-        case modifier, gaps, border, bar, binding, mode
+        case modifier, gaps, border, bar, binding, mode, hooks
         case leaderKey = "leader-key"
         case focusFollowsMouse = "focus-follows-mouse"
         case floatingApps = "floating-apps"
         case workspaceMonitors = "workspace-monitors"
         case workspaceApps = "workspace-apps"
+    }
+
+    struct RawHooks: Codable {
+        var workspaceChanged: String?
+
+        enum CodingKeys: String, CodingKey {
+            case workspaceChanged = "workspace-changed"
+        }
     }
 
     struct RawMode: Codable {

@@ -169,6 +169,26 @@ shippable stages, cheapest first:
 Panewright. Replacements for JankyBorders/SketchyBar must be original code;
 only AeroSpace's MIT code may be absorbed.
 
+## Keyboard-complete + scripting (the "full tiling WM" milestone)
+
+Decided 2026-07-23: lean fully into keyboard-first workflows and user
+scripting.
+
+**Shipped:** `exec` bindings run anything (Python included); the
+`[hooks]` section runs a user command on every workspace switch with
+`WORKSPACE`/`PREV_WORKSPACE` env; the `aerospace` CLI doubles as the
+query/control API for scripts; `workspace back_and_forth` on `$mod+Tab`.
+
+**Next: the launcher.** A dmenu/rofi-class fuzzy panel on `$mod+D`:
+type-to-filter across open windows (jump via `focus --window-id`),
+installed apps (launch), and Panewright commands. Keyboard-only, instant,
+themed with the accent. This replaces the i3 refugee's single most-missed
+muscle memory and is the natural home for future command-palette features.
+
+**Later:** richer hook events (window created/focused, mode changed,
+display changed) once the engine is absorbed; a `panewright` Python
+helper module (thin wrapper over the CLI) as an example, not a runtime.
+
 ## Build order
 
 1. MVP wrapping AeroSpace for tiling + workspace switching + config parsing.

@@ -265,6 +265,9 @@ public enum I3ConfigImporter {
         }
         switch first {
         case "workspace":
+            if words.count == 2, words[1] == "back_and_forth" {
+                return (.workspaceBackAndForth, nil)
+            }
             if let n = Int(words.last ?? "") {
                 return (.workspace(n), nil)
             }

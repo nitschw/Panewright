@@ -83,6 +83,8 @@ public struct PanewrightConfig: Equatable, Sendable {
         case scratchpadShow
         /// i3's `move scratchpad` — stash the focused window away.
         case scratchpadMove
+        /// i3's `workspace back_and_forth` — bounce to the previous workspace.
+        case workspaceBackAndForth
     }
 
     public enum MonitorTarget: String, Equatable, Sendable, CaseIterable {
@@ -156,6 +158,9 @@ public struct PanewrightConfig: Equatable, Sendable {
     /// Bundle ID → workspace number: apps that always open on a given
     /// workspace (i3's `assign`).
     public var appWorkspaces: [String: Int]
+    /// Shell command run on every workspace switch, with `WORKSPACE` set —
+    /// the scripting hook (`python3 ~/hooks/ws.py` and friends).
+    public var workspaceChangedHook: String?
 
     public init(
         modifier: Modifier = .hyper,
@@ -168,7 +173,8 @@ public struct PanewrightConfig: Equatable, Sendable {
         modes: [Mode] = [],
         floatingApps: [String] = [],
         workspaceMonitors: [Int: String] = [:],
-        appWorkspaces: [String: Int] = [:]
+        appWorkspaces: [String: Int] = [:],
+        workspaceChangedHook: String? = nil
     ) {
         self.modifier = modifier
         self.leaderKey = leaderKey
@@ -181,6 +187,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         self.floatingApps = floatingApps
         self.workspaceMonitors = workspaceMonitors
         self.appWorkspaces = appWorkspaces
+        self.workspaceChangedHook = workspaceChangedHook
     }
 
     /// i3-familiar defaults: workspaces 1–9 on number keys, vim-style focus/move.
@@ -216,6 +223,8 @@ public struct PanewrightConfig: Equatable, Sendable {
         // i3's scratchpad: $mod+minus summons, $mod+shift+minus stashes.
         bindings.append(Binding(key: "minus", action: .scratchpadShow))
         bindings.append(Binding(key: "shift-minus", action: .scratchpadMove))
+        // i3's $mod+Tab reflex: bounce to the previous workspace.
+        bindings.append(Binding(key: "tab", action: .workspaceBackAndForth))
 
         // i3's default resize mode: h/l shrink and grow width, j/k grow and
         // shrink height; Enter or Escape returns to normal bindings.

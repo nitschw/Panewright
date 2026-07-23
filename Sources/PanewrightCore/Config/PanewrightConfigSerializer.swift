@@ -10,6 +10,11 @@ public enum PanewrightConfigSerializer {
             lines.append("leader-key = \"\(config.leaderKey)\"")
         }
         lines.append("focus-follows-mouse = \(config.focusFollowsMouse)")
+        if let hook = config.workspaceChangedHook {
+            lines.append("")
+            lines.append("[hooks]")
+            lines.append("workspace-changed = \"\(hook)\"")
+        }
         if !config.floatingApps.isEmpty {
             lines.append("floating-apps = [")
             for app in config.floatingApps {
@@ -95,6 +100,7 @@ public enum PanewrightConfigSerializer {
         case .close: "close"
         case .scratchpadShow: "scratchpad show"
         case .scratchpadMove: "move scratchpad"
+        case .workspaceBackAndForth: "workspace back_and_forth"
         }
     }
 }

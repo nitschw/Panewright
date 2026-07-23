@@ -149,7 +149,7 @@ import Testing
         let toml = AeroSpaceConfigEmitter.emit(.default)
         #expect(
             toml.contains(
-                "exec-on-workspace-change = ['/bin/bash', '-c', '/opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE']"
+                "exec-on-workspace-change = ['/bin/bash', '\"$HOME\"/.config/panewright/scripts/on-workspace-change.sh']"
             ))
         #expect(
             toml.contains(

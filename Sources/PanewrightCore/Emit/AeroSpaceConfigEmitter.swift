@@ -7,9 +7,10 @@ public enum AeroSpaceConfigEmitter {
         lines.append("# Edit panewright.toml (or use the Panewright app) instead.")
         lines.append("config-version = 2")
         lines.append("start-at-login = false")
-        if config.statusBar.enabled {
+        if config.statusBar.enabled || config.workspaceChangedHook != nil {
+            // One dispatch script serves the bar and the user's hook.
             lines.append(
-                "exec-on-workspace-change = ['/bin/bash', '-c', '/opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE']"
+                "exec-on-workspace-change = ['/bin/bash', '\"$HOME\"/.config/panewright/scripts/on-workspace-change.sh']"
             )
         }
         lines.append("")
@@ -212,6 +213,7 @@ public enum AeroSpaceConfigEmitter {
         case .enterMode(let name): "mode \(name)"
         case .exec(let command): "exec-and-forget \(command)"
         case .close: "close"
+        case .workspaceBackAndForth: "workspace-back-and-forth"
         case .scratchpadShow:
             "exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/scratchpad-show.sh\""
         case .scratchpadMove:

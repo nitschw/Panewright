@@ -58,6 +58,22 @@ import Testing
         #expect(config.statusBar.theme == .technical)
     }
 
+    @Test func parsesHooksAndBackAndForth() throws {
+        #expect(
+            try ConfigParser.parseAction("workspace back_and_forth") == .workspaceBackAndForth)
+        let config = try ConfigParser.parse(
+            toml: """
+                [hooks]
+                workspace-changed = "python3 ~/hooks/ws.py"
+                """)
+        #expect(config.workspaceChangedHook == "python3 ~/hooks/ws.py")
+        let toml = PanewrightConfigSerializer.emit(config)
+        #expect(try ConfigParser.parse(toml: toml) == config)
+        let aerospace = AeroSpaceConfigEmitter.emit(config)
+        #expect(aerospace.contains("on-workspace-change.sh"))
+        #expect(aerospace.contains("cmd-alt-ctrl-tab = 'workspace-back-and-forth'"))
+    }
+
     @Test func parsesScratchpadAndWorkspaceApps() throws {
         #expect(try ConfigParser.parseAction("scratchpad show") == .scratchpadShow)
         #expect(try ConfigParser.parseAction("move scratchpad") == .scratchpadMove)
