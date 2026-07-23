@@ -95,7 +95,7 @@ struct OnboardingView: View {
             }
         }
         .padding(24)
-        .frame(width: 560)
+        .frame(width: 560, height: 560)
         .task {
             while !Task.isCancelled {
                 if model.setupVisible {

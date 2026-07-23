@@ -13,7 +13,10 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
             let hosting = NSHostingController(rootView: OnboardingView(model: model))
             let window = NSWindow(contentViewController: hosting)
             window.title = "Panewright Setup"
-            window.styleMask = [.titled, .closable]
+            // Keep .resizable: SwiftUI content with a flexible dimension in a
+            // fixed-size window produces unsatisfiable constraints, and
+            // AppKit turns that into a fatal exception mid display cycle.
+            window.styleMask = [.titled, .closable, .resizable]
             window.isReleasedWhenClosed = false
             window.delegate = self
             self.window = window

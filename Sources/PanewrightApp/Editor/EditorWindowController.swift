@@ -11,7 +11,7 @@ final class EditorWindowController {
             let hosting = NSHostingController(rootView: EditorView(model: model))
             let window = NSWindow(contentViewController: hosting)
             window.title = "Panewright Editor"
-            window.styleMask = [.titled, .closable]
+            window.styleMask = [.titled, .closable, .resizable]
             window.isReleasedWhenClosed = false
             self.window = window
         }

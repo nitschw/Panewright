@@ -10,13 +10,16 @@ enum CrashReporter {
     private static let lastCheckKey = "crashReporterLastCheck"
     private static let issuesURL = "https://github.com/nitschw/Panewright/issues/new"
 
-    static func checkAndOffer() {
+    /// Detection only — never presents UI. Presenting a modal at launch is
+    /// how a single crash turns into a crash loop; the caller surfaces this
+    /// through the menu instead.
+    static func pendingReport() -> String? {
         let defaults = UserDefaults.standard
         let stored = defaults.object(forKey: lastCheckKey) as? Date
         defaults.set(Date(), forKey: lastCheckKey)
         // First run (fresh install or bundle-ID change): baseline only —
         // never report crashes that predate this install.
-        guard let lastCheck = stored else { return }
+        guard let lastCheck = stored else { return nil }
 
         var sections: [String] = []
         if let crash = latestCrashReport(since: lastCheck) {
@@ -25,8 +28,13 @@ enum CrashReporter {
         if let exceptions = loggedExceptions(since: lastCheck) {
             sections.append(exceptions)
         }
-        guard !sections.isEmpty else { return }
-        offer(report: assemble(sections))
+        guard !sections.isEmpty else { return nil }
+        return assemble(sections)
+    }
+
+    /// User-initiated: show the report and offer to file it.
+    static func present(report: String) {
+        offer(report: report)
     }
 
     private static func assemble(_ sections: [String]) -> String {

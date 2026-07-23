@@ -32,7 +32,7 @@ struct AboutView: View {
             .font(.caption)
         }
         .padding(28)
-        .frame(width: 340)
+        .frame(width: 340, height: 420)
     }
 
     private var version: String {
@@ -49,7 +49,7 @@ final class AboutWindowController {
             let hosting = NSHostingController(rootView: AboutView())
             let window = NSWindow(contentViewController: hosting)
             window.title = "About Panewright"
-            window.styleMask = [.titled, .closable]
+            window.styleMask = [.titled, .closable, .resizable]
             window.isReleasedWhenClosed = false
             self.window = window
         }

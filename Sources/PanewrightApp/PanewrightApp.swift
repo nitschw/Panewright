@@ -5,8 +5,26 @@ import Sparkle
 import SwiftUI
 import UserNotifications
 
-/// Quit = restore vanilla macOS: tear the whole environment down.
+/// Quit = restore vanilla macOS: tear the whole environment down. Signals
+/// count as quitting too (`pkill`, logout), so they get the same treatment
+/// instead of orphaning daemons.
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var signalSources: [DispatchSourceSignal] = []
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        for sig in [SIGTERM, SIGINT, SIGHUP] {
+            signal(sig, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+            source.setEventHandler {
+                DragLog.log("signal \(sig): tearing down")
+                Orchestrator().teardown()
+                exit(0)
+            }
+            source.resume()
+            signalSources.append(source)
+        }
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         Orchestrator().teardown()
     }
@@ -86,24 +104,61 @@ final class AppModel {
         do {
             try orchestrator.writeDefaultConfigIfMissing()
             try startWatching()
-            try orchestrator.apply()
-            lastMessage = "Config applied"
         } catch {
             report(error: "\(error)")
         }
-        refreshStatus()
-        // Drag-to-tile is core behavior, not an option: ask for its
-        // permission on first launch rather than waiting to be enabled.
-        // (First-run setup auto-opens from refreshStatus once real status
-        // is known — never synchronously during launch.)
-        if !DragTileController.hasPermission {
-            DragTileController.requestPermission()
+        // NEVER prompt for permissions here. A system permission dialog
+        // raised during app initialization — before AppKit finishes its
+        // first display cycle — throws inside the window constraint pass
+        // and kills the process, which turns a missing grant into a launch
+        // crash loop. Setup asks instead, on user action.
+        bootstrapEnvironment()
+        // Detect (never present) last session's crash; the menu offers it.
+        pendingCrashReport = CrashReporter.pendingReport()
+        if pendingCrashReport != nil {
+            notify("Panewright crashed last session — open the menu to report it")
         }
-        // Offer to report last session's crash — after launch settles.
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(2))
-            CrashReporter.checkAndOffer()
+    }
+
+    func reportPendingCrash() {
+        guard let report = pendingCrashReport else { return }
+        pendingCrashReport = nil
+        CrashReporter.present(report: report)
+    }
+
+    private func notify(_ body: String) {
+        guard isBundled else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Panewright"
+        content.body = body
+        UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+    }
+
+    /// Purge everything, then bring the environment up fresh — so a crash,
+    /// a kill, or a half-finished previous session can't leave stragglers.
+    func bootstrapEnvironment() {
+        let orchestrator = orchestrator
+        isBootstrapping = true
+        lastMessage = "Starting environment…"
+        let finished: @MainActor @Sendable () -> Void = { [weak self] in
+            self?.isBootstrapping = false
+            self?.lastMessage = "Environment ready"
+            self?.refreshStatus()
+            self?.offerSetupIfIncomplete()
         }
+        Task.detached(priority: .userInitiated) {
+            orchestrator.bootstrap()
+            await finished()
+        }
+    }
+
+    /// Nudge, don't interrupt: a notification and a marked menu item, never
+    /// a window thrown at the user during startup.
+    private func offerSetupIfIncomplete() {
+        guard setupIncomplete, !autoOpenedSetup else { return }
+        autoOpenedSetup = true
+        notify("Setup isn't finished — open the Panewright menu → Setup…")
     }
 
     var launchAtLogin = false
@@ -113,6 +168,9 @@ final class AppModel {
     var barInfo = ""
     var barEnabled = true
     var needsDragSetup = false
+    var isBootstrapping = false
+    var autoOpenedSetup = false
+    var pendingCrashReport: String?
     var installing: Set<String> = []
     var setupVisible = false
     var profiles: [String] = []
@@ -136,8 +194,6 @@ final class AppModel {
     /// Status checks spawn processes; waitUntilExit on the main thread pumps
     /// the run loop, which lets AppKit re-enter mid-layout and crash. So:
     /// compute off-main, apply on main.
-    private var autoOpenedSetup = false
-
     func refreshStatus() {
         let orchestrator = orchestrator
         // MainActor closure built here so `self` never crosses the
@@ -161,10 +217,6 @@ final class AppModel {
                     self.startDragToTileIfPermitted()
                 }
                 self.needsDragSetup = !DragTileController.hasPermission
-                if self.setupIncomplete, !self.autoOpenedSetup {
-                    self.autoOpenedSetup = true
-                    self.openSetup()
-                }
             }
         Task.detached(priority: .utility) {
             let status = orchestrator.status()
@@ -328,6 +380,7 @@ final class AppModel {
         dragToTileActive = controller.start()
     }
 
+    /// User-initiated only (Setup window) — see the note in `init`.
     func finishDragToTileSetup() {
         DragTileController.requestPermission()
         if let url = URL(
@@ -470,9 +523,18 @@ struct PanewrightMenu: View {
         Button("Edit Config File…") {
             model.openConfig()
         }
-        Button("Setup…") {
+        Button(model.setupIncomplete ? "⚠ Setup…" : "Setup…") {
             model.openSetup()
         }
+        if model.pendingCrashReport != nil {
+            Button("Report Last Crash…") {
+                model.reportPendingCrash()
+            }
+        }
+        Button(model.isBootstrapping ? "Restarting Environment…" : "Restart Environment") {
+            model.bootstrapEnvironment()
+        }
+        .disabled(model.isBootstrapping)
         Button("Apply Config Now") {
             model.apply()
         }

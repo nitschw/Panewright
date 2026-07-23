@@ -104,6 +104,38 @@ public struct Orchestrator: Sendable {
         return emitted
     }
 
+    /// Cold start: purge every managed process, then bring the whole
+    /// environment up fresh. Deterministic regardless of how the last
+    /// session ended (clean quit, crash, or kill). Blocking — callers run
+    /// it off the main thread.
+    public func bootstrap() {
+        teardown()
+        Thread.sleep(forTimeInterval: 0.7)
+        guard AeroSpaceCLI.locate() != nil else {
+            // No engine installed: still sync the visual layer.
+            try? apply()
+            return
+        }
+        try? launchAeroSpace()
+        _ = waitForAeroSpace()
+        try? apply()
+        healLayoutsWhenReady()
+    }
+
+    /// Polls until the engine's CLI answers (it needs a moment after launch).
+    @discardableResult
+    public func waitForAeroSpace(timeout: TimeInterval = 15) -> Bool {
+        guard let cli = AeroSpaceCLI.locate() else { return false }
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if (try? cli.run(["list-workspaces", "--focused"])) != nil {
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        return false
+    }
+
     /// Quitting Panewright restores pre-existing macOS behavior: the border
     /// and bar daemons stop, every parked window is brought back on-screen
     /// (`enable off` — AeroSpace does NOT un-park on termination), and the
