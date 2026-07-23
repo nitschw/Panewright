@@ -55,6 +55,9 @@ public enum ConfigParser {
         if let leaderKey = raw.leaderKey {
             config.leaderKey = leaderKey
         }
+        if let focusFollowsMouse = raw.focusFollowsMouse {
+            config.focusFollowsMouse = focusFollowsMouse
+        }
         if let bar = raw.bar {
             config.statusBar.enabled = bar.enabled ?? config.statusBar.enabled
             if let theme = bar.theme {
@@ -194,12 +197,14 @@ private struct RawConfig: Codable {
     var binding: [RawBinding]?
     var mode: [RawMode]?
     var leaderKey: String?
+    var focusFollowsMouse: Bool?
     var floatingApps: [String]?
     var workspaceMonitors: [String: String]?
 
     enum CodingKeys: String, CodingKey {
         case modifier, gaps, border, bar, binding, mode
         case leaderKey = "leader-key"
+        case focusFollowsMouse = "focus-follows-mouse"
         case floatingApps = "floating-apps"
         case workspaceMonitors = "workspace-monitors"
     }

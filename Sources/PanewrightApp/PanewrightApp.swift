@@ -105,6 +105,7 @@ final class AppModel {
         let config = try? orchestrator.loadConfig()
         bordersEnabled = config?.focusBorder.enabled ?? true
         barEnabled = config?.statusBar.enabled ?? true
+        dragController?.configure(focusFollowsMouse: config?.focusFollowsMouse ?? false)
         if isBundled {
             launchAtLogin = SMAppService.mainApp.status == .enabled
         }
@@ -249,6 +250,8 @@ final class AppModel {
     func startDragToTileIfPermitted() {
         guard DragTileController.hasPermission else { return }
         let controller = dragController ?? DragTileController()
+        controller.configure(
+            focusFollowsMouse: (try? orchestrator.loadConfig())?.focusFollowsMouse ?? false)
         controller.onStatus = { [weak self] message in
             Task { @MainActor in
                 self?.reportDropResult(message)

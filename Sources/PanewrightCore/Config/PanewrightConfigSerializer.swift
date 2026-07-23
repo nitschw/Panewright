@@ -9,6 +9,7 @@ public enum PanewrightConfigSerializer {
         if config.modifier == .leader {
             lines.append("leader-key = \"\(config.leaderKey)\"")
         }
+        lines.append("focus-follows-mouse = \(config.focusFollowsMouse)")
         if !config.floatingApps.isEmpty {
             lines.append("floating-apps = [")
             for app in config.floatingApps {

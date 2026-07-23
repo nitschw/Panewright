@@ -33,7 +33,7 @@ import Testing
         #expect(files.sketchybarrc.contains("panewright_battery.sh"))
         #expect(files.sketchybarrc.contains("panewright_wifi.sh"))
         #expect(files.batteryPlugin.contains("pmset -g batt"))
-        #expect(files.wifiPlugin.contains("ipconfig getsummary"))
+        #expect(files.wifiPlugin.contains("system_profiler SPAirPortDataType"))
     }
 
     @Test func modePluginUppercasesAndClears() throws {

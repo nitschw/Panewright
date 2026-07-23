@@ -48,6 +48,7 @@ struct EditorView: View {
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 220)
             }
+            Toggle("Focus follows mouse (hover to focus, no click)", isOn: bind(\.focusFollowsMouse))
         }
     }
 

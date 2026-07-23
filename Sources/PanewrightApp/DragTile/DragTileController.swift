@@ -29,10 +29,39 @@ final class DragTileController {
 
     private var phase = Phase.idle
     private var tap: CFMachPort?
+    private var runLoopSource: CFRunLoopSource?
     private let sourceOverlay = DropOverlayWindow(style: .source)
     private let targetOverlay = DropOverlayWindow(style: .target)
     private var dropTarget: (window: OnScreenWindow, zone: DropZone)?
     var onStatus: (@Sendable (String) -> Void)?
+
+    // Focus-follows-mouse (opt-in via config).
+    private(set) var focusFollowsMouse = false
+    private var lastHoverFocus: CGWindowID?
+    private var lastHoverCheck: CFTimeInterval = 0
+
+    /// The tap's event mask is fixed at creation, so changing the option
+    /// rebuilds the tap.
+    func configure(focusFollowsMouse enabled: Bool) {
+        guard enabled != focusFollowsMouse else { return }
+        focusFollowsMouse = enabled
+        if tap != nil {
+            stopTap()
+            _ = start()
+        }
+    }
+
+    private func stopTap() {
+        if let tap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            CFMachPortInvalidate(tap)
+        }
+        if let runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), runLoopSource, .commonModes)
+        }
+        tap = nil
+        runLoopSource = nil
+    }
 
     static var hasPermission: Bool {
         CGPreflightListenEventAccess() && AXIsProcessTrusted()
@@ -53,10 +82,13 @@ final class DragTileController {
     func start() -> Bool {
         guard tap == nil else { return true }
         DragLog.log("start: permission=\(Self.hasPermission)")
-        let mask: CGEventMask =
+        var mask: CGEventMask =
             (1 << CGEventType.leftMouseDown.rawValue)
             | (1 << CGEventType.leftMouseDragged.rawValue)
             | (1 << CGEventType.leftMouseUp.rawValue)
+        if focusFollowsMouse {
+            mask |= 1 << CGEventType.mouseMoved.rawValue
+        }
         guard
             let tap = CGEvent.tapCreate(
                 tap: .cgSessionEventTap,
@@ -80,9 +112,11 @@ final class DragTileController {
             DragLog.log("start: tapCreate FAILED (Accessibility not effective for this process?)")
             return false
         }
-        DragLog.log("start: modifying tap created and enabled")
+        DragLog.log(
+            "start: modifying tap created (focusFollowsMouse=\(focusFollowsMouse))")
         self.tap = tap
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        runLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
         return true
@@ -124,8 +158,33 @@ final class DragTileController {
             }
             phase = .idle
             return false
+        case .mouseMoved:
+            hoverFocus(at: point)
+            return false
         default:
             return false
+        }
+    }
+
+    /// Focus follows mouse: throttled, off-main CLI call, never during drags.
+    private func hoverFocus(at point: CGPoint) {
+        guard focusFollowsMouse, case .idle = phase else { return }
+        let now = CFAbsoluteTimeGetCurrent()
+        guard now - lastHoverCheck > 0.1 else { return }
+        lastHoverCheck = now
+        guard
+            let window = WindowSnapshot.capture().first(where: {
+                !Self.ignoredOwners.contains($0.ownerName) && $0.frame.contains(point)
+            }),
+            window.id != lastHoverFocus
+        else {
+            return
+        }
+        lastHoverFocus = window.id
+        guard let cli = AeroSpaceCLI.locate() else { return }
+        let windowID = window.id
+        Task.detached(priority: .utility) {
+            try? cli.run(["focus", "--window-id", "\(windowID)"])
         }
     }
 

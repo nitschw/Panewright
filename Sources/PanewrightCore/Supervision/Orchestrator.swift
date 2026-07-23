@@ -126,12 +126,17 @@ public struct Orchestrator: Sendable {
             } else {
                 try bar.launch()
             }
-            setSystemMenuBarHidden(true)
+            if setSystemMenuBarHidden(true) {
+                // Tiles must re-fit the reclaimed strip.
+                try? restartAeroSpace()
+            }
         } else {
             if bar.isRunning() {
                 bar.stop()
             }
-            setSystemMenuBarHidden(false)
+            if setSystemMenuBarHidden(false) {
+                try? restartAeroSpace()
+            }
         }
     }
 
@@ -176,15 +181,21 @@ public struct Orchestrator: Sendable {
     /// One bar at a time: enabling Panewright's bar hides the macOS menu bar
     /// (auto-hide — it still slides in on hover for app menus and third-party
     /// status items); disabling restores it. No-ops unless the state changes.
-    func setSystemMenuBarHidden(_ hidden: Bool) {
+    /// Returns true when the state actually changed. Modern macOS applies
+    /// this preference via the Dock process, and AeroSpace only reads screen
+    /// geometry at startup — so a change requires kicking both.
+    @discardableResult
+    func setSystemMenuBarHidden(_ hidden: Bool) -> Bool {
         let current = runToolCapture(
             "/usr/bin/defaults", ["read", "NSGlobalDomain", "_HIHideMenuBar"])
         let currentlyHidden = current == "1"
-        guard currentlyHidden != hidden else { return }
+        guard currentlyHidden != hidden else { return false }
         try? runTool(
             "/usr/bin/defaults",
             ["write", "NSGlobalDomain", "_HIHideMenuBar", "-bool", hidden ? "true" : "false"])
         try? runTool("/usr/bin/killall", ["SystemUIServer"])
+        try? runTool("/usr/bin/killall", ["Dock"])
+        return true
     }
 
     private func runToolCapture(_ path: String, _ arguments: [String]) -> String? {

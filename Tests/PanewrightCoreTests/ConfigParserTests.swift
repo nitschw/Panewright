@@ -106,6 +106,12 @@ import Testing
         }
     }
 
+    @Test func parsesFocusFollowsMouse() throws {
+        let config = try ConfigParser.parse(toml: "focus-follows-mouse = true\n")
+        #expect(config.focusFollowsMouse == true)
+        #expect(PanewrightConfig.default.focusFollowsMouse == false)
+    }
+
     @Test func parsesLeaderModifierAndKey() throws {
         let config = try ConfigParser.parse(
             toml: "modifier = \"leader\"\nleader-key = \"cmd-slash\"")

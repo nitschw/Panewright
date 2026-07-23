@@ -136,6 +136,9 @@ public struct PanewrightConfig: Equatable, Sendable {
     public var modifier: Modifier
     /// The prefix chord when `modifier == .leader`, in AeroSpace key syntax.
     public var leaderKey: String
+    /// i3's `focus_follows_mouse` — hover moves focus, no click. Implemented
+    /// by Panewright's event tap (AeroSpace has no native support).
+    public var focusFollowsMouse: Bool
     public var statusBar: StatusBar
     public var gaps: Gaps
     public var focusBorder: FocusBorder
@@ -150,6 +153,7 @@ public struct PanewrightConfig: Equatable, Sendable {
     public init(
         modifier: Modifier = .hyper,
         leaderKey: String = "cmd-semicolon",
+        focusFollowsMouse: Bool = false,
         statusBar: StatusBar = StatusBar(),
         gaps: Gaps = Gaps(),
         focusBorder: FocusBorder = FocusBorder(),
@@ -160,6 +164,7 @@ public struct PanewrightConfig: Equatable, Sendable {
     ) {
         self.modifier = modifier
         self.leaderKey = leaderKey
+        self.focusFollowsMouse = focusFollowsMouse
         self.statusBar = statusBar
         self.gaps = gaps
         self.focusBorder = focusBorder
