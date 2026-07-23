@@ -286,6 +286,9 @@ struct ArticleWebView: NSViewRepresentable {
             const box = document.getElementById('pw-lightbox');
             const full = box.querySelector('img');
             let scale = 1, panX = 0, panY = 0, dragging = false, startX = 0, startY = 0;
+            // A drag ends with a click on the image; without this the
+            // toggle below would read that as "zoom back out".
+            let moved = false;
 
             function apply() {
               full.style.transform =
@@ -311,6 +314,7 @@ struct ArticleWebView: NSViewRepresentable {
             });
 
             box.addEventListener('click', function (event) {
+              if (moved) { moved = false; return; }
               if (event.target === full) {
                 // Toggle between fit and 2x for a closer look.
                 scale = scale === 1 ? 2 : 1;
@@ -329,6 +333,7 @@ struct ArticleWebView: NSViewRepresentable {
             full.addEventListener('mousedown', function (event) {
               if (scale === 1) return;
               dragging = true;
+              moved = false;
               startX = event.clientX - panX;
               startY = event.clientY - panY;
               box.classList.add('dragging');
@@ -336,11 +341,15 @@ struct ArticleWebView: NSViewRepresentable {
             });
             window.addEventListener('mousemove', function (event) {
               if (!dragging) return;
-              panX = event.clientX - startX;
-              panY = event.clientY - startY;
+              const nextX = event.clientX - startX;
+              const nextY = event.clientY - startY;
+              if (Math.abs(nextX - panX) + Math.abs(nextY - panY) > 2) moved = true;
+              panX = nextX;
+              panY = nextY;
               apply();
             });
             window.addEventListener('mouseup', function () {
+              if (!dragging) return;
               dragging = false;
               box.classList.remove('dragging');
             });
