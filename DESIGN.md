@@ -55,6 +55,13 @@ Instead implement (or reuse AeroSpace's) virtual workspace model:
 - Instant switching, no forced Mission-Control-style animation.
 - Workspaces freely assignable to any display.
 
+**Known tradeoff:** virtual workspaces keep every window in one native Space
+(hidden windows are parked offscreen), so Mission Control shows *all* windows
+from *all* workspaces at once — tiny thumbnails. Mitigations: macOS's "Group
+windows by application" setting (System Settings → Desktop & Dock → Mission
+Control); longer-term, Panewright's trackpad-gesture layer and a workspace
+overview of its own should replace what Mission Control was used for.
+
 ### Mod key: hyper key, not fn
 
 `fn` is not reliably capturable as a global hotkey modifier via public APIs.
