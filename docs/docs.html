@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panewright Documentation</title>
+<meta name="description" content="Every Panewright feature, explained with examples: keybindings, modes, workspaces, drag-to-tile, scratchpad, rules, scripting hooks, profiles, and the i3 importer.">
+<style>
+  :root {
+    --bg: #0c0c11; --bg-raise: #121218; --line: #23232d; --line-soft: #1a1a22;
+    --ink: #ececf1; --ink-dim: #a3a3b2; --ink-faint: #6b6b7b;
+    --accent: #d6295f;
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 15.5px/1.65 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--accent); color: #fff; }
+  a { color: #e05a86; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  .layout { display: grid; grid-template-columns: 240px 1fr; max-width: 1100px; margin: 0 auto; gap: 48px; padding: 0 28px; }
+  nav.side {
+    position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+    padding: 28px 0 40px; font-size: 13.5px;
+  }
+  nav.side .wordmark { display: flex; align-items: center; gap: 9px; font-weight: 700; color: var(--ink); margin-bottom: 24px; }
+  nav.side .wordmark img { width: 24px; border-radius: 6px; }
+  nav.side h5 { font: 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); margin: 18px 0 6px; }
+  nav.side a { display: block; color: var(--ink-dim); padding: 3px 0; }
+  nav.side a:hover { color: var(--ink); text-decoration: none; }
+
+  main { padding: 34px 0 90px; min-width: 0; }
+  h1 { font-size: 34px; letter-spacing: -.02em; margin-bottom: 8px; }
+  .lede { color: var(--ink-dim); margin-bottom: 8px; }
+  h2 {
+    font-size: 23px; letter-spacing: -.01em; margin: 52px 0 10px;
+    padding-top: 22px; border-top: 1px solid var(--line);
+  }
+  h3 { font-size: 16.5px; margin: 26px 0 6px; }
+  p { color: var(--ink-dim); margin: 8px 0; }
+  p b, li b { color: var(--ink); }
+  ul { margin: 8px 0 8px 20px; color: var(--ink-dim); }
+  li { margin: 3px 0; }
+  code { font: 13px var(--mono); background: #1a1a23; border-radius: 5px; padding: 1px 6px; color: var(--ink); }
+  pre {
+    background: var(--bg-raise); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 16px; overflow-x: auto; margin: 12px 0;
+    font: 13px/1.6 var(--mono); color: #c3c3d3;
+  }
+  pre .c { color: var(--ink-faint); }
+  kbd {
+    font: 12px var(--mono); background: #1d1d26; border: 1px solid #2e2e3a;
+    border-bottom-width: 2px; border-radius: 6px; padding: 2px 7px; color: var(--ink);
+    white-space: nowrap;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 14px; }
+  th { text-align: left; font: 11.5px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--ink-faint); padding: 8px 14px 8px 0; border-bottom: 1px solid var(--line); }
+  td { padding: 7px 14px 7px 0; border-bottom: 1px solid var(--line-soft); color: var(--ink-dim); vertical-align: top; }
+  td:first-child { white-space: nowrap; }
+  .note {
+    border-left: 3px solid var(--accent); background: var(--bg-raise);
+    border-radius: 0 8px 8px 0; padding: 10px 14px; margin: 12px 0; font-size: 14px; color: var(--ink-dim);
+  }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; gap: 0; }
+    nav.side { position: static; height: auto; border-bottom: 1px solid var(--line); padding-bottom: 18px; }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+<nav class="side">
+  <a class="wordmark" href="index.html"><img src="logo.png" alt="">Panewright</a>
+  <h5>Start</h5>
+  <a href="#install">Install &amp; permissions</a>
+  <a href="#concepts">How it works</a>
+  <h5>Input</h5>
+  <a href="#mod">The mod key</a>
+  <a href="#bindings">Keybindings</a>
+  <a href="#actions">Action reference</a>
+  <a href="#modes">Modes</a>
+  <a href="#defaults">Default keymap</a>
+  <h5>Windows</h5>
+  <a href="#workspaces">Workspaces</a>
+  <a href="#drag">Drag-to-tile</a>
+  <a href="#scratchpad">Scratchpad</a>
+  <a href="#rules">Per-app rules</a>
+  <a href="#ffm">Focus follows mouse</a>
+  <h5>Appearance</h5>
+  <a href="#gaps">Gaps &amp; borders</a>
+  <a href="#bar">Status bar</a>
+  <h5>Tooling</h5>
+  <a href="#editor">Visual editor</a>
+  <a href="#profiles">Profiles</a>
+  <a href="#import">i3 import</a>
+  <a href="#scripting">Scripting</a>
+  <h5>Meta</h5>
+  <a href="#updates">Updates &amp; crashes</a>
+  <a href="#quit">Quitting</a>
+  <a href="#troubleshooting">Troubleshooting</a>
+</nav>
+
+<main>
+  <h1>Documentation</h1>
+  <p class="lede">Everything Panewright does, with an example for everything. Your config lives at <code>~/.config/panewright/panewright.toml</code> — every key below is optional, and saving the file applies it live.</p>
+
+  <h2 id="install">Install &amp; permissions</h2>
+  <pre>brew install --cask nikitabobko/tap/aerospace   <span class="c"># tiling engine (required)</span>
+brew install FelixKratz/formulae/borders        <span class="c"># focus borders (optional)</span>
+brew install FelixKratz/formulae/sketchybar     <span class="c"># status bar (optional)</span></pre>
+  <p>Then drop <b>Panewright.app</b> into Applications and launch it. The <b>setup checklist</b> (menu bar icon → Setup…) walks through everything below and can run the brew installs itself.</p>
+  <table>
+    <tr><th>Who</th><th>Permission</th><th>Why</th></tr>
+    <tr><td>AeroSpace</td><td>Accessibility</td><td>Moving and resizing windows. <b>Restart AeroSpace after granting</b> — grants only take effect at launch.</td></tr>
+    <tr><td>Panewright</td><td>Accessibility + Input Monitoring</td><td>The drag-to-tile event tap and focus-follows-mouse. Quit and reopen Panewright after granting.</td></tr>
+  </table>
+
+  <h2 id="concepts">How it works</h2>
+  <p>Panewright is an orchestrator: it reads your one config file and generates/supervises the configs of AeroSpace, JankyBorders, and SketchyBar. Save your config and everything downstream reloads within a second.</p>
+  <div class="note">Files Panewright generates — <code>~/.config/aerospace/aerospace.toml</code>, <code>~/.config/sketchybar/*</code>, <code>~/.config/panewright/scripts/*</code> — are overwritten on every apply. Edit <code>panewright.toml</code>, not them.</div>
+
+  <h2 id="mod">The mod key</h2>
+  <p>Every binding hangs off <code>$mod</code>. Pick a style:</p>
+  <pre>modifier = "ctrl-alt"     <span class="c"># Ctrl+Option held — no typing collisions</span>
+<span class="c"># or: "hyper"    — Caps Lock via Karabiner-Elements (Cmd+Opt+Ctrl)</span>
+<span class="c"># or: "alt", "cmd", "ctrl-cmd"</span>
+<span class="c"># or: "leader"   — no chord at all; a tmux-style prefix:</span>
+modifier = "leader"
+leader-key = "ctrl-semicolon"   <span class="c"># press it, release, then tap a bare key</span></pre>
+  <p>Leader style is one-shot: each command returns the keyboard to normal; <kbd>Esc</kbd> cancels a pending prefix.</p>
+
+  <h2 id="bindings">Keybindings</h2>
+  <p>Each binding is a key plus an i3-flavored action. Defining <em>any</em> binding replaces the default set, so list everything you want (or start from the defaults below and edit).</p>
+  <pre>[[binding]]
+key = "1"
+action = "workspace 1"
+
+[[binding]]
+key = "shift-h"                 <span class="c"># shift- is the only key prefix</span>
+action = "move left"
+
+[[binding]]
+key = "t"
+action = "workspace 4; layout accordion"   <span class="c"># chains run in order</span></pre>
+  <p><b>Key names:</b> letters <code>a–z</code>, digits <code>0–9</code>, <code>enter</code>, <code>esc</code>, <code>space</code>, <code>tab</code>, <code>minus</code>, <code>equal</code>, <code>comma</code>, <code>period</code>, <code>slash</code>, <code>semicolon</code>, <code>quote</code>, and arrows <code>left</code> <code>down</code> <code>up</code> <code>right</code> — each optionally prefixed <code>shift-</code>.</p>
+
+  <h2 id="actions">Action reference</h2>
+  <table>
+    <tr><th>Action</th><th>Does</th></tr>
+    <tr><td><code>workspace 3</code></td><td>Switch to workspace 3</td></tr>
+    <tr><td><code>move to workspace 3</code></td><td>Send the focused window there (focus stays)</td></tr>
+    <tr><td><code>workspace back_and_forth</code></td><td>Bounce to the previous workspace</td></tr>
+    <tr><td><code>focus left</code></td><td>Move focus (<code>left/down/up/right</code>)</td></tr>
+    <tr><td><code>move right</code></td><td>Move the window: toward a window swaps, toward a stack enters it, toward the screen edge pops it out as its own column/row</td></tr>
+    <tr><td><code>layout tiles</code></td><td>Split layout (i3's default)</td></tr>
+    <tr><td><code>layout accordion</code></td><td>Stacked full-screen layers (i3's stacking/tabbed)</td></tr>
+    <tr><td><code>fullscreen</code></td><td>Toggle fullscreen for the focused window</td></tr>
+    <tr><td><code>floating toggle</code></td><td>Pop the window out of the tiling tree / back in</td></tr>
+    <tr><td><code>join left</code></td><td>Nest the focused window with its neighbor into an opposite-orientation container</td></tr>
+    <tr><td><code>flatten</code></td><td>Un-nest the whole workspace back to flat columns — the panic button</td></tr>
+    <tr><td><code>resize width -50</code></td><td>Resize by pixels (<code>width</code>/<code>height</code>, ±N)</td></tr>
+    <tr><td><code>mode resize</code></td><td>Enter a named mode (see below); <code>mode main</code> exits</td></tr>
+    <tr><td><code>focus monitor next</code></td><td>Focus another monitor (<code>left/down/up/right/next/prev</code>)</td></tr>
+    <tr><td><code>move to monitor left</code></td><td>Send the window to that monitor</td></tr>
+    <tr><td><code>scratchpad show</code></td><td>Summon the stashed window (see Scratchpad)</td></tr>
+    <tr><td><code>move scratchpad</code></td><td>Stash the focused window</td></tr>
+    <tr><td><code>close</code></td><td>Close the focused window (i3's <code>kill</code>)</td></tr>
+    <tr><td><code>exec open -a Ghostty</code></td><td>Run any shell command</td></tr>
+  </table>
+
+  <h2 id="modes">Modes</h2>
+  <p>Modal keybindings, i3-style: enter a mode and bare keys take on new meanings until you exit. The status bar shows a badge (like <code>[RESIZE]</code>) while any mode is active.</p>
+  <pre>[[binding]]
+key = "r"
+action = "mode resize"
+
+[[mode]]
+name = "resize"
+
+[[mode.binding]]
+key = "h"                       <span class="c"># bare keys inside modes — release your mod</span>
+action = "resize width -50"
+
+[[mode.binding]]
+key = "esc"
+action = "mode main"</pre>
+  <div class="note">Defining any <code>[[mode]]</code> replaces the default modes (resize and join), so include the ones you want to keep.</div>
+
+  <h2 id="defaults">Default keymap</h2>
+  <table>
+    <tr><th>Keys</th><th>Action</th></tr>
+    <tr><td><kbd>$mod 1–9 0</kbd> / <kbd>+⇧</kbd></td><td>Switch workspace / send window there</td></tr>
+    <tr><td><kbd>$mod ⇥</kbd></td><td>Previous workspace (back &amp; forth)</td></tr>
+    <tr><td><kbd>$mod H J K L</kbd> / <kbd>+⇧</kbd></td><td>Focus / move window (vim directions)</td></tr>
+    <tr><td><kbd>$mod E</kbd> / <kbd>$mod S</kbd></td><td>Tiles / accordion layout</td></tr>
+    <tr><td><kbd>$mod F</kbd></td><td>Fullscreen</td></tr>
+    <tr><td><kbd>$mod ⇧ Space</kbd></td><td>Floating toggle</td></tr>
+    <tr><td><kbd>$mod R</kbd></td><td>Resize mode — then bare <kbd>H J K L</kbd>, exit with <kbd>Esc</kbd></td></tr>
+    <tr><td><kbd>$mod G</kbd></td><td>Join mode — then bare <kbd>H J K L</kbd> toward the neighbor to stack with</td></tr>
+    <tr><td><kbd>$mod ⇧ G</kbd></td><td>Flatten the workspace</td></tr>
+    <tr><td><kbd>$mod −</kbd> / <kbd>$mod ⇧ −</kbd></td><td>Summon / stash scratchpad</td></tr>
+    <tr><td><kbd>$mod ⏎</kbd></td><td>Open a terminal</td></tr>
+    <tr><td><kbd>$mod ← →</kbd> / <kbd>+⇧</kbd></td><td>Focus / move window to next monitor</td></tr>
+  </table>
+
+  <h2 id="workspaces">Workspaces</h2>
+  <p>Ten virtual workspaces, ordered <b>1–9 0</b> like the keyboard row. They're not macOS Spaces: switching is instant and animation-free. On the bar you can <b>click a number</b> to switch — or <b>drag a window onto a number</b> to send it there.</p>
+  <h3>Pinning to monitors</h3>
+  <pre>[workspace-monitors]
+1 = "main"          <span class="c"># patterns: main, secondary, a 1-based index,</span>
+9 = "secondary"     <span class="c"># or a display-name regex</span></pre>
+  <p>Each monitor shows one workspace at a time; a workspace never appears on two. Switching to a workspace pinned elsewhere moves your focus to that monitor.</p>
+
+  <h2 id="drag">Drag-to-tile</h2>
+  <p>Grab a tiled window by its title bar and pull — <b>the window doesn't move</b>. A red ghost marks the cell it came from; a blue ghost previews the drop:</p>
+  <ul>
+    <li><b>Center</b> of another window → swap places</li>
+    <li><b>Edge</b> of another window → split that cell and take the half</li>
+    <li><b>Workspace number</b> on the bar → send it to that workspace</li>
+    <li><b>Nothing</b> → cancel; the layout never changed</li>
+  </ul>
+  <p>Always on (it's how Panewright works); needs Panewright's two permissions from the install table.</p>
+
+  <h2 id="scratchpad">Scratchpad</h2>
+  <p>A hidden shelf for one-or-more windows — classically a terminal you summon anywhere.</p>
+  <ul>
+    <li><kbd>$mod ⇧ −</kbd> stashes the focused window (it floats and vanishes)</li>
+    <li><kbd>$mod −</kbd> summons the first stashed window onto the current workspace, floating and focused</li>
+  </ul>
+  <p>Summoning with nothing stashed posts a notification instead of silently doing nothing.</p>
+
+  <h2 id="rules">Per-app rules</h2>
+  <h3>Always float</h3>
+  <pre>floating-apps = [
+  "com.apple.systempreferences",
+  "com.apple.calculator",
+]</pre>
+  <h3>Always open on a workspace (i3's <code>assign</code>)</h3>
+  <pre>[workspace-apps]
+"com.spotify.client" = 5
+"com.apple.mail" = 4</pre>
+  <p>Find any app's bundle ID:</p>
+  <pre>osascript -e 'id of app "Spotify"'</pre>
+
+  <h2 id="ffm">Focus follows mouse</h2>
+  <pre>focus-follows-mouse = true    <span class="c"># default false</span></pre>
+  <p>Hover moves focus — no click. Pairs well with the focus border. Automatically pauses during drags.</p>
+
+  <h2 id="gaps">Gaps &amp; borders</h2>
+  <pre>[gaps]
+inner = 8         <span class="c"># between windows</span>
+outer = 8         <span class="c"># screen edges; the bar reserves its own strip on top</span>
+
+[border]
+enabled = true
+width = 4
+active-color = "#D6295F"      <span class="c"># #RRGGBB or #RRGGBBAA</span>
+inactive-color = "#00000000"</pre>
+  <p>The border accent also drives the bar's workspace highlight — one color, one system.</p>
+
+  <h2 id="bar">Status bar</h2>
+  <pre>[bar]
+enabled = true
+theme = "native"     <span class="c"># vibrancy + SF Pro — or "technical": square, monospace</span></pre>
+  <p>Shows workspace numbers (clickable, drag targets, accent highlight on the active one), a <b>mode badge</b> while resize/join is active, and the frontmost app. Disabling the bar returns everything to the native macOS menu bar. Quick toggles for the bar and borders live in the menu bar icon's dropdown.</p>
+
+  <h2 id="editor">Visual editor</h2>
+  <p>Menu → <b>Open Editor…</b> Sliders, pickers, and binding rows over the same config file — drag the gap slider and your windows reshuffle live. Invalid binding entries highlight in red and are never silently dropped. Saving from the editor rewrites <code>panewright.toml</code> cleanly (hand-written comments don't survive).</p>
+
+  <h2 id="profiles">Profiles</h2>
+  <p>Named snapshots of your entire config, stored in <code>~/.config/panewright/profiles/</code>.</p>
+  <ul>
+    <li>Menu → Profiles → <b>Save Current as Profile…</b></li>
+    <li>Click a profile name to activate it — validated first, so a broken profile can't clobber a working setup</li>
+  </ul>
+
+  <h2 id="import">i3 import</h2>
+  <pre>panewright-dev import ~/.config/i3/config</pre>
+  <p>Translates bindings, modes, gaps, colors, scratchpad, <code>kill</code>, <code>focus_follows_mouse</code>, and workspace→output pins. Everything untranslatable is flagged with its line number and a reason — never silently dropped. The result lands as an <code>i3-imported</code> profile to inspect before activating.</p>
+
+  <h2 id="scripting">Scripting</h2>
+  <h3>Run scripts from keys</h3>
+  <pre>[[binding]]
+key = "p"
+action = "exec python3 ~/.config/panewright/user-scripts/toggle.py"</pre>
+  <h3>Run scripts on events</h3>
+  <pre>[hooks]
+workspace-changed = "python3 ~/.config/panewright/user-scripts/on-ws.py"</pre>
+  <p>The hook receives <code>WORKSPACE</code> and <code>PREV_WORKSPACE</code> in its environment.</p>
+  <h3>Query and control from scripts</h3>
+  <p>The <code>aerospace</code> CLI is the full API — everything Panewright does, your scripts can too:</p>
+  <pre>aerospace list-windows --workspace focused --json
+aerospace focus --window-id 12345
+aerospace move-node-to-workspace --window-id 12345 3</pre>
+  <div class="note">Keep your scripts anywhere except <code>~/.config/panewright/scripts/</code> — that directory is generated and overwritten on every apply.</div>
+
+  <h2 id="updates">Updates &amp; crash reports</h2>
+  <p><b>Check for Updates…</b> in the menu; updates are cryptographically signed and delivered via Sparkle. If Panewright crashes, the next launch shows the full report text and offers to open a <b>pre-filled GitHub issue</b> — nothing is ever sent except by your own submit click.</p>
+
+  <h2 id="quit">Quitting</h2>
+  <p>Quit Panewright and macOS returns to stock: borders off, bar gone, every hidden window brought back on-screen, tiling stopped. Relaunch and the whole environment reassembles. <b>Launch at Login</b> (in the menu) makes it part of your Mac's boot.</p>
+
+  <h2 id="troubleshooting">Troubleshooting</h2>
+  <table>
+    <tr><th>Symptom</th><th>Fix</th></tr>
+    <tr><td>Windows won't tile</td><td>AeroSpace probably lacks (or was granted after launch) Accessibility — grant it, then use the menu's <b>Restart AeroSpace</b></td></tr>
+    <tr><td>No drag ghosts</td><td>Panewright needs Accessibility + Input Monitoring; grant both, quit and reopen the app</td></tr>
+    <tr><td>Layout got weird</td><td><kbd>$mod ⇧ G</kbd> flattens the workspace; rebuild with join mode</td></tr>
+    <tr><td>Config error</td><td>Errors arrive as notifications with the line's problem; fix and save — applies instantly</td></tr>
+    <tr><td>Everything's stacked full-screen</td><td>You're in accordion — <kbd>$mod E</kbd> returns to tiles</td></tr>
+    <tr><td>Deeper digging</td><td><code>~/Library/Logs/Panewright.log</code> records the drag engine and any survived exceptions</td></tr>
+  </table>
+
+</main>
+</div>
+</body>
+</html>
