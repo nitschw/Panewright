@@ -4,3 +4,6 @@ build/
 DerivedData/
 xcuserdata/
 .DS_Store
+*.cer
+*.p12
+*.mobileprovision
