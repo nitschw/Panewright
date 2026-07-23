@@ -13,6 +13,9 @@ import Testing
         #expect(files.sketchybarrc.contains("associated_display=$did"))
         #expect(files.sketchybarrc.contains("workspace-select.sh $did $sid"))
         #expect(files.workspacesPlugin.contains("list-workspaces --monitor"))
+        // i3-style dynamic pills: only occupied or visible workspaces draw.
+        #expect(files.workspacesPlugin.contains("--empty no"))
+        #expect(files.workspacesPlugin.contains("drawing=off"))
         #expect(files.sketchybarrc.contains("--add event panewright_mode"))
         // Initial highlight retries until AeroSpace answers (any launch order).
         #expect(files.sketchybarrc.contains("for attempt in $(seq 1 20)"))

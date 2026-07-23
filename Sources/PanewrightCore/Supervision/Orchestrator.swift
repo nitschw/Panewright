@@ -150,14 +150,42 @@ public struct Orchestrator: Sendable {
         let primary = (primaryMonitorID.flatMap { monitorIDs.contains($0) ? $0 : nil })
             ?? mainMonitorID(cli) ?? monitorIDs[0]
         let secondaries = monitorIDs.filter { $0 != primary }
+        let persistent = Set(names)
         for (index, monitor) in secondaries.enumerated() where index < names.count {
             let workspace = names[index]
             try? cli.run(["move-workspace-to-monitor", "--workspace", workspace, "\(monitor)"])
+            // AeroSpace auto-invents throwaway workspaces (10, 11, …) for extra
+            // monitors and homes their windows there. Rehome those onto the
+            // workspace we're assigning, so the monitor shows its real windows
+            // instead of an empty pill — then that throwaway workspace vanishes.
+            rehomeStrandedWindows(cli, onMonitor: monitor, to: workspace, keeping: persistent)
             try? cli.run(["focus-monitor", "\(monitor)"])
             try? cli.run(["workspace", workspace])
         }
         // Leave the user looking at the primary, not the last secondary we touched.
         try? cli.run(["focus-monitor", "\(primary)"])
+    }
+
+    /// Moves windows off any non-persistent (auto-created) workspace currently
+    /// on `monitor` onto `workspace`, so a freshly-assigned monitor shows the
+    /// windows AeroSpace stranded on a throwaway workspace rather than an empty
+    /// one. Leaves persistent (named) workspaces untouched.
+    private func rehomeStrandedWindows(
+        _ cli: AeroSpaceCLI, onMonitor monitor: Int, to workspace: String, keeping persistent: Set<String>
+    ) {
+        guard let onMon = try? cli.run(["list-workspaces", "--monitor", "\(monitor)"]) else { return }
+        let auto = onMon.split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && $0 != workspace && !persistent.contains($0) }
+        for source in auto {
+            guard let wins = try? cli.run([
+                "list-windows", "--workspace", source, "--format", "%{window-id}",
+            ]) else { continue }
+            for id in wins.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) })
+            where !id.isEmpty {
+                try? cli.run(["move-node-to-workspace", "--window-id", id, workspace])
+            }
+        }
     }
 
     /// AeroSpace doesn't tag its main display, so infer it: the primary is the

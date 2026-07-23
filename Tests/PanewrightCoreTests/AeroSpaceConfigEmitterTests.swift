@@ -156,6 +156,12 @@ import Testing
                 "'mode join', 'exec-and-forget /opt/homebrew/bin/sketchybar --trigger panewright_mode MODE=join'"
             ))
         #expect(toml.contains("MODE=main"))
+        // Occupancy must repaint on focus change so dynamic pills appear/vanish
+        // the moment a window moves, not only on workspace switch.
+        #expect(
+            toml.contains(
+                "on-focus-changed = ['exec-and-forget /opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change']"
+            ))
     }
 
     @Test func omitsBarPlumbingWhenBarDisabled() {
