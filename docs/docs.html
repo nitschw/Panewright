@@ -28,11 +28,24 @@
     position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
     padding: 28px 0 40px; font-size: 13.5px;
   }
-  nav.side .wordmark { display: flex; align-items: center; gap: 9px; font-weight: 700; color: var(--ink); margin-bottom: 24px; }
+  nav.side .wordmark { display: flex; align-items: center; gap: 9px; font-weight: 700; color: var(--ink); margin-bottom: 20px; }
   nav.side .wordmark img { width: 24px; border-radius: 6px; }
-  nav.side h5 { font: 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); margin: 18px 0 6px; }
-  nav.side a { display: block; color: var(--ink-dim); padding: 3px 0; }
+  nav.side h5 { font: 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); margin: 0 0 6px; }
+  .toc-group { margin-bottom: 18px; break-inside: avoid; }
+  nav.side a {
+    display: block; color: var(--ink-dim); padding: 3px 10px;
+    border-left: 2px solid var(--line-soft); margin-left: 1px;
+  }
   nav.side a:hover { color: var(--ink); text-decoration: none; }
+  nav.side a.active { color: var(--ink); border-left-color: var(--accent); }
+  @media (max-width: 860px) {
+    nav.side .groups {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 18px 28px;
+    }
+    .toc-group { margin-bottom: 0; }
+    nav.side a { border-left: none; padding: 3px 0; }
+  }
 
   main { padding: 34px 0 90px; min-width: 0; }
   h1 { font-size: 34px; letter-spacing: -.02em; margin-bottom: 8px; }
@@ -77,33 +90,47 @@
 
 <nav class="side">
   <a class="wordmark" href="index.html"><img src="logo.png" alt="">Panewright</a>
-  <h5>Start</h5>
-  <a href="#install">Install &amp; permissions</a>
-  <a href="#concepts">How it works</a>
-  <h5>Input</h5>
-  <a href="#mod">The mod key</a>
-  <a href="#bindings">Keybindings</a>
-  <a href="#actions">Action reference</a>
-  <a href="#modes">Modes</a>
-  <a href="#defaults">Default keymap</a>
-  <h5>Windows</h5>
-  <a href="#workspaces">Workspaces</a>
-  <a href="#drag">Drag-to-tile</a>
-  <a href="#scratchpad">Scratchpad</a>
-  <a href="#rules">Per-app rules</a>
-  <a href="#ffm">Focus follows mouse</a>
-  <h5>Appearance</h5>
-  <a href="#gaps">Gaps &amp; borders</a>
-  <a href="#bar">Status bar</a>
-  <h5>Tooling</h5>
-  <a href="#editor">Visual editor</a>
-  <a href="#profiles">Profiles</a>
-  <a href="#import">i3 import</a>
-  <a href="#scripting">Scripting</a>
-  <h5>Meta</h5>
-  <a href="#updates">Updates &amp; crashes</a>
-  <a href="#quit">Quitting</a>
-  <a href="#troubleshooting">Troubleshooting</a>
+  <div class="groups">
+    <div class="toc-group">
+      <h5>Start</h5>
+      <a href="#install">Install &amp; permissions</a>
+      <a href="#concepts">How it works</a>
+    </div>
+    <div class="toc-group">
+      <h5>Input</h5>
+      <a href="#mod">The mod key</a>
+      <a href="#bindings">Keybindings</a>
+      <a href="#actions">Action reference</a>
+      <a href="#modes">Modes</a>
+      <a href="#defaults">Default keymap</a>
+    </div>
+    <div class="toc-group">
+      <h5>Windows</h5>
+      <a href="#workspaces">Workspaces</a>
+      <a href="#drag">Drag-to-tile</a>
+      <a href="#scratchpad">Scratchpad</a>
+      <a href="#rules">Per-app rules</a>
+      <a href="#ffm">Focus follows mouse</a>
+    </div>
+    <div class="toc-group">
+      <h5>Appearance</h5>
+      <a href="#gaps">Gaps &amp; borders</a>
+      <a href="#bar">Status bar</a>
+    </div>
+    <div class="toc-group">
+      <h5>Tooling</h5>
+      <a href="#editor">Visual editor</a>
+      <a href="#profiles">Profiles</a>
+      <a href="#import">i3 import</a>
+      <a href="#scripting">Scripting</a>
+    </div>
+    <div class="toc-group">
+      <h5>Meta</h5>
+      <a href="#updates">Updates &amp; crashes</a>
+      <a href="#quit">Quitting</a>
+      <a href="#troubleshooting">Troubleshooting</a>
+    </div>
+  </div>
 </nav>
 
 <main>
@@ -319,5 +346,19 @@ aerospace move-node-to-workspace --window-id 12345 3</pre>
 
 </main>
 </div>
+<script>
+  // Scroll spy: highlight the ToC entry for the section in view.
+  const links = [...document.querySelectorAll("nav.side a[href^='#']")];
+  const byId = Object.fromEntries(links.map(a => [a.hash.slice(1), a]));
+  const observer = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) {
+        links.forEach(a => a.classList.remove("active"));
+        byId[entry.target.id]?.classList.add("active");
+      }
+    }
+  }, { rootMargin: "0px 0px -75% 0px" });
+  document.querySelectorAll("main h2[id]").forEach(h => observer.observe(h));
+</script>
 </body>
 </html>
