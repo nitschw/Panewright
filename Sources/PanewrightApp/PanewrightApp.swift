@@ -203,8 +203,6 @@ final class AppModel {
             self?.refreshStatus()
             self?.offerSetupIfIncomplete()
             self?.startPermissionWatch()
-            // AeroSpace is up now, so the display→monitor map can be built.
-            MonitorMap.observe()
         }
         Task.detached(priority: .userInitiated) {
             orchestrator.bootstrap()
