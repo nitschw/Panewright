@@ -36,12 +36,18 @@ tree reshapes on release, in one motion. No other macOS tiler has this.
 ## Everything else
 
 - **Ten instant workspaces** (1–9, 0) — virtual, not macOS Spaces: zero
-  animation, monitor-pinnable, drag-a-window-onto-the-bar-number support
+  animation, drag-a-window-onto-the-bar-number support; **empty workspaces
+  hide** until occupied, i3-style
+- **True multi-monitor** — a status bar on *every* display showing only that
+  monitor's workspaces, independent per-monitor switching (change one, the
+  others stay put), and workspaces **auto-distributed** across displays as you
+  plug and unplug them
 - **i3 muscle memory** — `$mod+hjkl` focus/move, modal **resize** and
   **join** modes with a live mode badge in the bar, fullscreen/float
   toggles, `$mod+minus` scratchpad, flatten-tree panic button
 - **Your choice of `$mod`** — Karabiner hyper key, Ctrl-Opt, Cmd, or a
-  tmux-style leader prefix; focus-follows-mouse optional
+  tmux-style leader prefix (write it naturally — a chord like ``cmd+` `` is
+  normalized to AeroSpace syntax for you); focus-follows-mouse optional
 - **One TOML config, live** — save and the desktop follows in under a
   second; or use the **visual editor** (gap sliders reshuffle your windows
   in real time, color pickers drive the borders and bar accent)
@@ -50,8 +56,8 @@ tree reshapes on release, in one motion. No other macOS tiler has this.
   untranslatable line with a line number and a reason. Never silent.
 - **Profiles** — snapshot full configs by name, switch from the menu
 - **Status bar** — clickable workspace numbers with accent highlight, mode
-  badge, front app; native-vibrancy or square-monospace "technical" theme,
-  one toggle apart
+  badge, front app; one per monitor, each scoped to its own display;
+  native-vibrancy or square-monospace "technical" theme, one toggle apart
 - **A real off switch** — quitting stops the daemons, un-parks every
   hidden window, and leaves macOS exactly as Apple shipped it
 
@@ -83,7 +89,7 @@ panewright-dev import ~/.config/i3/config
 ## Building from source
 
 ```sh
-swift build && swift test        # library + 70 tests
+swift build && swift test        # library + 94 tests
 Scripts/bundle.sh release        # → build/Panewright.app (signed if you have a dev cert)
 Scripts/release.sh 0.1.0         # full release: version, zip, appcast, tag, GH release
 ```

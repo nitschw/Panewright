@@ -107,6 +107,7 @@
     <div class="toc-group">
       <h5>Windows</h5>
       <a href="#workspaces">Workspaces</a>
+      <a href="#multimonitor">Multi-monitor</a>
       <a href="#drag">Drag-to-tile</a>
       <a href="#scratchpad">Scratchpad</a>
       <a href="#rules">Per-app rules</a>
@@ -184,6 +185,7 @@ brew install --cask karabiner-elements          <span class="c"># Caps Lock as $
 modifier = "leader"
 leader-key = "ctrl-semicolon"   <span class="c"># press it, release, then tap a bare key</span></pre>
   <p>Leader style is one-shot: each command returns the keyboard to normal; <kbd>Esc</kbd> cancels a pending prefix.</p>
+  <div class="note">Write the <code>leader-key</code> however feels natural — <code>+</code> or <code>-</code> separators, and punctuation glyphs like <code>cmd+`</code> or <code>cmd+~</code>, are normalized to AeroSpace's key syntax (<code>cmd-backtick</code>, <code>cmd-shift-backtick</code>) for you. Prefer a <b>modifier chord</b> (like <code>cmd+`</code>) over a bare function key: a chord is fully swallowed, whereas an F-key can leak its escape sequence into the focused terminal.</div>
 
   <h2 id="bindings">Keybindings</h2>
   <p>Each binding is a key plus an i3-flavored action. Defining <em>any</em> binding replaces the default set, so list everything you want (or start from the defaults below and edit).</p>
@@ -266,11 +268,19 @@ action = "mode main"</pre>
 
   <h2 id="workspaces">Workspaces</h2>
   <p>Ten virtual workspaces, ordered <b>1–9 0</b> like the keyboard row. They're not macOS Spaces: switching is instant and animation-free. On the bar you can <b>click a number</b> to switch — or <b>drag a window onto a number</b> to send it there.</p>
+  <p><b>Empty workspaces hide.</b> i3-style, a number only appears on the bar once it holds a window (or is the one you're looking at). Move a window to workspace 4 and its pill springs into existence; empty it and the pill vanishes again.</p>
+
+  <h3 id="multimonitor">Multi-monitor</h3>
+  <p>Every display gets its own status bar, and each bar shows <b>only the workspaces living on that monitor</b> — highlighting the one currently visible there. Monitors are <b>independent</b>: switching a workspace on one display leaves the others exactly where they were, just like i3.</p>
+  <p>Workspaces <b>auto-distribute</b> across your displays. On launch — and whenever you plug in or unplug a monitor — Panewright hands one workspace to each additional display and keeps the rest on your primary, migrating windows off any throwaway workspace macOS's tiler would otherwise strand. Unplug a display and its workspaces return to a surviving one.</p>
+  <div class="note">The bar-to-monitor mapping is derived from real display geometry, so each monitor's pill labels always match the workspace actually on it — even though macOS, AeroSpace, and SketchyBar each number displays differently.</div>
+
   <h3>Pinning to monitors</h3>
+  <p>Want a workspace to always live on a specific display instead of following the auto-distribution? Pin it:</p>
   <pre>[workspace-monitors]
 1 = "main"          <span class="c"># patterns: main, secondary, a 1-based index,</span>
 9 = "secondary"     <span class="c"># or a display-name regex</span></pre>
-  <p>Each monitor shows one workspace at a time; a workspace never appears on two. Switching to a workspace pinned elsewhere moves your focus to that monitor.</p>
+  <p>A workspace never appears on two monitors at once. Switching to a workspace pinned elsewhere moves your focus to that monitor.</p>
 
   <h2 id="drag">Drag-to-tile</h2>
   <p>Grab a tiled window by its title bar and pull — <b>the window doesn't move</b>. A red ghost marks the cell it came from; a blue ghost previews the drop:</p>
