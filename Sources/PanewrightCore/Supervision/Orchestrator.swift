@@ -120,6 +120,59 @@ public struct Orchestrator: Sendable {
         _ = waitForAeroSpace()
         try? apply()
         healLayoutsWhenReady()
+        distributeWorkspaces()
+    }
+
+    /// Spreads workspaces across displays so every monitor owns at least one,
+    /// instead of AeroSpace piling them on the main display and auto-inventing
+    /// throwaway workspaces (10, 11, …) for the extras. Policy "one each, rest
+    /// on primary": each non-primary monitor is handed one distinct workspace
+    /// (the lowest not already claimed), and everything else stays home on the
+    /// primary. Idempotent, so re-running on a display change pulls a workspace
+    /// onto a freshly attached monitor and returns an unplugged monitor's
+    /// workspaces to a surviving display.
+    public func distributeWorkspaces() {
+        guard let cli = AeroSpaceCLI.locate(),
+            let monitorOut = try? cli.run(["list-monitors"])
+        else { return }
+        let monitorIDs = monitorOut.split(separator: "\n").compactMap { line -> Int? in
+            Int(line.components(separatedBy: " | ")[0].trimmingCharacters(in: .whitespaces))
+        }
+        guard monitorIDs.count > 1 else { return }  // single display: nothing to spread
+
+        let config = (try? loadConfig()) ?? .default
+        let names = AeroSpaceConfigEmitter.workspaceNumbers(in: config.bindings).map(String.init)
+        guard !names.isEmpty else { return }
+
+        // The primary is AeroSpace's main display; the rest each get one home.
+        let primary = mainMonitorID(cli) ?? monitorIDs[0]
+        let secondaries = monitorIDs.filter { $0 != primary }
+        for (index, monitor) in secondaries.enumerated() where index < names.count {
+            let workspace = names[index]
+            try? cli.run(["move-workspace-to-monitor", "--workspace", workspace, "\(monitor)"])
+            try? cli.run(["focus-monitor", "\(monitor)"])
+            try? cli.run(["workspace", workspace])
+        }
+        // Leave the user looking at the primary, not the last secondary we touched.
+        try? cli.run(["focus-monitor", "\(primary)"])
+    }
+
+    /// AeroSpace doesn't tag its main display, so infer it: the primary is the
+    /// display AeroSpace homes workspaces on by default, i.e. the one owning the
+    /// most workspaces. Stable across re-runs because "rest on primary" keeps it
+    /// the majority owner.
+    private func mainMonitorID(_ cli: AeroSpaceCLI) -> Int? {
+        guard let monitorOut = try? cli.run(["list-monitors"]) else { return nil }
+        let ids = monitorOut.split(separator: "\n").compactMap { line -> Int? in
+            Int(line.components(separatedBy: " | ")[0].trimmingCharacters(in: .whitespaces))
+        }
+        var best: (id: Int, count: Int)?
+        for id in ids {
+            let count = (try? cli.run(["list-workspaces", "--monitor", "\(id)", "--empty", "no"]))?
+                .split(separator: "\n").count ?? 0
+            if best == nil || count > best!.count { best = (id, count) }
+        }
+        return best?.id
     }
 
     /// Polls until the engine's CLI answers (it needs a moment after launch).

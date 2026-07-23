@@ -43,6 +43,8 @@ enum MonitorMap {
     }
 
     /// Rewrite the map and repaint the bar whenever the display layout changes.
+    /// Plugging or unplugging a monitor also re-spreads workspaces so the new
+    /// display gets one (and an unplugged one's workspaces return home).
     static func observe() {
         write()
         reloadBar()
@@ -52,7 +54,14 @@ enum MonitorMap {
         ) { _ in
             MainActor.assumeIsolated {
                 write()
-                reloadBar()
+                // AeroSpace needs a beat to register the new arrangement.
+                Task.detached(priority: .userInitiated) {
+                    Orchestrator().distributeWorkspaces()
+                    await MainActor.run {
+                        write()
+                        reloadBar()
+                    }
+                }
             }
         }
     }
