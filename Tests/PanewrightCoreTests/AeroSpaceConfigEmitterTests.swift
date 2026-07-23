@@ -58,7 +58,9 @@ import Testing
     }
 
     @Test func emitsResizeModeWithBareKeys() {
-        let toml = AeroSpaceConfigEmitter.emit(.default)
+        var config = PanewrightConfig.default
+        config.statusBar.enabled = false
+        let toml = AeroSpaceConfigEmitter.emit(config)
         #expect(toml.contains("cmd-alt-ctrl-r = 'mode resize'"))
         #expect(toml.contains("[mode.resize.binding]"))
         #expect(toml.contains("h = 'resize width -50'"))
@@ -95,6 +97,7 @@ import Testing
     @Test func emitsLeaderStyleAsOneShotMode() {
         var config = PanewrightConfig.default
         config.modifier = .leader
+        config.statusBar.enabled = false
         let toml = AeroSpaceConfigEmitter.emit(config)
         #expect(toml.contains("cmd-semicolon = 'mode panewright'"))
         #expect(toml.contains("[mode.panewright.binding]"))
@@ -113,8 +116,30 @@ import Testing
         #expect(toml.contains("cmd-alt-ctrl-shift-g = 'flatten-workspace-tree'"))
     }
 
-    @Test func emitsJoinModeWithCommandChains() {
+    @Test func emitsWorkspaceCallbackAndModeTriggersWhenBarEnabled() {
         let toml = AeroSpaceConfigEmitter.emit(.default)
+        #expect(
+            toml.contains(
+                "exec-on-workspace-change = ['/bin/bash', '-c', '/opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE']"
+            ))
+        #expect(
+            toml.contains(
+                "'mode join', 'exec-and-forget /opt/homebrew/bin/sketchybar --trigger panewright_mode MODE=join'"
+            ))
+        #expect(toml.contains("MODE=main"))
+    }
+
+    @Test func omitsBarPlumbingWhenBarDisabled() {
+        var config = PanewrightConfig.default
+        config.statusBar.enabled = false
+        let toml = AeroSpaceConfigEmitter.emit(config)
+        #expect(!toml.contains("sketchybar"))
+    }
+
+    @Test func emitsJoinModeWithCommandChains() {
+        var config = PanewrightConfig.default
+        config.statusBar.enabled = false
+        let toml = AeroSpaceConfigEmitter.emit(config)
         #expect(toml.contains("cmd-alt-ctrl-g = 'mode join'"))
         #expect(toml.contains("[mode.join.binding]"))
         #expect(toml.contains("h = ['join-with left', 'mode main']"))

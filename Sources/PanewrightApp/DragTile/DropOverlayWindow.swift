@@ -1,12 +1,21 @@
 import AppKit
 
-/// The translucent accent-colored preview shown while dragging — the frame
-/// the dragged window will occupy on release.
+/// Ghost overlays for drag-to-tile: red marks the source cell (what you're
+/// moving), blue previews the target frame it will occupy on release.
 @MainActor
 final class DropOverlayWindow {
+    enum Style {
+        case source, target
+    }
+
     private let window: NSWindow
 
-    init() {
+    init(style: Style = .target) {
+        let color: NSColor =
+            switch style {
+            case .source: .systemRed
+            case .target: .controlAccentColor
+            }
         window = NSWindow(
             contentRect: .zero, styleMask: .borderless, backing: .buffered, defer: true)
         window.isOpaque = false
@@ -17,9 +26,8 @@ final class DropOverlayWindow {
         window.collectionBehavior = [.canJoinAllSpaces, .transient]
         let view = NSView()
         view.wantsLayer = true
-        view.layer?.backgroundColor =
-            NSColor.controlAccentColor.withAlphaComponent(0.28).cgColor
-        view.layer?.borderColor = NSColor.controlAccentColor.cgColor
+        view.layer?.backgroundColor = color.withAlphaComponent(0.28).cgColor
+        view.layer?.borderColor = color.cgColor
         view.layer?.borderWidth = 2
         view.layer?.cornerRadius = 10
         window.contentView = view

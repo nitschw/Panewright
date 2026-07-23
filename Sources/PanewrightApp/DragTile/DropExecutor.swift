@@ -10,47 +10,42 @@ struct DropExecutor: Sendable {
     private static let settleMicroseconds: UInt32 = 150_000
     private static let maxSteps = 8
 
-    /// `target` is nil when the drop landed on no window: just re-tile.
+    /// `target` is nil when the drop landed on no window — the ghost drag
+    /// never touched the tree, so a miss is simply a cancel.
     func execute(
         dragged: CGWindowID,
         target: (id: CGWindowID, frame: CGRect, zone: DropZone)?
     ) -> String {
-        // The drag floated the window (to suppress AeroSpace's native swap);
-        // bring it back into the tree.
-        guard (try? cli.run(["layout", "--window-id", "\(dragged)", "tiling"])) != nil else {
-            return "drag-to-tile: could not re-tile the dragged window"
-        }
         guard let target else {
-            return "drag-to-tile: re-tiled (no drop target)"
+            return "drag-to-tile: canceled"
         }
         switch target.zone {
         case .center:
-            return swapWalk(dragged: dragged, targetID: target.id, targetFrame: target.frame)
+            return swapWalk(dragged: dragged, targetID: target.id)
         case .left, .right, .top, .bottom:
             return place(
                 dragged: dragged, targetID: target.id, zone: target.zone)
         }
     }
 
-    /// Center drop: swap-step toward the target until the dragged window
-    /// occupies the target's original frame.
-    private func swapWalk(
-        dragged: CGWindowID, targetID: CGWindowID, targetFrame: CGRect
-    ) -> String {
+    /// Center drop: walk to adjacency, then one exact directional swap with
+    /// the target. Adjacent targets (the common gesture) are a single swap
+    /// that perfectly exchanges the two cells.
+    private func swapWalk(dragged: CGWindowID, targetID: CGWindowID) -> String {
         for _ in 0..<Self.maxSteps {
             usleep(Self.settleMicroseconds)
-            guard let dFrame = WindowSnapshot.frame(of: dragged) else {
-                return "drag-to-tile: lost the dragged window"
-            }
-            if targetFrame.contains(CGPoint(x: dFrame.midX, y: dFrame.midY)) {
-                return "drag-to-tile: swapped"
-            }
-            guard let tFrame = WindowSnapshot.frame(of: targetID) else {
-                return "drag-to-tile: lost the target window"
+            guard let dFrame = WindowSnapshot.frame(of: dragged),
+                let tFrame = WindowSnapshot.frame(of: targetID)
+            else {
+                return "drag-to-tile: lost a window mid-swap"
             }
             let direction = Self.dominantDirection(from: dFrame, to: tFrame)
             guard (try? cli.run(["swap", "--window-id", "\(dragged)", direction])) != nil else {
                 return "drag-to-tile: swap toward \(direction) failed"
+            }
+            if Self.adjacent(dFrame, tFrame) {
+                // That swap was the exchange with the target itself.
+                return "drag-to-tile: swapped with target"
             }
         }
         return "drag-to-tile: gave up walking to the target"

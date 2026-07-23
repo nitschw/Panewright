@@ -7,6 +7,7 @@ public enum ConfigError: Error, Equatable, CustomStringConvertible {
     case invalidAction(String)
     case invalidWorkspaceNumber(String)
     case invalidColor(String)
+    case invalidTheme(String)
 
     public var description: String {
         switch self {
@@ -20,6 +21,8 @@ public enum ConfigError: Error, Equatable, CustomStringConvertible {
             "workspace-monitors keys must be workspace numbers, got '\(value)'"
         case .invalidColor(let value):
             "invalid color '\(value)' (expected #RRGGBB or #RRGGBBAA)"
+        case .invalidTheme(let value):
+            "unknown bar theme '\(value)' (expected native or technical)"
         }
     }
 }
@@ -48,6 +51,15 @@ public enum ConfigParser {
         }
         if let leaderKey = raw.leaderKey {
             config.leaderKey = leaderKey
+        }
+        if let bar = raw.bar {
+            config.statusBar.enabled = bar.enabled ?? config.statusBar.enabled
+            if let theme = bar.theme {
+                guard let parsed = PanewrightConfig.StatusBar.Theme(rawValue: theme) else {
+                    throw ConfigError.invalidTheme(theme)
+                }
+                config.statusBar.theme = parsed
+            }
         }
         if let gaps = raw.gaps {
             config.gaps.inner = gaps.inner ?? config.gaps.inner
@@ -160,16 +172,22 @@ private struct RawConfig: Codable {
     var modifier: String?
     var gaps: RawGaps?
     var border: RawBorder?
+    var bar: RawBar?
     var binding: [RawBinding]?
     var leaderKey: String?
     var floatingApps: [String]?
     var workspaceMonitors: [String: String]?
 
     enum CodingKeys: String, CodingKey {
-        case modifier, gaps, border, binding
+        case modifier, gaps, border, bar, binding
         case leaderKey = "leader-key"
         case floatingApps = "floating-apps"
         case workspaceMonitors = "workspace-monitors"
+    }
+
+    struct RawBar: Codable {
+        var enabled: Bool?
+        var theme: String?
     }
 
     struct RawGaps: Codable {

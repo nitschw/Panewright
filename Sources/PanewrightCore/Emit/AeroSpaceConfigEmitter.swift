@@ -7,6 +7,11 @@ public enum AeroSpaceConfigEmitter {
         lines.append("# Edit panewright.toml (or use the Panewright app) instead.")
         lines.append("config-version = 2")
         lines.append("start-at-login = false")
+        if config.statusBar.enabled {
+            lines.append(
+                "exec-on-workspace-change = ['/bin/bash', '-c', '/opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change FOCUSED_WORKSPACE=$AEROSPACE_FOCUSED_WORKSPACE']"
+            )
+        }
         lines.append("")
         // i3 split behavior: workspaces come up tiling, nested splits alternate
         // orientation, and redundant single-child containers are flattened.
@@ -41,21 +46,31 @@ public enum AeroSpaceConfigEmitter {
             lines.append("outer.\(edge) = \(config.gaps.outer)")
         }
         lines.append("")
+        let barEnabled = config.statusBar.enabled
         lines.append("[mode.main.binding]")
         if config.modifier == .leader {
             // tmux-style: the prefix is the only global binding; commands are
             // bare keys in a one-shot mode that falls back to main.
-            lines.append("\(config.leaderKey) = 'mode panewright'")
+            let enterPanewright =
+                barEnabled
+                ? "['mode panewright', '\(modeTrigger("panewright"))']"
+                : "'mode panewright'"
+            lines.append("\(config.leaderKey) = \(enterPanewright)")
             lines.append("")
             lines.append("[mode.panewright.binding]")
-            lines.append("esc = 'mode main'")
+            let escape =
+                barEnabled
+                ? "['mode main', '\(modeTrigger("main"))']" : "'mode main'"
+            lines.append("esc = \(escape)")
             for binding in config.bindings {
-                lines.append("\(binding.key) = \(leaderBindingValue(binding))")
+                lines.append(
+                    "\(binding.key) = \(leaderBindingValue(binding, statusBarEnabled: barEnabled))"
+                )
             }
         } else {
             for binding in config.bindings {
                 let combo = keyCombo(modifier: config.modifier, key: binding.key)
-                lines.append("\(combo) = \(bindingValue(binding))")
+                lines.append("\(combo) = \(bindingValue(binding, statusBarEnabled: barEnabled))")
             }
         }
         // Mode bindings are bare keys — that's the point of a mode.
@@ -63,7 +78,7 @@ public enum AeroSpaceConfigEmitter {
             lines.append("")
             lines.append("[mode.\(mode.name).binding]")
             for binding in mode.bindings {
-                lines.append("\(binding.key) = \(bindingValue(binding))")
+                lines.append("\(binding.key) = \(bindingValue(binding, statusBarEnabled: barEnabled))")
             }
         }
         return lines.joined(separator: "\n") + "\n"
@@ -107,15 +122,31 @@ public enum AeroSpaceConfigEmitter {
         return numbers.sorted()
     }
 
+    /// The status bar can't observe mode changes, so every mode switch pings
+    /// it explicitly as part of the binding's command chain.
+    static func modeTrigger(_ name: String) -> String {
+        "exec-and-forget /opt/homebrew/bin/sketchybar --trigger panewright_mode MODE=\(name)"
+    }
+
     /// A binding's TOML value: a single command as a string, a chain as an array.
-    static func bindingValue(_ binding: PanewrightConfig.Binding) -> String {
-        let commands = binding.actions.map { "'\(command(for: $0))'" }
+    static func bindingValue(
+        _ binding: PanewrightConfig.Binding, statusBarEnabled: Bool = false
+    ) -> String {
+        var commands: [String] = []
+        for action in binding.actions {
+            commands.append("'\(command(for: action))'")
+            if statusBarEnabled, case .enterMode(let name) = action {
+                commands.append("'\(modeTrigger(name))'")
+            }
+        }
         return commands.count == 1 ? commands[0] : "[\(commands.joined(separator: ", "))]"
     }
 
     /// Leader-mode value: one-shot — every chain falls back to main unless it
     /// already ends by entering another mode.
-    static func leaderBindingValue(_ binding: PanewrightConfig.Binding) -> String {
+    static func leaderBindingValue(
+        _ binding: PanewrightConfig.Binding, statusBarEnabled: Bool = false
+    ) -> String {
         var actions = binding.actions
         let endsInModeChange: Bool
         if let last = actions.last, case .enterMode = last {
@@ -126,7 +157,9 @@ public enum AeroSpaceConfigEmitter {
         if !endsInModeChange {
             actions.append(.enterMode("main"))
         }
-        return bindingValue(PanewrightConfig.Binding(key: binding.key, actions: actions))
+        return bindingValue(
+            PanewrightConfig.Binding(key: binding.key, actions: actions),
+            statusBarEnabled: statusBarEnabled)
     }
 
     static func command(for action: PanewrightConfig.Action) -> String {

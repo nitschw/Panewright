@@ -3,10 +3,16 @@ import Foundation
 public struct PanewrightPaths: Sendable {
     public var panewrightConfigFile: URL
     public var aerospaceConfigFile: URL
+    public var sketchybarConfigDirectory: URL
 
-    public init(panewrightConfigFile: URL, aerospaceConfigFile: URL) {
+    public init(
+        panewrightConfigFile: URL,
+        aerospaceConfigFile: URL,
+        sketchybarConfigDirectory: URL
+    ) {
         self.panewrightConfigFile = panewrightConfigFile
         self.aerospaceConfigFile = aerospaceConfigFile
+        self.sketchybarConfigDirectory = sketchybarConfigDirectory
     }
 
     public static func `default`(
@@ -15,7 +21,8 @@ public struct PanewrightPaths: Sendable {
         let config = home.appending(path: ".config")
         return PanewrightPaths(
             panewrightConfigFile: config.appending(path: "panewright/panewright.toml"),
-            aerospaceConfigFile: config.appending(path: "aerospace/aerospace.toml"))
+            aerospaceConfigFile: config.appending(path: "aerospace/aerospace.toml"),
+            sketchybarConfigDirectory: config.appending(path: "sketchybar"))
     }
 }
 
@@ -96,6 +103,58 @@ public struct Orchestrator: Sendable {
             try cli.run(["reload-config"])
         }
         try applyBorders(config)
+        try applyBar(config)
+    }
+
+    /// Like borders: a missing binary is fine, bad config is not.
+    public func applyBar(_ config: PanewrightConfig) throws {
+        guard let bar = SketchyBarSupervisor.locate() else { return }
+        if config.statusBar.enabled {
+            try writeSketchyBarConfig(config)
+            if bar.isRunning() {
+                try bar.reload()
+            } else {
+                try bar.launch()
+            }
+        } else if bar.isRunning() {
+            bar.stop()
+        }
+    }
+
+    func writeSketchyBarConfig(_ config: PanewrightConfig) throws {
+        let files = try SketchyBarConfigEmitter.emit(config)
+        let directory = paths.sketchybarConfigDirectory
+        let plugins = directory.appending(path: "plugins")
+        try FileManager.default.createDirectory(at: plugins, withIntermediateDirectories: true)
+        let scripts: [(String, String)] = [
+            ("sketchybarrc", files.sketchybarrc),
+            ("plugins/panewright_workspaces.sh", files.workspacesPlugin),
+            ("plugins/panewright_mode.sh", files.modePlugin),
+            ("plugins/panewright_front_app.sh", files.frontAppPlugin),
+            ("plugins/panewright_clock.sh", files.clockPlugin),
+        ]
+        for (name, content) in scripts {
+            let url = directory.appending(path: name)
+            try content.write(to: url, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o755], ofItemAtPath: url.path)
+        }
+    }
+
+    public func barInfo() -> String {
+        guard let bar = SketchyBarSupervisor.locate() else {
+            return "not installed"
+        }
+        return bar.isRunning() ? "on" : "off"
+    }
+
+    public func setBarEnabled(_ enabled: Bool) throws {
+        try writeDefaultConfigIfMissing()
+        let url = paths.panewrightConfigFile
+        let text = try String(contentsOf: url, encoding: .utf8)
+        try Self.settingEnabled(enabled, section: "bar", in: text)
+            .write(to: url, atomically: true, encoding: .utf8)
+        try apply()
     }
 
     /// Borders are an optional visual layer: a missing binary is not an
@@ -116,20 +175,20 @@ public struct Orchestrator: Sendable {
         try writeDefaultConfigIfMissing()
         let url = paths.panewrightConfigFile
         let text = try String(contentsOf: url, encoding: .utf8)
-        try Self.settingBordersEnabled(enabled, in: text)
+        try Self.settingEnabled(enabled, section: "border", in: text)
             .write(to: url, atomically: true, encoding: .utf8)
         try apply()
     }
 
-    static func settingBordersEnabled(_ enabled: Bool, in toml: String) -> String {
+    static func settingEnabled(_ enabled: Bool, section: String, in toml: String) -> String {
         var lines = toml.components(separatedBy: "\n")
         let headerIndex = lines.firstIndex {
-            $0.trimmingCharacters(in: .whitespaces) == "[border]"
+            $0.trimmingCharacters(in: .whitespaces) == "[\(section)]"
         }
         guard let headerIndex else {
             var result = toml
             if !result.hasSuffix("\n") { result += "\n" }
-            return result + "\n[border]\nenabled = \(enabled)\n"
+            return result + "\n[\(section)]\nenabled = \(enabled)\n"
         }
         var index = headerIndex + 1
         while index < lines.count {

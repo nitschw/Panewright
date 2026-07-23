@@ -9,7 +9,8 @@ import Testing
             .appending(path: "panewright-tests-\(UUID().uuidString)")
         let paths = PanewrightPaths(
             panewrightConfigFile: dir.appending(path: "panewright/panewright.toml"),
-            aerospaceConfigFile: dir.appending(path: "aerospace/aerospace.toml"))
+            aerospaceConfigFile: dir.appending(path: "aerospace/aerospace.toml"),
+            sketchybarConfigDirectory: dir.appending(path: "sketchybar"))
         return (Orchestrator(paths: paths), dir)
     }
 
@@ -49,7 +50,7 @@ import Testing
             width = 6  # chunky
             enabled = true
             """
-        let result = Orchestrator.settingBordersEnabled(false, in: toml)
+        let result = Orchestrator.settingEnabled(false, section: "border", in: toml)
         #expect(result.contains("enabled = false"))
         #expect(result.contains("# my config"))
         #expect(result.contains("width = 6  # chunky"))
@@ -64,13 +65,13 @@ import Testing
             [gaps]
             inner = 8
             """
-        let result = Orchestrator.settingBordersEnabled(false, in: toml)
+        let result = Orchestrator.settingEnabled(false, section: "border", in: toml)
         #expect(result.contains("[border]\nenabled = false\nwidth = 6"))
         #expect(result.contains("[gaps]"))
     }
 
     @Test func togglingBordersAppendsSectionWhenMissing() throws {
-        let result = Orchestrator.settingBordersEnabled(false, in: "modifier = \"alt\"\n")
+        let result = Orchestrator.settingEnabled(false, section: "border", in: "modifier = \"alt\"\n")
         #expect(result.contains("[border]\nenabled = false"))
         let config = try ConfigParser.parse(toml: result)
         #expect(config.focusBorder.enabled == false)

@@ -67,6 +67,9 @@ final class AppModel {
     var dragToTileActive = false
     var bordersInfo = ""
     var bordersEnabled = true
+    var barInfo = ""
+    var barEnabled = true
+    var needsDragSetup = false
     /// SMAppService needs a real bundle; the bare dev binary has no identifier.
     let isBundled = Bundle.main.bundleIdentifier != nil
     private var dragController: DragTileController?
@@ -74,13 +77,17 @@ final class AppModel {
     func refreshStatus() {
         status = orchestrator.status()
         bordersInfo = orchestrator.bordersInfo()
-        bordersEnabled = (try? orchestrator.loadConfig())?.focusBorder.enabled ?? true
+        barInfo = orchestrator.barInfo()
+        let config = try? orchestrator.loadConfig()
+        bordersEnabled = config?.focusBorder.enabled ?? true
+        barEnabled = config?.statusBar.enabled ?? true
         if isBundled {
             launchAtLogin = SMAppService.mainApp.status == .enabled
         }
         if !dragToTileActive {
             startDragToTileIfPermitted()
         }
+        needsDragSetup = !DragTileController.hasPermission
     }
 
     func startDragToTileIfPermitted() {
@@ -99,11 +106,12 @@ final class AppModel {
         DragTileController.requestPermission()
         if let url = URL(
             string:
-                "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+                "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
         ) {
             NSWorkspace.shared.open(url)
         }
-        lastMessage = "Enable Panewright under Input Monitoring, then quit and reopen the app"
+        lastMessage =
+            "Enable Panewright under Accessibility (and Input Monitoring), then quit and reopen the app"
     }
 
     func setLaunchAtLogin(_ enabled: Bool) {
@@ -134,6 +142,16 @@ final class AppModel {
         do {
             try orchestrator.setBordersEnabled(enabled)
             lastMessage = enabled ? "Borders on" : "Borders off"
+        } catch {
+            lastMessage = "\(error)"
+        }
+        refreshStatus()
+    }
+
+    func setBarEnabled(_ enabled: Bool) {
+        do {
+            try orchestrator.setBarEnabled(enabled)
+            lastMessage = enabled ? "Status bar on" : "Status bar off"
         } catch {
             lastMessage = "\(error)"
         }
@@ -197,7 +215,17 @@ struct PanewrightMenu: View {
                     set: { model.setBordersEnabled($0) }
                 ))
         }
-        if !model.dragToTileActive {
+        if model.barInfo == "not installed" {
+            Text("Status Bar: not installed")
+        } else {
+            Toggle(
+                "Status Bar",
+                isOn: Binding(
+                    get: { model.barEnabled },
+                    set: { model.setBarEnabled($0) }
+                ))
+        }
+        if model.needsDragSetup {
             Button("Finish Drag-to-Tile setup…") {
                 model.finishDragToTileSetup()
             }

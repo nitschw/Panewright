@@ -18,6 +18,10 @@ outer = 8
 width = 4
 active-color = "#0A84FF"
 
+[bar]
+enabled = true
+theme = "native"  # or "technical" for the monospace/square Linux look
+
 [[binding]]
 key = "1"
 action = "workspace 1"
