@@ -6,9 +6,20 @@ on:
   pull_request:
 
 jobs:
-  test:
+  test-and-bundle:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - name: Run tests
         run: swift test
+      - name: Bundle app (ad-hoc signed dev build)
+        run: |
+          Scripts/bundle.sh release
+          # Zip before upload: upload-artifact drops the framework symlinks.
+          ditto -c -k --keepParent build/Panewright.app build/Panewright-dev.zip
+      - name: Upload dev build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Panewright-dev-${{ github.sha }}
+          path: build/Panewright-dev.zip
+          retention-days: 30

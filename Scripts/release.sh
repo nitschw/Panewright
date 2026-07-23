@@ -58,7 +58,23 @@ open(path, "w").write(content)
 print(f"appcast: added {version} ({build})")
 EOF
 
-git add Support/Info.plist appcast.xml
+# Maintain the docs release table.
+MIN_MACOS="$(/usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" Support/Info.plist)"
+python3 - "$VERSION" "$MIN_MACOS" "$URL" << 'EOF'
+import sys, datetime
+version, min_macos, url = sys.argv[1:4]
+row = (f'    <tr><td>{version}</td>'
+       f'<td>{datetime.date.today().isoformat()}</td>'
+       f'<td>{min_macos}+</td>'
+       f'<td><a href="{url}">Panewright-{version}.zip</a></td></tr>\n')
+path = "docs/docs.html"
+content = open(path).read()
+content = content.replace("    <!-- RELEASES -->\n", "    <!-- RELEASES -->\n" + row)
+open(path, "w").write(content)
+print(f"docs: release table row added for {version}")
+EOF
+
+git add Support/Info.plist appcast.xml docs/docs.html
 git commit -m "Release $VERSION"
 git tag "v$VERSION"
 git push && git push --tags
