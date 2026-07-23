@@ -65,6 +65,12 @@ final class AppModel {
         if !dragToTileActive {
             DragTileController.requestPermission()
         }
+        // First-run: open the setup checklist when essentials are missing.
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(600))
+            guard let self, self.setupIncomplete else { return }
+            self.openSetup()
+        }
     }
 
     var launchAtLogin = false
@@ -74,6 +80,18 @@ final class AppModel {
     var barInfo = ""
     var barEnabled = true
     var needsDragSetup = false
+    var installing: Set<String> = []
+    var setupVisible = false
+    var profiles: [String] = []
+    var activeProfile: String? = UserDefaults.standard.string(forKey: "activeProfile")
+    private var setupWindowController: OnboardingWindowController?
+
+    var aerospaceInstalled: Bool { AeroSpaceCLI.locate() != nil }
+    var bordersInstalled: Bool { JankyBordersSupervisor.locate() != nil }
+    var sketchybarInstalled: Bool { SketchyBarSupervisor.locate() != nil }
+    var setupIncomplete: Bool {
+        !(aerospaceInstalled && status == .running && DragTileController.hasPermission)
+    }
     /// SMAppService needs a real bundle; the bare dev binary has no identifier.
     let isBundled = Bundle.main.bundleIdentifier != nil
     private var dragController: DragTileController?
@@ -92,6 +110,126 @@ final class AppModel {
             startDragToTileIfPermitted()
         }
         needsDragSetup = !DragTileController.hasPermission
+        profiles = orchestrator.listProfiles()
+    }
+
+    // MARK: Setup window
+
+    func openSetup() {
+        let controller = setupWindowController ?? OnboardingWindowController()
+        setupWindowController = controller
+        controller.onVisibilityChange = { [weak self] visible in
+            Task { @MainActor in
+                self?.setupVisible = visible
+            }
+        }
+        controller.show(model: self)
+        setupVisible = true
+        refreshStatus()
+    }
+
+    // MARK: Tool installation (Homebrew, no password required)
+
+    func installAeroSpace() {
+        installTool("AeroSpace", brewArguments: ["install", "--cask", "nikitabobko/tap/aerospace"])
+    }
+
+    func installBorders() {
+        installTool("JankyBorders", brewArguments: ["install", "FelixKratz/formulae/borders"])
+    }
+
+    func installSketchyBar() {
+        installTool("SketchyBar", brewArguments: ["install", "FelixKratz/formulae/sketchybar"])
+    }
+
+    private func installTool(_ name: String, brewArguments: [String]) {
+        guard let brew = Self.locateBrew() else {
+            report(error: "Homebrew not found — install it from brew.sh first")
+            return
+        }
+        guard !installing.contains(name) else { return }
+        installing.insert(name)
+        lastMessage = "Installing \(name)…"
+        Task {
+            let ok = await Self.runProcess(executable: brew, arguments: brewArguments)
+            installing.remove(name)
+            if ok {
+                lastMessage = "\(name) installed"
+                if name == "AeroSpace" {
+                    try? orchestrator.launchAeroSpace()
+                }
+                apply()
+            } else {
+                report(error: "\(name) install failed")
+            }
+            refreshStatus()
+        }
+    }
+
+    static func locateBrew() -> URL? {
+        ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
+            .first { FileManager.default.isExecutableFile(atPath: $0) }
+            .map { URL(filePath: $0) }
+    }
+
+    nonisolated static func runProcess(executable: URL, arguments: [String]) async -> Bool {
+        await withCheckedContinuation { continuation in
+            DispatchQueue.global().async {
+                let process = Process()
+                process.executableURL = executable
+                process.arguments = arguments
+                var environment = ProcessInfo.processInfo.environment
+                environment["NONINTERACTIVE"] = "1"
+                process.environment = environment
+                process.standardOutput = FileHandle.nullDevice
+                process.standardError = FileHandle.nullDevice
+                do {
+                    try process.run()
+                } catch {
+                    continuation.resume(returning: false)
+                    return
+                }
+                process.waitUntilExit()
+                continuation.resume(returning: process.terminationStatus == 0)
+            }
+        }
+    }
+
+    // MARK: Profiles
+
+    func activateProfile(_ name: String) {
+        do {
+            try orchestrator.activateProfile(named: name)
+            activeProfile = name
+            UserDefaults.standard.set(name, forKey: "activeProfile")
+            lastMessage = "Profile '\(name)' active"
+        } catch {
+            report(error: "\(error)")
+        }
+        refreshStatus()
+    }
+
+    func saveCurrentAsProfile() {
+        let alert = NSAlert()
+        alert.messageText = "Save Current Config as Profile"
+        alert.informativeText = "Profiles are full copies of panewright.toml, switchable from the menu."
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        field.placeholderString = "e.g. work, docked, demo"
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Save")
+        alert.addButton(withTitle: "Cancel")
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = field.stringValue
+        do {
+            try orchestrator.saveProfile(named: name)
+            activeProfile = name.trimmingCharacters(in: .whitespaces)
+            UserDefaults.standard.set(activeProfile, forKey: "activeProfile")
+            lastMessage = "Saved profile '\(name)'"
+        } catch {
+            report(error: "\(error)")
+        }
+        refreshStatus()
     }
 
     func startDragToTileIfPermitted() {
@@ -224,8 +362,24 @@ struct PanewrightMenu: View {
             Text("Grant Accessibility in System Settings, then restart AeroSpace")
         }
         Divider()
+        Menu("Profiles") {
+            ForEach(model.profiles, id: \.self) { name in
+                Button(name == model.activeProfile ? "✓ \(name)" : name) {
+                    model.activateProfile(name)
+                }
+            }
+            if !model.profiles.isEmpty {
+                Divider()
+            }
+            Button("Save Current as Profile…") {
+                model.saveCurrentAsProfile()
+            }
+        }
         Button("Edit Config…") {
             model.openConfig()
+        }
+        Button("Setup…") {
+            model.openSetup()
         }
         Button("Apply Config Now") {
             model.apply()

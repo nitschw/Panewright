@@ -8,6 +8,7 @@ public enum ConfigError: Error, Equatable, CustomStringConvertible {
     case invalidWorkspaceNumber(String)
     case invalidColor(String)
     case invalidTheme(String)
+    case invalidProfileName(String)
 
     public var description: String {
         switch self {
@@ -23,6 +24,8 @@ public enum ConfigError: Error, Equatable, CustomStringConvertible {
             "invalid color '\(value)' (expected #RRGGBB or #RRGGBBAA)"
         case .invalidTheme(let value):
             "unknown bar theme '\(value)' (expected native or technical)"
+        case .invalidProfileName(let value):
+            "invalid profile name '\(value)'"
         }
     }
 }

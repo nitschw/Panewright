@@ -77,6 +77,37 @@ import Testing
         #expect(config.focusBorder.enabled == false)
     }
 
+    @Test func profilesSaveListAndValidateOnActivate() throws {
+        let (orchestrator, dir) = makeOrchestrator()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        try orchestrator.writeDefaultConfigIfMissing()
+        #expect(orchestrator.listProfiles().isEmpty)
+        try orchestrator.saveProfile(named: "work")
+        try orchestrator.saveProfile(named: "demo rice")
+        #expect(orchestrator.listProfiles() == ["demo rice", "work"])
+        // Corrupt a profile: activation must refuse before clobbering.
+        try "modifier = \"bogus\"\n".write(
+            to: orchestrator.profilesDirectory.appending(path: "work.toml"),
+            atomically: true, encoding: .utf8)
+        #expect(throws: ConfigError.invalidModifier("bogus")) {
+            try orchestrator.activateProfile(named: "work")
+        }
+        let live = try String(
+            contentsOf: orchestrator.paths.panewrightConfigFile, encoding: .utf8)
+        #expect(!live.contains("bogus"))
+    }
+
+    @Test func rejectsBadProfileNames() {
+        let (orchestrator, dir) = makeOrchestrator()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        #expect(throws: ConfigError.invalidProfileName("../evil")) {
+            try orchestrator.saveProfile(named: "../evil")
+        }
+        #expect(throws: ConfigError.invalidProfileName("  ")) {
+            try orchestrator.saveProfile(named: "  ")
+        }
+    }
+
     @Test func writeAerospaceConfigRunsFullPipeline() throws {
         let (orchestrator, dir) = makeOrchestrator()
         defer { try? FileManager.default.removeItem(at: dir) }

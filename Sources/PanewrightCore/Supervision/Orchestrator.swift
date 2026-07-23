@@ -206,6 +206,47 @@ public struct Orchestrator: Sendable {
         return lines.joined(separator: "\n")
     }
 
+    // MARK: Profiles — named saved configs, switchable from the menu.
+
+    public var profilesDirectory: URL {
+        paths.panewrightConfigFile.deletingLastPathComponent().appending(path: "profiles")
+    }
+
+    public func listProfiles() -> [String] {
+        guard
+            let items = try? FileManager.default.contentsOfDirectory(
+                atPath: profilesDirectory.path)
+        else {
+            return []
+        }
+        return items.filter { $0.hasSuffix(".toml") }
+            .map { String($0.dropLast(".toml".count)) }
+            .sorted()
+    }
+
+    public func saveProfile(named name: String) throws {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, !trimmed.contains("/") else {
+            throw ConfigError.invalidProfileName(name)
+        }
+        try writeDefaultConfigIfMissing()
+        try FileManager.default.createDirectory(
+            at: profilesDirectory, withIntermediateDirectories: true)
+        let current = try String(contentsOf: paths.panewrightConfigFile, encoding: .utf8)
+        try current.write(
+            to: profilesDirectory.appending(path: "\(trimmed).toml"),
+            atomically: true, encoding: .utf8)
+    }
+
+    public func activateProfile(named name: String) throws {
+        let url = profilesDirectory.appending(path: "\(name).toml")
+        let toml = try String(contentsOf: url, encoding: .utf8)
+        // Validate before clobbering the live config.
+        _ = try ConfigParser.parse(toml: toml)
+        try toml.write(to: paths.panewrightConfigFile, atomically: true, encoding: .utf8)
+        try apply()
+    }
+
     public func bordersInfo() -> String {
         guard let borders = JankyBordersSupervisor.locate() else {
             return "not installed"
