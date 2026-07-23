@@ -160,6 +160,7 @@ public struct PanewrightConfig: Equatable, Sendable {
     /// The prefix chord when `modifier == .leader`, in AeroSpace key syntax.
     public var leaderKey: String
     public var todo: TodoList
+    public var integrations: IntegrationsConfig
     /// i3's `focus_follows_mouse` — hover moves focus, no click. Implemented
     /// by Panewright's event tap (AeroSpace has no native support).
     public var focusFollowsMouse: Bool
@@ -189,6 +190,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         // modifiers alone. Space keeps it one thumb press away.
         leaderKey: String = "ctrl-cmd-space",
         todo: TodoList = TodoList(),
+        integrations: IntegrationsConfig = IntegrationsConfig(),
         focusFollowsMouse: Bool = false,
         statusBar: StatusBar = StatusBar(),
         gaps: Gaps = Gaps(),
@@ -203,6 +205,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         self.modifier = modifier
         self.leaderKey = leaderKey
         self.todo = todo
+        self.integrations = integrations
         self.focusFollowsMouse = focusFollowsMouse
         self.statusBar = statusBar
         self.gaps = gaps

@@ -39,6 +39,25 @@ public enum PanewrightConfigSerializer {
         lines.append("")
         lines.append("[todo]")
         lines.append("enabled = \(config.todo.enabled)")
+        // Tokens live in the Keychain, never here.
+        let services: [(String, IntegrationsConfig.Service)] = [
+            ("github", config.integrations.github),
+            ("gitlab", config.integrations.gitlab),
+            ("bitbucket", config.integrations.bitbucket),
+            ("jira", config.integrations.jira),
+            ("confluence", config.integrations.confluence),
+        ]
+        for (name, service) in services where service.enabled || !service.host.isEmpty {
+            lines.append("")
+            lines.append("[integrations.\(name)]")
+            lines.append("enabled = \(service.enabled)")
+            if !service.host.isEmpty {
+                lines.append("host = \"\(service.host)\"")
+            }
+            if !service.user.isEmpty {
+                lines.append("user = \"\(service.user)\"")
+            }
+        }
         if !config.workspaceMonitors.isEmpty {
             lines.append("")
             lines.append("[workspace-monitors]")

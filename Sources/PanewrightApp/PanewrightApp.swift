@@ -18,14 +18,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls where url.scheme == "panewright" {
             let parts = (url.host.map { [$0] } ?? []) + url.pathComponents.filter { $0 != "/" }
-            guard parts.first == "todo" else { continue }
             MainActor.assumeIsolated {
-                switch parts.dropFirst().first {
-                case "add":
-                    AppDelegate.model?.openTodoEditor(index: nil)
-                case "edit":
-                    let index = parts.dropFirst(2).first.flatMap { Int($0) }
-                    AppDelegate.model?.openTodoEditor(index: index)
+                switch parts.first {
+                case "todo":
+                    switch parts.dropFirst().first {
+                    case "add":
+                        AppDelegate.model?.openTodoEditor(index: nil)
+                    case "edit":
+                        let index = parts.dropFirst(2).first.flatMap { Int($0) }
+                        AppDelegate.model?.openTodoEditor(index: index)
+                    default:
+                        break
+                    }
+                case "integrations":
+                    AppDelegate.model?.openIntegrations(service: parts.dropFirst().first)
                 default:
                     break
                 }
@@ -222,6 +228,8 @@ final class AppModel {
     private var aboutWindowController: AboutWindowController?
     private var editorWindowController: EditorWindowController?
     private var todoWindowController: TodoEditorWindowController?
+    private var integrationsWindowController: IntegrationsWindowController?
+    let integrations = IntegrationsModel()
     /// Sparkle needs a real bundle; nil in bare dev runs.
     private var updaterController: SPUStandardUpdaterController?
 
@@ -254,6 +262,7 @@ final class AppModel {
                 self.profiles = profiles
                 self.dragController?.configure(
                     focusFollowsMouse: config?.focusFollowsMouse ?? false)
+                self.integrations.configure(config?.integrations ?? IntegrationsConfig())
                 if self.isBundled {
                     self.launchAtLogin = SMAppService.mainApp.status == .enabled
                 }
@@ -273,6 +282,12 @@ final class AppModel {
     }
 
     // MARK: Setup window
+
+    func openIntegrations(service: String?) {
+        let controller = integrationsWindowController ?? IntegrationsWindowController()
+        integrationsWindowController = controller
+        controller.show(model: integrations, service: service)
+    }
 
     /// index nil = new task; otherwise edit that 0-based item.
     func openTodoEditor(index: Int?) {
@@ -641,6 +656,11 @@ struct PanewrightMenu: View {
         }
         Button("Add Task…") {
             model.openTodoEditor(index: nil)
+        }
+        if !model.integrations.services.isEmpty {
+            Button("Work Items…") {
+                model.openIntegrations(service: nil)
+            }
         }
         Button("Open Editor…") {
             model.openEditor()

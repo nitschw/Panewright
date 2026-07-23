@@ -119,6 +119,20 @@ public enum ConfigParser {
         if let todo = raw.todo {
             config.todo.enabled = todo.enabled ?? config.todo.enabled
         }
+        if let integrations = raw.integrations {
+            func service(_ raw: RawConfig.RawService?) -> IntegrationsConfig.Service {
+                IntegrationsConfig.Service(
+                    enabled: raw?.enabled ?? false,
+                    host: raw?.host ?? "",
+                    user: raw?.user ?? "")
+            }
+            config.integrations = IntegrationsConfig(
+                github: service(integrations.github),
+                gitlab: service(integrations.gitlab),
+                bitbucket: service(integrations.bitbucket),
+                jira: service(integrations.jira),
+                confluence: service(integrations.confluence))
+        }
         if let hooks = raw.hooks {
             config.workspaceChangedHook = hooks.workspaceChanged
         }
@@ -224,9 +238,10 @@ private struct RawConfig: Codable {
     var workspaceApps: [String: Int]?
     var hooks: RawHooks?
     var todo: RawTodo?
+    var integrations: RawIntegrations?
 
     enum CodingKeys: String, CodingKey {
-        case modifier, gaps, border, bar, binding, mode, hooks, todo
+        case modifier, gaps, border, bar, binding, mode, hooks, todo, integrations
         case leaderKey = "leader-key"
         case focusFollowsMouse = "focus-follows-mouse"
         case floatingApps = "floating-apps"
@@ -236,6 +251,20 @@ private struct RawConfig: Codable {
 
     struct RawTodo: Codable {
         var enabled: Bool?
+    }
+
+    struct RawService: Codable {
+        var enabled: Bool?
+        var host: String?
+        var user: String?
+    }
+
+    struct RawIntegrations: Codable {
+        var github: RawService?
+        var gitlab: RawService?
+        var bitbucket: RawService?
+        var jira: RawService?
+        var confluence: RawService?
     }
 
     struct RawHooks: Codable {

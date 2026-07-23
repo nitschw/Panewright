@@ -19,6 +19,8 @@ struct EditorView: View {
                     Divider()
                     floatingAppsSection
                     Divider()
+                    integrationsSection
+                    Divider()
                     bindingsSection
                 }
                 .padding(20)
@@ -128,6 +130,45 @@ struct EditorView: View {
         }
     }
 
+    private var integrationsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Integrations").font(.headline)
+            Text("Work items in your status bar. Tokens go to your Keychain, never the config file.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            IntegrationRow(
+                name: "GitHub", service: "github",
+                service_: bind(\.integrations.github),
+                hostPlaceholder: "github.example.com (blank = github.com)",
+                userLabel: nil,
+                note: "Falls back to your gh CLI token when none is set.")
+            IntegrationRow(
+                name: "GitLab", service: "gitlab",
+                service_: bind(\.integrations.gitlab),
+                hostPlaceholder: "gitlab.example.com",
+                userLabel: nil,
+                note: "Merge requests you opened or were assigned, with pipeline status.")
+            IntegrationRow(
+                name: "Jira", service: "jira",
+                service_: bind(\.integrations.jira),
+                hostPlaceholder: "company.atlassian.net",
+                userLabel: "Email",
+                note: "Cloud uses email + API token; Server/DC uses a bearer PAT (leave email blank).")
+            IntegrationRow(
+                name: "Bitbucket", service: "bitbucket",
+                service_: bind(\.integrations.bitbucket),
+                hostPlaceholder: "bitbucket.org",
+                userLabel: "Username",
+                note: "Settings are saved; the provider ships in a later release.")
+            IntegrationRow(
+                name: "Confluence", service: "confluence",
+                service_: bind(\.integrations.confluence),
+                hostPlaceholder: "company.atlassian.net",
+                userLabel: "Email",
+                note: "Settings are saved; search and the reader ship in a later release.")
+        }
+    }
+
     private var bindingsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Keybindings").font(.headline)
@@ -227,6 +268,54 @@ struct EditorView: View {
                 .font(.caption.monospaced())
                 .foregroundStyle(.secondary)
         }
+    }
+}
+
+/// One service: enable it, point it at a host, and stash its token.
+private struct IntegrationRow: View {
+    let name: String
+    let service: String
+    @Binding var service_: IntegrationsConfig.Service
+    let hostPlaceholder: String
+    let userLabel: String?
+    let note: String
+    @State private var hasToken = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle(name, isOn: $service_.enabled)
+                .font(.callout.weight(.medium))
+            if service_.enabled {
+                HStack {
+                    Text("Host").frame(width: 46, alignment: .leading)
+                    TextField(hostPlaceholder, text: $service_.host)
+                        .textFieldStyle(.roundedBorder)
+                }
+                if let userLabel {
+                    HStack {
+                        Text(userLabel).frame(width: 46, alignment: .leading)
+                        TextField("", text: $service_.user)
+                            .textFieldStyle(.roundedBorder)
+                    }
+                }
+                HStack {
+                    Text("Token").frame(width: 46, alignment: .leading)
+                    Button(hasToken ? "Token saved — replace…" : "Set token…") {
+                        TokenPrompt.ask(service: service, displayName: name)
+                        hasToken = Keychain.hasToken(for: service)
+                    }
+                    if hasToken {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                    }
+                    Spacer()
+                }
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .onAppear { hasToken = Keychain.hasToken(for: service) }
     }
 }
 

@@ -1,0 +1,67 @@
+import Testing
+
+@testable import PanewrightCore
+
+@Suite struct IntegrationsConfigTests {
+    @Test func parsesPerServiceSettings() throws {
+        let config = try ConfigParser.parse(
+            toml: """
+                [integrations.github]
+                enabled = true
+
+                [integrations.gitlab]
+                enabled = true
+                host = "gitlab.example.com"
+
+                [integrations.jira]
+                enabled = true
+                host = "company.atlassian.net"
+                user = "me@example.com"
+                """)
+        #expect(config.integrations.github.enabled)
+        #expect(config.integrations.gitlab.host == "gitlab.example.com")
+        #expect(config.integrations.jira.user == "me@example.com")
+        #expect(config.integrations.bitbucket.enabled == false)
+        #expect(config.integrations.enabledIDs == ["github", "gitlab", "jira"])
+        #expect(config.integrations.anyEnabled)
+    }
+
+    @Test func integrationsRoundTripThroughSerializer() throws {
+        var config = PanewrightConfig.default
+        config.integrations.gitlab = .init(enabled: true, host: "gitlab.example.com")
+        config.integrations.jira = .init(
+            enabled: true, host: "company.atlassian.net", user: "me@example.com")
+        let toml = PanewrightConfigSerializer.emit(config)
+        #expect(try ConfigParser.parse(toml: toml) == config)
+        // Secrets must never be serialized — they live in the Keychain.
+        #expect(!toml.lowercased().contains("token"))
+    }
+
+    @Test func defaultsToNoIntegrations() {
+        #expect(PanewrightConfig.default.integrations.anyEnabled == false)
+        #expect(PanewrightConfig.default.integrations.enabledIDs.isEmpty)
+    }
+}
+
+@Suite struct GitHubProviderTests {
+    @Test func derivesRepositoryAndNumberFromURL() {
+        #expect(
+            GitHubProvider.repository(from: "https://github.com/nitschw/Panewright/pull/12")
+                == "nitschw/Panewright #12")
+    }
+}
+
+@Suite struct GitLabProviderTests {
+    @Test func mapsPipelineStatusesToBubbles() {
+        #expect(GitLabProvider.pipelineDot["success"] == "🟢")
+        #expect(GitLabProvider.pipelineDot["failed"] == "🔴")
+        #expect(GitLabProvider.pipelineDot["running"] == "🔵")
+    }
+}
+
+@Suite struct JiraProviderTests {
+    @Test func usesTheAssignedUnresolvedQuery() {
+        #expect(JiraProvider.defaultJQL.contains("assignee = currentUser()"))
+        #expect(JiraProvider.defaultJQL.contains("resolution = Unresolved"))
+    }
+}
