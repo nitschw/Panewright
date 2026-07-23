@@ -123,8 +123,81 @@ public struct ConfluenceProvider: Sendable {
         guard var page = page(from: result) else {
             throw IntegrationError.malformedResponse
         }
-        page.html = result.body?.view?.value ?? ""
+        page.html = await inliningImages(result.body?.view?.value ?? "")
         return page
+    }
+
+    /// Attachments need the same credentials as the API, and a locally
+    /// rendered document can't supply them — so fetch each image here and
+    /// embed it as a data URI. No auth, no custom schemes, no origin rules
+    /// in the web view at all.
+    func inliningImages(_ html: String, limit: Int = 25) async -> String {
+        let sources = Self.imageSources(in: html).prefix(limit)
+        guard !sources.isEmpty else { return html }
+        let fetched = await withTaskGroup(of: (String, String?).self) { group in
+            for source in sources {
+                group.addTask { (source, await self.dataURI(for: source)) }
+            }
+            var result: [String: String] = [:]
+            for await (source, uri) in group {
+                if let uri { result[source] = uri }
+            }
+            return result
+        }
+        var output = html
+        for (source, uri) in fetched {
+            output = output.replacingOccurrences(of: "\"\(source)\"", with: "\"\(uri)\"")
+            output = output.replacingOccurrences(of: "'\(source)'", with: "'\(uri)'")
+        }
+        return output
+    }
+
+    /// `src` and `data-image-src` values, deduplicated.
+    static func imageSources(in html: String) -> [String] {
+        var found: [String] = []
+        var seen: Set<String> = []
+        for tag in html.components(separatedBy: "<img").dropFirst() {
+            let head = String(tag.prefix(1200))
+            for attribute in ["data-image-src=\"", "src=\""] {
+                guard let start = head.range(of: attribute),
+                    let end = head.range(of: "\"", range: start.upperBound..<head.endIndex)
+                else { continue }
+                let value = String(head[start.upperBound..<end.lowerBound])
+                guard !value.isEmpty, !value.hasPrefix("data:"), seen.insert(value).inserted
+                else { continue }
+                found.append(value)
+            }
+        }
+        return found
+    }
+
+    private func dataURI(for source: String) async -> String? {
+        let absolute =
+            source.hasPrefix("http")
+            ? source
+            : "https://\(host)\(source.hasPrefix("/") ? "" : "/")\(source)"
+        guard let url = URL(string: absolute),
+            url.host?.hasSuffix(host) == true,
+            let token = Keychain.token(for: "confluence")
+        else {
+            return nil
+        }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 20
+        if email.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        } else {
+            let credentials = Data("\(email):\(token)".utf8).base64EncodedString()
+            request.setValue("Basic \(credentials)", forHTTPHeaderField: "Authorization")
+        }
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+            let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+            data.count < 8_000_000
+        else {
+            return nil
+        }
+        let mime = http.mimeType ?? "image/png"
+        return "data:\(mime);base64,\(data.base64EncodedString())"
     }
 
     private func page(from content: Content) -> ConfluencePage? {

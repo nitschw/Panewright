@@ -60,6 +60,18 @@ final class ConfluenceModel {
         isLoading = false
     }
 
+    /// Deep link: open a page by ID even if it isn't in the current list.
+    func openPage(id: String) {
+        guard let provider else { return }
+        Task { @MainActor in
+            do {
+                selected = try await provider.page(id: id)
+            } catch {
+                self.error = "\(error)"
+            }
+        }
+    }
+
     func open(_ page: ConfluencePage) {
         guard let provider else { return }
         selected = page
@@ -366,8 +378,11 @@ final class ConfluenceWindowController {
     private var window: NSWindow?
     let model = ConfluenceModel()
 
-    func show(host: String, email: String) {
+    func show(host: String, email: String, pageID: String? = nil) {
         model.configure(host: host, email: email)
+        if let pageID {
+            model.openPage(id: pageID)
+        }
         if let window {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)

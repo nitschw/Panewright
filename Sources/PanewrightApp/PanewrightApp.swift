@@ -37,7 +37,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         AppDelegate.model?.openIntegrations(service: parts.dropFirst().first)
                     }
                 case "confluence":
-                    AppDelegate.model?.openConfluence()
+                    // panewright://confluence/page/<id> deep-links an article.
+                    let pageID =
+                        parts.dropFirst().first == "page"
+                        ? parts.dropFirst(2).first : nil
+                    AppDelegate.model?.openConfluence(pageID: pageID)
                 default:
                     break
                 }
@@ -292,11 +296,12 @@ final class AppModel {
 
     // MARK: Setup window
 
-    func openConfluence() {
+    func openConfluence(pageID: String? = nil) {
         let config = (try? orchestrator.loadConfig())?.integrations.confluence
         let controller = confluenceWindowController ?? ConfluenceWindowController()
         confluenceWindowController = controller
-        controller.show(host: config?.host ?? "", email: config?.user ?? "")
+        controller.show(
+            host: config?.host ?? "", email: config?.user ?? "", pageID: pageID)
     }
 
     func openIntegrations(service: String?) {

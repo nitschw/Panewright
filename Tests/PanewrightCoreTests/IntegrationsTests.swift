@@ -125,6 +125,25 @@ import Testing
         #expect(cql.contains("\\\"hi\\\""))
     }
 
+    @Test func findsImageSourcesIncludingLazyAttributes() {
+        // Shape taken from a real Confluence page: a thumbnail in src and
+        // the full-size attachment in data-image-src.
+        let html = """
+            <p>text</p>
+            <img class="confluence-embedded-image" loading="lazy"
+              src="https://site.atlassian.net/wiki/download/thumbnails/1/a.png?version=1"
+              data-image-src="https://site.atlassian.net/wiki/download/attachments/1/a.png?version=1"
+              srcset="https://site.atlassian.net/wiki/download/thumbnails/1/a.png 2x">
+            <img src="data:image/gif;base64,R0lGOD">
+            """
+        let sources = ConfluenceProvider.imageSources(in: html)
+        #expect(sources.count == 2)
+        #expect(sources.contains { $0.contains("download/attachments/1/a.png") })
+        #expect(sources.contains { $0.contains("download/thumbnails/1/a.png?version=1") })
+        // Already-inlined images need no fetching.
+        #expect(!sources.contains { $0.hasPrefix("data:") })
+    }
+
     @Test func parsesAtlassianTimestamps() {
         #expect(ConfluenceProvider.parseDate("2026-07-23T01:22:33.000Z") != nil)
         #expect(ConfluenceProvider.parseDate("2026-07-23T01:22:33Z") != nil)

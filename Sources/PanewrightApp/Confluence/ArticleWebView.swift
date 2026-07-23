@@ -39,6 +39,9 @@ struct ArticleWebView: NSViewRepresentable {
         context.coordinator.authorization = authorization
         Self.dumpForDiagnosis(html, pageID: pageID)
         let body = Self.rewritingImageSources(html, host: host)
+        DragLog.log(
+            "confluence render: host=\(host) auth=\(authorization != nil) "
+                + "firstSrc=\(Self.firstImageSource(body) ?? "none")")
         // Base URL in our own scheme, so relative attachment paths resolve
         // through the authenticated handler *and* count as same-origin —
         // a null origin (the default for loadHTMLString) gets them blocked.
@@ -59,22 +62,21 @@ struct ArticleWebView: NSViewRepresentable {
         DragLog.log("confluence page \(pageID): \(images.isEmpty ? "no <img> tags" : images)")
     }
 
-    /// Absolute site URLs move onto our scheme; relative ones resolve via
-    /// the base URL. `srcset` is stripped so the browser can't bypass the
-    /// handler with an unauthenticated candidate.
-    static func rewritingImageSources(_ html: String, host: String) -> String {
-        guard !host.isEmpty else { return html }
-        var result = html
-        for attribute in ["src", "data-image-src", "data-src", "href"] {
-            for quote in ["\"", "'"] {
-                result = result.replacingOccurrences(
-                    of: "\(attribute)=\(quote)https://\(host)/",
-                    with: "\(attribute)=\(quote)\(imageScheme)://\(host)/")
-            }
+    static func firstImageSource(_ html: String) -> String? {
+        guard let range = html.range(of: "<img"),
+            let srcRange = html.range(of: "src=\"", range: range.upperBound..<html.endIndex),
+            let close = html.range(of: "\"", range: srcRange.upperBound..<html.endIndex)
+        else {
+            return nil
         }
-        result = result.replacingOccurrences(
-            of: "srcset=\"", with: "data-pw-srcset=\"")
-        return result
+        return String(html[srcRange.upperBound..<close.lowerBound].prefix(90))
+    }
+
+    /// Images arrive pre-inlined as data URIs from the provider, so nothing
+    /// here needs rewriting — except `srcset`, which would otherwise send
+    /// the web view back to the network for an unauthenticated candidate.
+    static func rewritingImageSources(_ html: String, host: String) -> String {
+        html.replacingOccurrences(of: "srcset=\"", with: "data-pw-srcset=\"")
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler,
@@ -89,6 +91,8 @@ struct ArticleWebView: NSViewRepresentable {
         // MARK: Authenticated image loading
 
         func webView(_ webView: WKWebView, start urlSchemeTask: any WKURLSchemeTask) {
+            DragLog.log(
+                "image request: \(urlSchemeTask.request.url?.absoluteString.prefix(90) ?? "?")")
             guard let source = urlSchemeTask.request.url,
                 var components = URLComponents(url: source, resolvingAgainstBaseURL: false)
             else {
@@ -159,6 +163,10 @@ struct ArticleWebView: NSViewRepresentable {
 
         @MainActor
         func finish(data: Data?, response: URLResponse?, error: Error?) {
+            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+            DragLog.log(
+                "image result: status=\(status) bytes=\(data?.count ?? 0) "
+                    + "mime=\(response?.mimeType ?? "?") error=\(error.map { "\($0)" } ?? "none")")
             guard let data, let requestURL = task.request.url else {
                 task.didFailWithError(error ?? URLError(.badServerResponse))
                 return
