@@ -64,4 +64,25 @@ import Testing
         #expect(JiraProvider.defaultJQL.contains("assignee = currentUser()"))
         #expect(JiraProvider.defaultJQL.contains("resolution = Unresolved"))
     }
+
+    @Test func parsesJiraTimestamps() {
+        #expect(JiraProvider.parseDate("2026-07-23T01:22:33.000-0700") != nil)
+        #expect(JiraProvider.parseDate("2026-07-23T01:22:33-0700") != nil)
+        #expect(JiraProvider.parseDate("not a date") == nil)
+    }
+}
+
+@Suite struct StatusClassificationTests {
+    @Test func bucketsWorkflowStatesAcrossServices() {
+        #expect(StatusKind.classify("In Progress") == .inProgress)
+        #expect(StatusKind.classify("In Development") == .inProgress)
+        #expect(StatusKind.classify("Code Review") == .review)
+        #expect(StatusKind.classify("review") == .review)
+        #expect(StatusKind.classify("Blocked") == .blocked)
+        #expect(StatusKind.classify("Done") == .done)
+        #expect(StatusKind.classify("Resolved") == .done)
+        #expect(StatusKind.classify("To Do") == .todo)
+        #expect(StatusKind.classify("Backlog") == .todo)
+        #expect(StatusKind.classify(nil) == .other)
+    }
 }

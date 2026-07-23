@@ -8,13 +8,49 @@ public struct IntegrationItem: Sendable, Equatable, Identifiable {
     public var subtitle: String
     public var badge: String?
     public var url: URL
+    /// Workflow state — "In Progress", "review", "Blocked". Drives the
+    /// panel's color coding and its filter menu.
+    public var status: String?
+    public var priority: String?
+    public var updated: Date?
 
-    public init(id: String, title: String, subtitle: String, badge: String? = nil, url: URL) {
+    public init(
+        id: String,
+        title: String,
+        subtitle: String,
+        badge: String? = nil,
+        url: URL,
+        status: String? = nil,
+        priority: String? = nil,
+        updated: Date? = nil
+    ) {
         self.id = id
         self.title = title
         self.subtitle = subtitle
         self.badge = badge
         self.url = url
+        self.status = status
+        self.priority = priority
+        self.updated = updated
+    }
+}
+
+/// Coarse buckets so wildly different services (Jira workflows, PR review
+/// states) can share one color language.
+public enum StatusKind: String, Sendable, CaseIterable {
+    case todo, inProgress, review, blocked, done, other
+
+    public static func classify(_ status: String?) -> StatusKind {
+        guard let value = status?.lowercased(), !value.isEmpty else { return .other }
+        if value.contains("block") || value.contains("impedi") { return .blocked }
+        if value.contains("review") || value.contains("qa") { return .review }
+        if value.contains("progress") || value.contains("doing")
+            || value.contains("development") { return .inProgress }
+        if value.contains("done") || value.contains("closed") || value.contains("resolved")
+            || value.contains("complete") { return .done }
+        if value.contains("to do") || value.contains("todo") || value.contains("backlog")
+            || value.contains("open") || value.contains("new") { return .todo }
+        return .other
     }
 }
 

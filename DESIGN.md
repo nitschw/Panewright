@@ -189,6 +189,36 @@ muscle memory and is the natural home for future command-palette features.
 display changed) once the engine is absorbed; a `panewright` Python
 helper module (thin wrapper over the CLI) as an example, not a runtime.
 
+## Integrations (work items in the bar)
+
+Shipped 2026-07-23: a provider-agnostic subsystem — bar pills with counts,
+a searchable/sortable panel, links straight to the browser. GitHub (review
+requests + your open PRs, falling back to the `gh` CLI token so it needs no
+setup), GitLab (MRs authored/assigned, with head-pipeline bubbles), and
+Jira (assigned unresolved issues) ship; Bitbucket conforms to the same
+`IntegrationProvider` protocol when written.
+
+**Credentials rule:** tokens live in the login Keychain, never in
+`panewright.toml` — that file travels in profiles, issue reports, and
+dotfile repos. Config holds only non-secrets (enabled, host, account).
+Credential entry is a real window, not an NSAlert accessory: secure fields
+inside alerts silently truncate pasted tokens in accessory apps.
+
+### Confluence browser (planned, its own project)
+
+Not a list like the others — a full reader:
+
+- **Large window**, split view: sources on the left, article on the right.
+- **Search** across spaces, plus **favorites** pinned for instant return.
+- **Full page rendering** in-app (Confluence's REST API returns storage-format
+  HTML; render it in a WKWebView with the site's auth, or convert to
+  attributed text for a native look).
+- **Collapsible sections that preserve scroll position** — the point is
+  keeping your place across a work session, so expansion state and scroll
+  offset persist per article between launches.
+
+Sizeable enough to schedule separately from the list-shaped providers.
+
 ## Build order
 
 1. MVP wrapping AeroSpace for tiling + workspace switching + config parsing.

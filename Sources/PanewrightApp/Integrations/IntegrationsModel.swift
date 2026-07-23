@@ -62,8 +62,8 @@ final class IntegrationsModel {
     }
 
     func promptForToken(service: String, displayName: String) {
-        if TokenPrompt.ask(service: service, displayName: displayName) {
-            refresh()
+        TokenPrompt.ask(service: service, displayName: displayName) { [weak self] in
+            self?.refresh()
         }
     }
 

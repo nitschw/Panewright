@@ -301,8 +301,9 @@ private struct IntegrationRow: View {
                 HStack {
                     Text("Token").frame(width: 46, alignment: .leading)
                     Button(hasToken ? "Token saved — replace…" : "Set token…") {
-                        TokenPrompt.ask(service: service, displayName: name)
-                        hasToken = Keychain.hasToken(for: service)
+                        TokenPrompt.ask(service: service, displayName: name) {
+                            hasToken = Keychain.hasToken(for: service)
+                        }
                     }
                     if hasToken {
                         Image(systemName: "checkmark.circle.fill")

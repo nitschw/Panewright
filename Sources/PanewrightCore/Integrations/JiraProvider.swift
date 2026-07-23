@@ -34,15 +34,18 @@ public struct JiraProvider: IntegrationProvider {
             }
             let status = issue.fields.status?.name ?? ""
             let priority = issue.fields.priority?.name
-            let subtitle = [issue.key, status, priority].compactMap { $0 }
+            let subtitle = [issue.key, priority].compactMap { $0 }
                 .filter { !$0.isEmpty }
                 .joined(separator: " · ")
             return IntegrationItem(
                 id: "jira-\(issue.key)",
                 title: issue.fields.summary,
                 subtitle: subtitle,
-                badge: status.isEmpty ? nil : status.lowercased(),
-                url: url)
+                badge: status.isEmpty ? nil : status,
+                url: url,
+                status: status,
+                priority: priority,
+                updated: issue.fields.updated.flatMap(Self.parseDate))
         }
     }
 
@@ -65,7 +68,7 @@ public struct JiraProvider: IntegrationProvider {
         components.queryItems = [
             URLQueryItem(name: "jql", value: Self.defaultJQL),
             URLQueryItem(name: "maxResults", value: "50"),
-            URLQueryItem(name: "fields", value: "summary,status,priority"),
+            URLQueryItem(name: "fields", value: "summary,status,priority,updated"),
         ]
         var request = URLRequest(url: components.url!)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -90,6 +93,17 @@ public struct JiraProvider: IntegrationProvider {
         return decoded
     }
 
+    /// Jira stamps look like 2026-07-23T01:22:33.000-0700.
+    static func parseDate(_ value: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        for format in ["yyyy-MM-dd'T'HH:mm:ss.SSSZ", "yyyy-MM-dd'T'HH:mm:ssZ"] {
+            formatter.dateFormat = format
+            if let date = formatter.date(from: value) { return date }
+        }
+        return ISO8601DateFormatter().date(from: value)
+    }
+
     struct SearchResponse: Decodable {
         let issues: [Issue]
     }
@@ -102,6 +116,7 @@ public struct JiraProvider: IntegrationProvider {
             let summary: String
             let status: Named?
             let priority: Named?
+            let updated: String?
         }
 
         struct Named: Decodable {
