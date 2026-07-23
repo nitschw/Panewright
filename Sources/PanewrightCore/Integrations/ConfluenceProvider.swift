@@ -132,11 +132,12 @@ public struct ConfluenceProvider: Sendable {
     /// embed it as a data URI. No auth, no custom schemes, no origin rules
     /// in the web view at all.
     func inliningImages(_ html: String, limit: Int = 25) async -> String {
-        let sources = Self.imageSources(in: html).prefix(limit)
-        guard !sources.isEmpty else { return html }
+        let references = Self.imageReferences(in: html).prefix(limit)
+        Log.write("confluence: \(references.count) image(s) to inline")
+        guard !references.isEmpty else { return html }
         let fetched = await withTaskGroup(of: (String, String?).self) { group in
-            for source in sources {
-                group.addTask { (source, await self.dataURI(for: source)) }
+            for reference in references {
+                group.addTask { (reference.source, await self.dataURI(for: reference)) }
             }
             var result: [String: String] = [:]
             for await (source, uri) in group {
@@ -144,6 +145,8 @@ public struct ConfluenceProvider: Sendable {
             }
             return result
         }
+        let sources = references
+        Log.write("confluence: inlined \(fetched.count)/\(sources.count) image(s)")
         var output = html
         for (source, uri) in fetched {
             output = output.replacingOccurrences(of: "\"\(source)\"", with: "\"\(uri)\"")
@@ -152,34 +155,76 @@ public struct ConfluenceProvider: Sendable {
         return output
     }
 
-    /// `src` and `data-image-src` values, deduplicated.
-    static func imageSources(in html: String) -> [String] {
-        var found: [String] = []
+    /// An image in the page: the exact `src` string (so it can be swapped
+    /// for a data URI) plus, when derivable, the REST path that actually
+    /// serves the bytes.
+    public struct ImageReference: Equatable, Sendable {
+        public var source: String
+        public var downloadPath: String?
+    }
+
+    /// The `/wiki/download/...` URLs Confluence embeds are served by a
+    /// servlet that rejects API tokens outright (401, always). The REST
+    /// attachment endpoint does accept them, and the tag carries the two
+    /// IDs needed to address it.
+    static func imageReferences(in html: String) -> [ImageReference] {
+        var found: [ImageReference] = []
         var seen: Set<String> = []
         for tag in html.components(separatedBy: "<img").dropFirst() {
-            let head = String(tag.prefix(1200))
-            for attribute in ["data-image-src=\"", "src=\""] {
-                guard let start = head.range(of: attribute),
+            let head = String(tag.prefix(1600))
+            func attribute(_ name: String) -> String? {
+                guard let start = head.range(of: "\(name)=\""),
                     let end = head.range(of: "\"", range: start.upperBound..<head.endIndex)
-                else { continue }
+                else { return nil }
                 let value = String(head[start.upperBound..<end.lowerBound])
-                guard !value.isEmpty, !value.hasPrefix("data:"), seen.insert(value).inserted
-                else { continue }
-                found.append(value)
+                return value.isEmpty ? nil : value
             }
+            guard let source = attribute("src"), !source.hasPrefix("data:"),
+                seen.insert(source).inserted
+            else { continue }
+            var path: String?
+            if let attachment = attribute("data-linked-resource-id"),
+                let container = attribute("data-linked-resource-container-id") {
+                path = "/rest/api/content/\(container)/child/attachment/att\(attachment)/download"
+            }
+            found.append(ImageReference(source: source, downloadPath: path))
         }
         return found
     }
 
-    private func dataURI(for source: String) async -> String? {
+    /// Attribute values arrive HTML-escaped. Requesting them verbatim turns
+    /// `&api=v2` into `&amp;api=v2`, so the download servlet never sees the
+    /// flag that lets it accept API-token auth — and answers 401.
+    static func decodingHTMLEntities(_ value: String) -> String {
+        var result = value
+        for (entity, character) in [
+            ("&amp;", "&"), ("&#38;", "&"), ("&quot;", "\""), ("&#34;", "\""),
+            ("&#39;", "'"), ("&apos;", "'"), ("&lt;", "<"), ("&gt;", ">"),
+        ] {
+            result = result.replacingOccurrences(of: entity, with: character)
+        }
+        return result
+    }
+
+    private func dataURI(for reference: ImageReference) async -> String? {
+        let decoded = Self.decodingHTMLEntities(reference.source)
+        // Prefer the REST path; the embedded URL is a fallback for images
+        // that don't carry attachment IDs (external or inline-rendered).
         let absolute =
-            source.hasPrefix("http")
-            ? source
-            : "https://\(host)\(source.hasPrefix("/") ? "" : "/")\(source)"
-        guard let url = URL(string: absolute),
-            url.host?.hasSuffix(host) == true,
-            let token = Keychain.token(for: "confluence")
-        else {
+            reference.downloadPath.map { "https://\(host)/wiki\($0)" }
+            ?? (decoded.hasPrefix("http")
+                ? decoded
+                : "https://\(host)\(decoded.hasPrefix("/") ? "" : "/")\(decoded)")
+        guard let url = URL(string: absolute) else {
+            Log.write("confluence image: unparseable \(absolute.prefix(80))")
+            return nil
+        }
+        guard url.host?.hasSuffix(host) == true else {
+            Log.write("confluence image: off-site host \(url.host ?? "?") — skipped")
+            return nil
+        }
+        guard let token = Keychain.token(for: "confluence") else {
+            Log.write("confluence image: no token in Keychain")
             return nil
         }
         var request = URLRequest(url: url)
@@ -190,14 +235,32 @@ public struct ConfluenceProvider: Sendable {
             let credentials = Data("\(email):\(token)".utf8).base64EncodedString()
             request.setValue("Basic \(credentials)", forHTTPHeaderField: "Authorization")
         }
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-            let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
-            data.count < 8_000_000
-        else {
+        do {
+            // Attachment downloads redirect to Atlassian's media CDN, and
+            // URLSession strips Authorization across hosts — this session
+            // re-attaches it for the site's own domains.
+            let session = URLSession(
+                configuration: .ephemeral,
+                delegate: RedirectAuthenticator(host: host, header: request.value(
+                    forHTTPHeaderField: "Authorization")),
+                delegateQueue: nil)
+            defer { session.finishTasksAndInvalidate() }
+            let (data, response) = try await session.data(for: request)
+            let http = response as? HTTPURLResponse
+            let status = http?.statusCode ?? -1
+            guard (200..<300).contains(status), data.count < 8_000_000 else {
+                let body = String(decoding: data.prefix(220), as: UTF8.self)
+                    .replacingOccurrences(of: "\n", with: " ")
+                Log.write(
+                    "confluence image: status=\(status) bytes=\(data.count) "
+                        + "url=\(url.path.suffix(50)) body=\(body)")
+                return nil
+            }
+            return "data:\(http?.mimeType ?? "image/png");base64,\(data.base64EncodedString())"
+        } catch {
+            Log.write("confluence image: \(error) url=\(url.path.suffix(60))")
             return nil
         }
-        let mime = http.mimeType ?? "image/png"
-        return "data:\(mime);base64,\(data.base64EncodedString())"
     }
 
     private func page(from content: Content) -> ConfluencePage? {
@@ -285,6 +348,36 @@ public struct ConfluenceProvider: Sendable {
         struct Links: Decodable {
             let webui: String?
         }
+    }
+}
+
+/// Keeps credentials attached when a download redirects within the site's
+/// own domains (URLSession drops them on any cross-host hop).
+final class RedirectAuthenticator: NSObject, URLSessionTaskDelegate, Sendable {
+    private let host: String
+    private let header: String?
+
+    init(host: String, header: String?) {
+        self.host = host
+        self.header = header
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        var followUp = request
+        let target = request.url?.host ?? ""
+        let sameSite = target == host || target.hasSuffix(".atlassian.net")
+            || target.hasSuffix(".atlassian.com")
+        if sameSite, let header, followUp.value(forHTTPHeaderField: "Authorization") == nil {
+            followUp.setValue(header, forHTTPHeaderField: "Authorization")
+        }
+        Log.write("confluence image: redirect → \(target) auth=\(sameSite)")
+        completionHandler(followUp)
     }
 }
 

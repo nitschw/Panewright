@@ -125,23 +125,43 @@ import Testing
         #expect(cql.contains("\\\"hi\\\""))
     }
 
-    @Test func findsImageSourcesIncludingLazyAttributes() {
-        // Shape taken from a real Confluence page: a thumbnail in src and
-        // the full-size attachment in data-image-src.
+    @Test func derivesRESTDownloadPathFromImageTag() {
+        // Shape taken from a real page: the embedded /wiki/download/ URL is
+        // served by a servlet that 401s on API tokens, so the REST path is
+        // built from the attachment and container IDs instead.
         let html = """
             <p>text</p>
             <img class="confluence-embedded-image" loading="lazy"
-              src="https://site.atlassian.net/wiki/download/thumbnails/1/a.png?version=1"
-              data-image-src="https://site.atlassian.net/wiki/download/attachments/1/a.png?version=1"
-              srcset="https://site.atlassian.net/wiki/download/thumbnails/1/a.png 2x">
+              src="https://site.atlassian.net/wiki/download/thumbnails/1820295181/a.png?version=1&amp;api=v2"
+              data-linked-resource-id="1822064644"
+              data-linked-resource-container-id="1820295181">
             <img src="data:image/gif;base64,R0lGOD">
             """
-        let sources = ConfluenceProvider.imageSources(in: html)
-        #expect(sources.count == 2)
-        #expect(sources.contains { $0.contains("download/attachments/1/a.png") })
-        #expect(sources.contains { $0.contains("download/thumbnails/1/a.png?version=1") })
-        // Already-inlined images need no fetching.
-        #expect(!sources.contains { $0.hasPrefix("data:") })
+        let references = ConfluenceProvider.imageReferences(in: html)
+        #expect(references.count == 1)
+        #expect(
+            references.first?.downloadPath
+                == "/rest/api/content/1820295181/child/attachment/att1822064644/download")
+        // The original src is kept verbatim so it can be swapped in the HTML.
+        #expect(references.first?.source.contains("&amp;") == true)
+    }
+
+    @Test func imagesWithoutAttachmentIDsFallBackToTheirURL() {
+        let html = #"<img src="https://elsewhere.example/chart.png">"#
+        let references = ConfluenceProvider.imageReferences(in: html)
+        #expect(references.count == 1)
+        #expect(references.first?.downloadPath == nil)
+    }
+
+    @Test func decodesEscapedAmpersandsInAttachmentURLs() {
+        // Verbatim, this URL loses `api=v2` (it parses as `amp;api=v2`) and
+        // Confluence answers 401 — the bug that broke image rendering.
+        let escaped =
+            "https://site.atlassian.net/wiki/download/thumbnails/1/a.png"
+            + "?version=1&amp;modificationDate=1784676573657&amp;api=v2"
+        let decoded = ConfluenceProvider.decodingHTMLEntities(escaped)
+        #expect(decoded.contains("&api=v2"))
+        #expect(!decoded.contains("&amp;"))
     }
 
     @Test func parsesAtlassianTimestamps() {

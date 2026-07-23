@@ -244,12 +244,14 @@ struct ArticleWebView: NSViewRepresentable {
         <div id="pw-content">\(body)</div>
         <script>
         (function () {
-          // Confluence lazy-loads: the real attachment often sits in
-          // data-image-src while src holds a placeholder.
+          // Images arrive inlined as data URIs. Never overwrite one with
+          // data-image-src: that attribute holds the /wiki/download/ URL,
+          // which 401s for API tokens — promoting it undid the inlining.
           Array.from(document.querySelectorAll('#pw-content img')).forEach(function (img) {
-            const real = img.getAttribute('data-image-src') || img.getAttribute('data-src');
-            if (real && (!img.getAttribute('src') || img.getAttribute('src').startsWith('data:'))) {
-              img.setAttribute('src', real);
+            const src = img.getAttribute('src');
+            if (!src) {
+              const fallback = img.getAttribute('data-image-src') || img.getAttribute('data-src');
+              if (fallback) img.setAttribute('src', fallback);
             }
             img.removeAttribute('srcset');
             img.setAttribute('loading', 'eager');
