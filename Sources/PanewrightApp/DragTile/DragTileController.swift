@@ -159,7 +159,9 @@ final class DragTileController {
         guard tiledRefresh == nil else { return }
         let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
         timer.schedule(deadline: .now(), repeating: 1.5)
-        timer.setEventHandler { [weak self] in
+        // @Sendable so it isn't inferred MainActor-isolated (it's created in
+        // a @MainActor method but must run on the utility queue).
+        timer.setEventHandler { @Sendable [weak self] in
             guard let cli = AeroSpaceCLI.locate(),
                 let output = try? cli.run([
                     "list-windows", "--workspace", "focused",
@@ -174,7 +176,7 @@ final class DragTileController {
                     ids.insert(id)
                 }
             }
-            Task { @MainActor [weak self] in self?.cachedTiledIDs = ids }
+            Task { @MainActor in self?.cachedTiledIDs = ids }
         }
         timer.resume()
         tiledRefresh = timer
