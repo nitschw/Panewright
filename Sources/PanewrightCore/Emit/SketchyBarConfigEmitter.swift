@@ -37,6 +37,16 @@ public enum SketchyBarConfigEmitter {
         }
     }
 
+    /// Vertical space tiles must reserve so the bar isn't covered by windows:
+    /// bar height + y-offset + breathing room. The AeroSpace emitter adds
+    /// this to outer.top whenever the bar is enabled.
+    public static func reservedTopGap(for theme: PanewrightConfig.StatusBar.Theme) -> Int {
+        switch theme {
+        case .native: 40  // height 30 + y_offset 5 + 5 breathing
+        case .technical: 32  // height 26 + 6 breathing
+        }
+    }
+
     public static func emit(_ config: PanewrightConfig) throws -> Files {
         let accent = String(
             format: "0x%08x", try ColorHex.argb(fromCSSHex: config.focusBorder.activeColor))

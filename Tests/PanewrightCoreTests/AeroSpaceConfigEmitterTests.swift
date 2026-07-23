@@ -6,11 +6,24 @@ import Testing
     @Test func emitsGaps() {
         var config = PanewrightConfig.default
         config.gaps = .init(inner: 10, outer: 6)
+        config.statusBar.enabled = false
         let toml = AeroSpaceConfigEmitter.emit(config)
         #expect(toml.contains("inner.horizontal = 10"))
         #expect(toml.contains("inner.vertical = 10"))
         #expect(toml.contains("outer.top = 6"))
         #expect(toml.contains("outer.left = 6"))
+    }
+
+    @Test func statusBarBecomesTheTopEdge() {
+        var config = PanewrightConfig.default
+        config.gaps = .init(inner: 8, outer: 8)
+        #expect(AeroSpaceConfigEmitter.emit(config).contains("outer.top = 48"))
+        config.statusBar.theme = .technical
+        #expect(AeroSpaceConfigEmitter.emit(config).contains("outer.top = 40"))
+        config.statusBar.enabled = false
+        #expect(AeroSpaceConfigEmitter.emit(config).contains("outer.top = 8"))
+        // Only the top edge reserves bar space.
+        #expect(AeroSpaceConfigEmitter.emit(config).contains("outer.bottom = 8"))
     }
 
     @Test func hyperBaseComboExcludesShift() {
