@@ -49,6 +49,24 @@ import Testing
         }
     }
 
+    @Test func todoItemAndPopupAreEmittedWhenEnabled() throws {
+        let files = try SketchyBarConfigEmitter.emit(.default)
+        #expect(files.sketchybarrc.contains("--add event panewright_todo"))
+        #expect(files.sketchybarrc.contains("todo-add.sh"))
+        // One pill per task, growing from the right.
+        #expect(files.todoPlugin.contains("--add item todo.item.$i right"))
+        #expect(files.todoPlugin.contains("todo-edit.sh"))
+        #expect(files.todoPlugin.contains("todo.txt"))
+    }
+
+    @Test func todoDisappearsWhenDisabled() throws {
+        var config = PanewrightConfig.default
+        config.todo.enabled = false
+        let files = try SketchyBarConfigEmitter.emit(config)
+        #expect(!files.sketchybarrc.contains("--add item todo"))
+        #expect(!files.sketchybarrc.contains("--trigger panewright_todo"))
+    }
+
     @Test func modePluginUppercasesAndClears() throws {
         let files = try SketchyBarConfigEmitter.emit(.default)
         #expect(files.modePlugin.contains(#"[ "$MODE" = "main" ]"#))

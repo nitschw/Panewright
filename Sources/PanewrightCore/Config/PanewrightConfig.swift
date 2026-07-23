@@ -89,6 +89,8 @@ public struct PanewrightConfig: Equatable, Sendable {
         case scratchpadMove
         /// i3's `workspace back_and_forth` — bounce to the previous workspace.
         case workspaceBackAndForth
+        /// Prompt for a new to-do item.
+        case todoAdd
     }
 
     public enum MonitorTarget: String, Equatable, Sendable, CaseIterable {
@@ -143,9 +145,21 @@ public struct PanewrightConfig: Equatable, Sendable {
         }
     }
 
+    /// A plain-text to-do list surfaced in the status bar. Storage is
+    /// `~/.config/panewright/todo.txt`, one task per line — editable by any
+    /// tool, not just Panewright.
+    public struct TodoList: Equatable, Sendable {
+        public var enabled: Bool
+
+        public init(enabled: Bool = true) {
+            self.enabled = enabled
+        }
+    }
+
     public var modifier: Modifier
     /// The prefix chord when `modifier == .leader`, in AeroSpace key syntax.
     public var leaderKey: String
+    public var todo: TodoList
     /// i3's `focus_follows_mouse` — hover moves focus, no click. Implemented
     /// by Panewright's event tap (AeroSpace has no native support).
     public var focusFollowsMouse: Bool
@@ -174,6 +188,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         // Same chord as the default modifier, plus a key — a prefix can't be
         // modifiers alone. Space keeps it one thumb press away.
         leaderKey: String = "ctrl-cmd-space",
+        todo: TodoList = TodoList(),
         focusFollowsMouse: Bool = false,
         statusBar: StatusBar = StatusBar(),
         gaps: Gaps = Gaps(),
@@ -187,6 +202,7 @@ public struct PanewrightConfig: Equatable, Sendable {
     ) {
         self.modifier = modifier
         self.leaderKey = leaderKey
+        self.todo = todo
         self.focusFollowsMouse = focusFollowsMouse
         self.statusBar = statusBar
         self.gaps = gaps
@@ -234,6 +250,8 @@ public struct PanewrightConfig: Equatable, Sendable {
         bindings.append(Binding(key: "shift-minus", action: .scratchpadMove))
         // i3's $mod+Tab reflex: bounce to the previous workspace.
         bindings.append(Binding(key: "tab", action: .workspaceBackAndForth))
+        // $mod+t: capture a to-do without leaving the keyboard.
+        bindings.append(Binding(key: "t", action: .todoAdd))
 
         // i3's default resize mode: h/l shrink and grow width, j/k grow and
         // shrink height; Enter or Escape returns to normal bindings.

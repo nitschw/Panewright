@@ -116,6 +116,9 @@ public enum ConfigParser {
         if let appWorkspaces = raw.workspaceApps {
             config.appWorkspaces = appWorkspaces
         }
+        if let todo = raw.todo {
+            config.todo.enabled = todo.enabled ?? config.todo.enabled
+        }
         if let hooks = raw.hooks {
             config.workspaceChangedHook = hooks.workspaceChanged
         }
@@ -178,6 +181,9 @@ public enum ConfigParser {
             let delta = Int(words[2]) {
             return .resize(dimension, delta)
         }
+        if words == ["todo", "add"] {
+            return .todoAdd
+        }
         if words == ["scratchpad", "show"] {
             return .scratchpadShow
         }
@@ -217,14 +223,19 @@ private struct RawConfig: Codable {
     var workspaceMonitors: [String: String]?
     var workspaceApps: [String: Int]?
     var hooks: RawHooks?
+    var todo: RawTodo?
 
     enum CodingKeys: String, CodingKey {
-        case modifier, gaps, border, bar, binding, mode, hooks
+        case modifier, gaps, border, bar, binding, mode, hooks, todo
         case leaderKey = "leader-key"
         case focusFollowsMouse = "focus-follows-mouse"
         case floatingApps = "floating-apps"
         case workspaceMonitors = "workspace-monitors"
         case workspaceApps = "workspace-apps"
+    }
+
+    struct RawTodo: Codable {
+        var enabled: Bool?
     }
 
     struct RawHooks: Codable {

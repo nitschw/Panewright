@@ -24,6 +24,17 @@
 	<string>14.0</string>
 	<key>LSUIElement</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.panewright.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>panewright</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 William Nitsch — MIT License</string>
 	<key>SUEnableAutomaticChecks</key>

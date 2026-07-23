@@ -219,6 +219,8 @@ public enum AeroSpaceConfigEmitter {
         case .exec(let command): "exec-and-forget \(command)"
         case .close: "close"
         case .workspaceBackAndForth: "workspace-back-and-forth"
+        case .todoAdd:
+            "exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/todo-add.sh\""
         case .scratchpadShow:
             "exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/scratchpad-show.sh\""
         case .scratchpadMove:

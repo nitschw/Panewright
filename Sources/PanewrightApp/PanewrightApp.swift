@@ -10,6 +10,28 @@ import UserNotifications
 /// instead of orphaning daemons.
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var signalSources: [DispatchSourceSignal] = []
+    /// Set by the app so URL callbacks can reach the model.
+    @MainActor static weak var model: AppModel?
+
+    /// panewright://todo/add and panewright://todo/edit/<index> — the bar's
+    /// popup can't draw a two-field form, so it asks the app to.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.scheme == "panewright" {
+            let parts = (url.host.map { [$0] } ?? []) + url.pathComponents.filter { $0 != "/" }
+            guard parts.first == "todo" else { continue }
+            MainActor.assumeIsolated {
+                switch parts.dropFirst().first {
+                case "add":
+                    AppDelegate.model?.openTodoEditor(index: nil)
+                case "edit":
+                    let index = parts.dropFirst(2).first.flatMap { Int($0) }
+                    AppDelegate.model?.openTodoEditor(index: index)
+                default:
+                    break
+                }
+            }
+        }
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Ask for the permissions the app can't work without — automatically,
@@ -44,6 +66,7 @@ struct PanewrightApp: App {
     @State private var model = AppModel()
 
     init() {
+        defer { AppDelegate.model = model }
         // A window-layout exception must not take down the whole tiling
         // environment: log it (with its reason, unlike the crash reporter)
         // and carry on.
@@ -198,6 +221,7 @@ final class AppModel {
     private var setupWindowController: OnboardingWindowController?
     private var aboutWindowController: AboutWindowController?
     private var editorWindowController: EditorWindowController?
+    private var todoWindowController: TodoEditorWindowController?
     /// Sparkle needs a real bundle; nil in bare dev runs.
     private var updaterController: SPUStandardUpdaterController?
 
@@ -249,6 +273,21 @@ final class AppModel {
     }
 
     // MARK: Setup window
+
+    /// index nil = new task; otherwise edit that 0-based item.
+    func openTodoEditor(index: Int?) {
+        let controller = todoWindowController ?? TodoEditorWindowController()
+        todoWindowController = controller
+        controller.show(index: index) {
+            // Repaint the bar item immediately.
+            let process = Process()
+            process.executableURL = URL(filePath: "/bin/sh")
+            process.arguments = [
+                "-c", "/opt/homebrew/bin/sketchybar --trigger panewright_todo 2>/dev/null",
+            ]
+            try? process.run()
+        }
+    }
 
     func openEditor() {
         let controller = editorWindowController ?? EditorWindowController()
@@ -599,6 +638,9 @@ struct PanewrightMenu: View {
             Button("Save Current as Profile…") {
                 model.saveCurrentAsProfile()
             }
+        }
+        Button("Add Task…") {
+            model.openTodoEditor(index: nil)
         }
         Button("Open Editor…") {
             model.openEditor()

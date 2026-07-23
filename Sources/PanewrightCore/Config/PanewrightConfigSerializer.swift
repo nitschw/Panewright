@@ -36,6 +36,9 @@ public enum PanewrightConfigSerializer {
         lines.append("[bar]")
         lines.append("enabled = \(config.statusBar.enabled)")
         lines.append("theme = \"\(config.statusBar.theme.rawValue)\"")
+        lines.append("")
+        lines.append("[todo]")
+        lines.append("enabled = \(config.todo.enabled)")
         if !config.workspaceMonitors.isEmpty {
             lines.append("")
             lines.append("[workspace-monitors]")
@@ -101,6 +104,7 @@ public enum PanewrightConfigSerializer {
         case .scratchpadShow: "scratchpad show"
         case .scratchpadMove: "move scratchpad"
         case .workspaceBackAndForth: "workspace back_and_forth"
+        case .todoAdd: "todo add"
         }
     }
 }
