@@ -139,6 +139,33 @@ Prerequisite: Panewright itself needs Accessibility/Input Monitoring
 permission for the event tap, which requires the stable code signature of a
 real .app bundle — the bundle work is a hard dependency of this feature.
 
+## Long-term: self-contained Panewright
+
+End-state goal (decided 2026-07-22): Panewright should eventually depend on
+no external software — one app, no Homebrew, no third-party daemons. The
+orchestration architecture stays the launch strategy; absorption happens in
+shippable stages, cheapest first:
+
+1. **Bundle the binaries** (no rewrite). AeroSpace is MIT and may be embedded
+   inside Panewright.app; JankyBorders/SketchyBar are GPL-3.0 and may only be
+   *shipped alongside* as separate unmodified programs with license texts and
+   a source pointer. Result: one download, zero prerequisites.
+2. **Replace JankyBorders with native borders.** Panewright already draws
+   overlay windows (drag ghosts); a focus border is the same tech tracking
+   the focused window's frame. Small, drops one GPL dependency.
+3. **Replace SketchyBar with a native bar.** An AppKit/SwiftUI bar window
+   gives us the native/technical themes end-to-end without generating shell
+   scripts. Drops the other GPL dependency.
+4. **Absorb the tiling engine last.** AeroSpace's MIT license permits porting
+   its core into Panewright (with attribution) — a port, not a from-scratch
+   rewrite. Keep the internal command surface CLI-shaped so the emitters and
+   executor survive. Highest risk; undertake once the product has
+   users/revenue to justify owning that layer.
+
+**Licensing rule for all stages:** never absorb GPL source into MIT
+Panewright. Replacements for JankyBorders/SketchyBar must be original code;
+only AeroSpace's MIT code may be absorbed.
+
 ## Build order
 
 1. MVP wrapping AeroSpace for tiling + workspace switching + config parsing.

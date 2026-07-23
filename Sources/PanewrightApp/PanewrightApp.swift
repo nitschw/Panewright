@@ -2,6 +2,7 @@ import AppKit
 import PanewrightCore
 import ServiceManagement
 import SwiftUI
+import UserNotifications
 
 @main
 struct PanewrightApp: App {
@@ -47,13 +48,16 @@ final class AppModel {
     private var watcher: ConfigWatcher?
 
     init() {
+        if isBundled {
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { _, _ in }
+        }
         do {
             try orchestrator.writeDefaultConfigIfMissing()
             try startWatching()
             try orchestrator.apply()
             lastMessage = "Config applied"
         } catch {
-            lastMessage = "\(error)"
+            report(error: "\(error)")
         }
         refreshStatus()
         // Drag-to-tile is core behavior, not an option: ask for its
@@ -95,7 +99,7 @@ final class AppModel {
         let controller = dragController ?? DragTileController()
         controller.onStatus = { [weak self] message in
             Task { @MainActor in
-                self?.lastMessage = message
+                self?.reportDropResult(message)
             }
         }
         dragController = controller
@@ -128,12 +132,25 @@ final class AppModel {
         refreshStatus()
     }
 
+    /// Errors go to the menu AND a notification — silence is how half this
+    /// project's bugs stayed hidden.
+    func report(error message: String) {
+        lastMessage = message
+        guard isBundled else { return }
+        let content = UNMutableNotificationContent()
+        content.title = "Panewright"
+        content.body = message
+        UNUserNotificationCenter.current().add(
+            UNNotificationRequest(
+                identifier: UUID().uuidString, content: content, trigger: nil))
+    }
+
     func apply() {
         do {
             try orchestrator.apply()
             lastMessage = "Config applied"
         } catch {
-            lastMessage = "\(error)"
+            report(error: "\(error)")
         }
         refreshStatus()
     }
@@ -143,7 +160,7 @@ final class AppModel {
             try orchestrator.setBordersEnabled(enabled)
             lastMessage = enabled ? "Borders on" : "Borders off"
         } catch {
-            lastMessage = "\(error)"
+            report(error: "\(error)")
         }
         refreshStatus()
     }
@@ -153,7 +170,7 @@ final class AppModel {
             try orchestrator.setBarEnabled(enabled)
             lastMessage = enabled ? "Status bar on" : "Status bar off"
         } catch {
-            lastMessage = "\(error)"
+            report(error: "\(error)")
         }
         refreshStatus()
     }
@@ -172,7 +189,7 @@ final class AppModel {
                 lastMessage = "AeroSpace restarted"
             }
         } catch {
-            lastMessage = "\(error)"
+            report(error: "\(error)")
         }
         refreshStatus()
     }
@@ -186,6 +203,15 @@ final class AppModel {
         }
         try watcher.start()
         self.watcher = watcher
+    }
+
+    func reportDropResult(_ message: String) {
+        let failureMarkers = ["failed", "couldn't", "gave up", "lost", "oscillation"]
+        if failureMarkers.contains(where: message.contains) {
+            report(error: message)
+        } else {
+            lastMessage = message
+        }
     }
 }
 
