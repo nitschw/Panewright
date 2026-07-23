@@ -41,6 +41,7 @@ final class DragTileController {
 
     func start() -> Bool {
         guard tap == nil else { return true }
+        DragLog.log("start: permission=\(Self.hasPermission)")
         let mask: CGEventMask =
             (1 << CGEventType.leftMouseDown.rawValue)
             | (1 << CGEventType.leftMouseDragged.rawValue)
@@ -64,8 +65,10 @@ final class DragTileController {
                 },
                 userInfo: Unmanaged.passUnretained(self).toOpaque())
         else {
+            DragLog.log("start: tapCreate FAILED (permission not effective for this process?)")
             return false
         }
+        DragLog.log("start: tap created and enabled")
         self.tap = tap
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
@@ -86,6 +89,7 @@ final class DragTileController {
             phase = .idle
             if let window = WindowSnapshot.topmost(at: point),
                 point.y - window.frame.minY <= Self.titleBarHeight {
+                DragLog.log("armed: window=\(window.id) at=\(point)")
                 phase = .armed(windowID: window.id, start: point)
             }
         case .leftMouseDragged:
@@ -124,10 +128,17 @@ final class DragTileController {
             return parts.count >= 2 && parts[0] == "\(windowID)"
                 && parts[1].hasSuffix("tiles")
         }
+        DragLog.log("beginDrag: window=\(windowID) tiled=\(isTiled)")
         guard isTiled else { return }
         // Float for the duration of the drag so AeroSpace's hardcoded
         // overlap-swap never fires; the drop executor re-tiles.
-        try? cli.run(["layout", "--window-id", "\(windowID)", "floating"])
+        do {
+            try cli.run(["layout", "--window-id", "\(windowID)", "floating"])
+            DragLog.log("beginDrag: floated \(windowID), dragging")
+        } catch {
+            DragLog.log("beginDrag: float FAILED: \(error)")
+            return
+        }
         phase = .dragging(windowID: windowID)
     }
 
@@ -140,6 +151,9 @@ final class DragTileController {
             overlay.hide()
             return
         }
+        if dropTarget?.window.id != target.id || dropTarget?.zone != zone {
+            DragLog.log("target: window=\(target.id) zone=\(zone.rawValue)")
+        }
         dropTarget = (target, zone)
         overlay.show(cgFrame: zone.previewFrame(in: target.frame))
     }
@@ -151,9 +165,11 @@ final class DragTileController {
         guard let cli = AeroSpaceCLI.locate() else { return }
         let onStatus = onStatus
         let executorTarget = target.map { ($0.window.id, $0.window.frame, $0.zone) }
+        DragLog.log("drop: window=\(windowID) target=\(String(describing: executorTarget?.0)) zone=\(executorTarget?.2.rawValue ?? "none")")
         Task.detached(priority: .userInitiated) {
             let executor = DropExecutor(cli: cli)
             let message = executor.execute(dragged: windowID, target: executorTarget)
+            DragLog.log("drop result: \(message)")
             onStatus?(message)
         }
     }

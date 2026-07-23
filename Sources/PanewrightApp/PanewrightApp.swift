@@ -92,7 +92,7 @@ final class AppModel {
             lastMessage = dragToTileActive ? "Drag-to-Tile active" : "Could not start event tap"
         } else {
             DragTileController.requestPermission()
-            lastMessage = "Grant Input Monitoring to Panewright, then reopen this menu"
+            lastMessage = "Grant Input Monitoring to Panewright, then quit and reopen the app"
         }
     }
 
