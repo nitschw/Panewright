@@ -210,6 +210,9 @@ public enum ConfigParser {
         if words == ["pill", "window"] {
             return .pillWindow
         }
+        if words == ["help"] {
+            return .help
+        }
         if words == ["scratchpad", "show"] {
             return .scratchpadShow
         }

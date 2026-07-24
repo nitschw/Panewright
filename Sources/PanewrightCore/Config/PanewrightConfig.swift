@@ -93,6 +93,8 @@ public struct PanewrightConfig: Equatable, Sendable {
         case todoAdd
         /// Stash the focused window into a bar pill you can peek at later.
         case pillWindow
+        /// Open the keybinding cheat-sheet window.
+        case help
     }
 
     public enum MonitorTarget: String, Equatable, Sendable, CaseIterable {
@@ -279,6 +281,8 @@ public struct PanewrightConfig: Equatable, Sendable {
         bindings.append(Binding(key: "t", action: .todoAdd))
         // $mod+p: park the focused window in the bar.
         bindings.append(Binding(key: "p", action: .pillWindow))
+        // $mod+?: the cheat sheet. ($mod+shift+h is taken by "move left".)
+        bindings.append(Binding(key: "shift-slash", action: .help))
 
         // i3's default resize mode: h/l shrink and grow width, j/k grow and
         // shrink height; Enter or Escape returns to normal bindings.

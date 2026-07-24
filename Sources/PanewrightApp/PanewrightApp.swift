@@ -42,6 +42,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         parts.dropFirst().first == "page"
                         ? parts.dropFirst(2).first : nil
                     AppDelegate.model?.openConfluence(pageID: pageID)
+                case "help":
+                    AppDelegate.model?.openCheatSheet()
                 default:
                     break
                 }
@@ -238,6 +240,7 @@ final class AppModel {
     var activeProfile: String? = UserDefaults.standard.string(forKey: "activeProfile")
     private var setupWindowController: OnboardingWindowController?
     private var aboutWindowController: AboutWindowController?
+    private var cheatSheetWindowController: CheatSheetWindowController?
     private var editorWindowController: EditorWindowController?
     private var todoWindowController: TodoEditorWindowController?
     private var integrationsWindowController: IntegrationsWindowController?
@@ -298,6 +301,13 @@ final class AppModel {
     }
 
     // MARK: Setup window
+
+    func openCheatSheet() {
+        let config = (try? orchestrator.loadConfig()) ?? .default
+        let controller = cheatSheetWindowController ?? CheatSheetWindowController()
+        cheatSheetWindowController = controller
+        controller.show(config: config)
+    }
 
     func openConfluence(pageID: String? = nil) {
         let config = (try? orchestrator.loadConfig())?.integrations.confluence
@@ -751,6 +761,9 @@ struct PanewrightMenu: View {
             Text(model.lastMessage)
         }
         Divider()
+        Button("Cheat Sheet") {
+            model.openCheatSheet()
+        }
         Button("About Panewright") {
             model.openAbout()
         }

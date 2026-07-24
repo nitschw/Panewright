@@ -132,6 +132,7 @@ public enum PanewrightConfigSerializer {
         case .workspaceBackAndForth: "workspace back_and_forth"
         case .todoAdd: "todo add"
         case .pillWindow: "pill window"
+        case .help: "help"
         }
     }
 }

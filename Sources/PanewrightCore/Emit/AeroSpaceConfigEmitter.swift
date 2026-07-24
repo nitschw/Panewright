@@ -235,6 +235,8 @@ public enum AeroSpaceConfigEmitter {
             "exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/todo-add.sh\""
         case .pillWindow:
             "exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/pill-window.sh\""
+        case .help:
+            "exec-and-forget open panewright://help"
         case .scratchpadShow:
             "exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/scratchpad-show.sh\""
         case .scratchpadMove:

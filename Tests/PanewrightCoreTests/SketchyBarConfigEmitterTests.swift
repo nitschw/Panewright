@@ -152,6 +152,16 @@ import Testing
         #expect(aerospace.contains("ctrl-cmd-tab = 'workspace-back-and-forth'"))
     }
 
+    @Test func helpActionRoundTripsAndOpensTheCheatSheet() throws {
+        #expect(try ConfigParser.parseAction("help") == .help)
+        let toml = AeroSpaceConfigEmitter.emit(.default)
+        // $mod+? — shift-slash — opens the cheat sheet via the URL scheme.
+        #expect(toml.contains("shift-slash"))
+        #expect(toml.contains("exec-and-forget open panewright://help"))
+        let serialized = PanewrightConfigSerializer.emit(.default)
+        #expect(try ConfigParser.parse(toml: serialized) == PanewrightConfig.default)
+    }
+
     @Test func parsesScratchpadAndWorkspaceApps() throws {
         #expect(try ConfigParser.parseAction("scratchpad show") == .scratchpadShow)
         #expect(try ConfigParser.parseAction("move scratchpad") == .scratchpadMove)
