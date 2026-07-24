@@ -51,6 +51,9 @@ public enum PanewrightConfigSerializer {
         lines.append("[pills]")
         lines.append("enabled = \(config.pills.enabled)")
         lines.append("drag-to-bar = \(config.pills.dragToBar)")
+        lines.append("")
+        lines.append("[modules]")
+        lines.append("system-monitor = \(config.modules.systemMonitor)")
         // Tokens live in the Keychain, never here.
         let services: [(String, IntegrationsConfig.Service)] = [
             ("github", config.integrations.github),

@@ -117,6 +117,26 @@ import Testing
         #expect(files.pillsPlugin.contains("grep -qx \"$id\" || continue"))
     }
 
+    @Test func systemMonitorModuleIsOptIn() throws {
+        // Off by default: no chip, no graphs, an empty plugin.
+        let off = try SketchyBarConfigEmitter.emit(.default)
+        #expect(!off.sketchybarrc.contains("--add item sys "))
+        #expect(!off.sketchybarrc.contains("sys.cpu.graph"))
+
+        var config = PanewrightConfig.default
+        config.modules.systemMonitor = true
+        let on = try SketchyBarConfigEmitter.emit(config)
+        // Chip, two sparkline graphs, and the perf-panel popup rows.
+        #expect(on.sketchybarrc.contains("--add graph sys.cpu.graph"))
+        #expect(on.sketchybarrc.contains("--add graph sys.mem.graph"))
+        #expect(on.sketchybarrc.contains("popup.drawing=toggle"))
+        #expect(on.sketchybarrc.contains("sys.pop.cpu.5 popup.sys"))
+        // The plugin pushes graph values and only fills the panel when open.
+        #expect(on.systemPlugin.contains("--push sys.cpu.graph"))
+        #expect(on.systemPlugin.contains(#"[ "$OPEN" != "on" ] && exit 0"#))
+        #expect(on.systemPlugin.contains("vm_stat"))
+    }
+
     @Test func modePluginUppercasesAndClears() throws {
         let files = try SketchyBarConfigEmitter.emit(.default)
         #expect(files.modePlugin.contains(#"[ "$MODE" = "main" ]"#))

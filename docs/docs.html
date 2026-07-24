@@ -118,6 +118,7 @@
       <h5>Appearance</h5>
       <a href="#gaps">Gaps &amp; borders</a>
       <a href="#bar">Status bar</a>
+      <a href="#modules">System monitor</a>
     </div>
     <div class="toc-group">
       <h5>Companions</h5>
@@ -354,6 +355,11 @@ enabled = true
 theme = "native"     <span class="c"># vibrancy + SF Pro — or "technical": square, monospace</span>
 accent-color = "#30D158"   <span class="c"># optional; defaults to the focus border's active color</span></pre>
   <p>Each monitor's bar leads with its <b>M1/M2/M3 badge</b>, then that monitor's workspace numbers (clickable, drag targets, accent highlight on the active one), a <b>mode badge</b> while resize/join is active, and the frontmost app. Disabling the bar returns everything to the native macOS menu bar. Quick toggles for the bar and borders live in the menu bar icon's dropdown.</p>
+
+  <h2 id="modules">System monitor</h2>
+  <pre>[modules]
+system-monitor = true   <span class="c"># default false</span></pre>
+  <p>A compact <b>CPU / memory chip</b> with two live sparkline graphs on the right of the bar. <b>Click it</b> and a mini-htop panel unfurls: load averages and uptime, memory used vs. total, and the <b>top five processes by CPU and by memory</b>, plus a shortcut to Activity Monitor. Everything is polled with plain <code>top</code>, <code>vm_stat</code>, and <code>ps</code> — <b>no sudo, no SIP</b>. The panel only computes its body while it's open, so the idle cost is just the two graphs. It's additive to the native menu bar (which still owns clock/wifi/battery), never a duplicate.</p>
 
   <h2 id="todo">To-do list</h2>
   <p>Tasks live as pills on the right of the bar, newest last, with a <b>+</b> button at the end.</p>

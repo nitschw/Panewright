@@ -180,6 +180,16 @@ public struct PanewrightConfig: Equatable, Sendable {
         }
     }
 
+    /// Optional bar widgets beyond the window manager. The system-monitor
+    /// module is a CPU/memory chip that unfurls a mini-htop perf panel.
+    public struct Modules: Equatable, Sendable {
+        public var systemMonitor: Bool
+
+        public init(systemMonitor: Bool = false) {
+            self.systemMonitor = systemMonitor
+        }
+    }
+
     public var modifier: Modifier
     /// The prefix chord when `modifier == .leader`, in AeroSpace key syntax.
     public var leaderKey: String
@@ -197,6 +207,7 @@ public struct PanewrightConfig: Equatable, Sendable {
 
     public var todo: TodoList
     public var pills: Pills
+    public var modules: Modules
     public var integrations: IntegrationsConfig
     /// i3's `focus_follows_mouse` — hover moves focus, no click. Implemented
     /// by Panewright's event tap (AeroSpace has no native support).
@@ -232,6 +243,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         leaderKey: String = "ctrl-cmd-space",
         todo: TodoList = TodoList(),
         pills: Pills = Pills(),
+        modules: Modules = Modules(),
         integrations: IntegrationsConfig = IntegrationsConfig(),
         focusFollowsMouse: Bool = false,
         statusBar: StatusBar = StatusBar(),
@@ -249,6 +261,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         self.leaderKey = leaderKey
         self.todo = todo
         self.pills = pills
+        self.modules = modules
         self.integrations = integrations
         self.focusFollowsMouse = focusFollowsMouse
         self.statusBar = statusBar

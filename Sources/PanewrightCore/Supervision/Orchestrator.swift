@@ -540,6 +540,7 @@ public struct Orchestrator: Sendable {
             ("plugins/panewright_integrations.sh", files.integrationsPlugin),
             ("plugins/panewright_reorder.sh", files.reorderPlugin),
             ("plugins/panewright_pills.sh", files.pillsPlugin),
+            ("plugins/panewright_system.sh", files.systemPlugin),
         ]
         for obsolete in ["panewright_clock.sh", "panewright_battery.sh", "panewright_wifi.sh"] {
             try? FileManager.default.removeItem(
