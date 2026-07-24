@@ -68,6 +68,12 @@ final class DragTileController {
     /// tap that blocks freezes ALL system input — so `arm` reads this cache.
     private var cachedTiledIDs: Set<CGWindowID> = []
     private var tiledRefresh: DispatchSourceTimer?
+    /// Each display's CG bounds and the workspace visible on it — so dropping
+    /// on a screen's empty area (or one with only floating windows) can send
+    /// the window to that monitor's workspace. Refreshed with the tiled cache.
+    private var displayWorkspaces: [(bounds: CGRect, workspace: Int)] = []
+    /// The display the drag started on; empty-area drops there still cancel.
+    private var dragSourceDisplay: CGRect = .zero
 
     /// The tap's event mask is fixed at creation, so changing the option
     /// rebuilds the tap.
@@ -183,7 +189,37 @@ final class DragTileController {
                     ids.insert(id)
                 }
             }
-            Task { @MainActor in self?.cachedTiledIDs = ids }
+            // Monitor name → visible workspace, for empty-area monitor drops.
+            var workspaceByMonitorName: [String: Int] = [:]
+            if let monitors = try? cli.run(["list-monitors"]) {
+                for line in monitors.split(separator: "\n") {
+                    let parts = line.components(separatedBy: " | ")
+                    guard parts.count == 2,
+                        let id = Int(parts[0].trimmingCharacters(in: .whitespaces)),
+                        let visible = try? cli.run([
+                            "list-workspaces", "--monitor", "\(id)", "--visible",
+                        ]),
+                        let workspace = Int(visible.trimmingCharacters(in: .whitespacesAndNewlines))
+                    else { continue }
+                    workspaceByMonitorName[
+                        parts[1].trimmingCharacters(in: .whitespaces).lowercased()] = workspace
+                }
+            }
+            Task { @MainActor in
+                guard let self else { return }
+                self.cachedTiledIDs = ids
+                // Match monitor names to physical displays on the main actor
+                // (NSScreen isn't guaranteed off-main).
+                self.displayWorkspaces = NSScreen.screens.compactMap { screen in
+                    guard
+                        let displayID = screen.deviceDescription[
+                            NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID,
+                        let workspace = workspaceByMonitorName[
+                            screen.localizedName.trimmingCharacters(in: .whitespaces).lowercased()]
+                    else { return nil }
+                    return (CGDisplayBounds(displayID), workspace)
+                }
+            }
         }
         timer.resume()
         tiledRefresh = timer
@@ -280,6 +316,8 @@ final class DragTileController {
         guard tiledIDs.contains(window.id) else { return }
         tiledIDs.remove(window.id)
         DragLog.log("armed: window=\(window.id) owner=\(window.ownerName)")
+        dragSourceDisplay =
+            displayWorkspaces.first { $0.bounds.contains(point) }?.bounds ?? .zero
         phase = .armed(
             windowID: window.id, start: point, targets: tiledIDs, sourceFrame: window.frame)
         // Bar geometry can shift with workspaces/theme; refresh per drag.
@@ -429,6 +467,20 @@ final class DragTileController {
             }),
             let zone = DropZone.zone(at: point, in: target.frame)
         else {
+            // No tiled window under the pointer. On a *different* display than
+            // the drag started on, the whole screen is a drop target: send the
+            // window to that monitor's visible workspace. (Without this, a
+            // screen holding only floating windows — or nothing — offers no
+            // target at all and the drag dies there.)
+            if let entry = displayWorkspaces.first(where: { $0.bounds.contains(point) }),
+                entry.bounds != dragSourceDisplay {
+                if case .workspace(entry.workspace) = destination {} else {
+                    DragLog.log("target: monitor area -> workspace \(entry.workspace)")
+                }
+                destination = .workspace(entry.workspace)
+                targetOverlay.show(cgFrame: entry.bounds.insetBy(dx: 24, dy: 24))
+                return
+            }
             destination = nil
             targetOverlay.hide()
             return
