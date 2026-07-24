@@ -125,6 +125,18 @@
   h2 { font-size: 32px; letter-spacing: -.02em; font-weight: 750; margin-bottom: 12px; }
   .sub { color: var(--ink-dim); max-width: 620px; }
 
+  /* ---- demo videos ---- */
+  .demo-video {
+    width: 100%; display: block; border-radius: 12px;
+    border: 1px solid var(--line); background: #0a0a0e; margin-top: 32px;
+  }
+  .gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 40px; }
+  .clip { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--bg-raise); }
+  .clip video { width: 100%; display: block; background: #0a0a0e; }
+  .clip .cap { padding: 12px 16px; font-size: 14px; color: var(--ink-dim); }
+  .clip .cap b { color: var(--ink); font-weight: 600; }
+  @media (max-width: 820px) { .gallery { grid-template-columns: 1fr; } }
+
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; margin-top: 40px; }
   .row + .row { margin-top: 72px; }
   .row h3 { font-size: 21px; margin-bottom: 10px; letter-spacing: -.01em; }
@@ -260,6 +272,7 @@
     <div class="kicker">The headline act</div>
     <h2>Ghost drag-to-tile</h2>
     <p class="sub">Grab any window by its title bar and pull. The real window stays frozen — a red ghost marks the cell it came from, a blue ghost previews exactly where it will land. Release, and the tree reshapes in one motion.</p>
+    <video class="demo-video" src="demos/01-ghost-drag-swap.mp4" autoplay loop muted playsinline></video>
     <div class="row">
       <div>
         <h3>Every drop means something</h3>
@@ -279,6 +292,30 @@
             <span class="label">technical · one toggle away</span>
           </div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="kicker">See it in motion</div>
+    <h2>Every interaction, live</h2>
+    <p class="sub">No mockups — these are screen recordings of the real app.</p>
+    <div class="gallery">
+      <div class="clip">
+        <video src="demos/02-ghost-drag-split.mp4" autoplay loop muted playsinline></video>
+        <div class="cap"><b>Edge split</b> — drop on a window's edge to split its cell and take the half.</div>
+      </div>
+      <div class="clip">
+        <video src="demos/03-drag-to-workspace-pill.mp4" autoplay loop muted playsinline></video>
+        <div class="cap"><b>Drag to a workspace</b> — drop a window on a bar number to send it there.</div>
+      </div>
+      <div class="clip">
+        <video src="demos/04-summon-workspace.mp4" autoplay loop muted playsinline></video>
+        <div class="cap"><b>Summon across monitors</b> — <span style="font-family:var(--mono)">$mod+N</span> pulls a workspace to the monitor you're on.</div>
+      </div>
+      <div class="clip">
+        <video src="demos/05-dynamic-pills.mp4" autoplay loop muted playsinline></video>
+        <div class="cap"><b>Dynamic pills</b> — move a window to an empty workspace and its pill appears; empty ones hide.</div>
       </div>
     </div>
   </section>
