@@ -220,9 +220,13 @@ public struct PanewrightConfig: Equatable, Sendable {
     /// Bundle ID → workspace number: apps that always open on a given
     /// workspace (i3's `assign`).
     public var appWorkspaces: [String: Int]
-    /// Shell command run on every workspace switch, with `WORKSPACE` set —
-    /// the scripting hook (`python3 ~/hooks/ws.py` and friends).
+    /// Shell command run on every workspace switch, with `WORKSPACE` and
+    /// `PREV_WORKSPACE` set — the scripting hook (`python3 ~/hooks/ws.py`).
     public var workspaceChangedHook: String?
+    /// Shell command run whenever window focus changes, with `FOCUSED_APP`,
+    /// `FOCUSED_WINDOW_ID`, and `WORKSPACE` set. Fires often (every focus
+    /// change) — keep the command light.
+    public var focusChangedHook: String?
 
     public init(
         // Ctrl+Cmd: a real chord (one keypress per command), types no
@@ -244,7 +248,8 @@ public struct PanewrightConfig: Equatable, Sendable {
         floatingApps: [String] = [],
         workspaceMonitors: [Int: String] = [:],
         appWorkspaces: [String: Int] = [:],
-        workspaceChangedHook: String? = nil
+        workspaceChangedHook: String? = nil,
+        focusChangedHook: String? = nil
     ) {
         self.modifier = modifier
         self.leaderKey = leaderKey
@@ -261,6 +266,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         self.workspaceMonitors = workspaceMonitors
         self.appWorkspaces = appWorkspaces
         self.workspaceChangedHook = workspaceChangedHook
+        self.focusChangedHook = focusChangedHook
     }
 
     /// i3-familiar defaults: workspaces 1–9 on number keys, vim-style focus/move.

@@ -15,10 +15,18 @@ public enum AeroSpaceConfigEmitter {
                 "exec-on-workspace-change = ['/bin/bash', '-c', '\"$HOME\"/.config/panewright/scripts/on-workspace-change.sh']"
             )
         }
-        // NB: no on-focus-changed trigger. Focus changes arrive in bursts
-        // (system permission dialogs especially), and the concurrent repaints
-        // they spawned kept tripping a heap-corruption abort inside SketchyBar.
-        // Pill occupancy freshness comes from the driver's update_freq poll.
+        // on-focus-changed drives the user's focus-changed hook ONLY — never a
+        // bar repaint. Repainting the bar here (bursts of focus events around
+        // system dialogs) tripped a heap-corruption abort in SketchyBar; pill
+        // occupancy freshness comes from the driver's update_freq poll instead.
+        // Unlike exec-on-workspace-change (an execv array), on-focus-changed
+        // takes a list of AeroSpace commands — so wrap the script in
+        // exec-and-forget, the same form the script bindings use.
+        if config.focusChangedHook != nil {
+            lines.append(
+                "on-focus-changed = ['exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/on-focus-change.sh\"']"
+            )
+        }
         lines.append("")
         // i3 split behavior: workspaces come up tiling, nested splits alternate
         // orientation, and redundant single-child containers are flattened.

@@ -10,10 +10,15 @@ public enum PanewrightConfigSerializer {
             lines.append("leader-key = \"\(config.leaderKey)\"")
         }
         lines.append("focus-follows-mouse = \(config.focusFollowsMouse)")
-        if let hook = config.workspaceChangedHook {
+        if config.workspaceChangedHook != nil || config.focusChangedHook != nil {
             lines.append("")
             lines.append("[hooks]")
-            lines.append("workspace-changed = \"\(hook)\"")
+            if let hook = config.workspaceChangedHook {
+                lines.append("workspace-changed = \"\(hook)\"")
+            }
+            if let hook = config.focusChangedHook {
+                lines.append("focus-changed = \"\(hook)\"")
+            }
         }
         if !config.floatingApps.isEmpty {
             lines.append("floating-apps = [")

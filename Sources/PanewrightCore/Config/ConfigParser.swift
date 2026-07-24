@@ -144,6 +144,7 @@ public enum ConfigParser {
         }
         if let hooks = raw.hooks {
             config.workspaceChangedHook = hooks.workspaceChanged
+            config.focusChangedHook = hooks.focusChanged
         }
         return config
     }
@@ -346,9 +347,11 @@ private struct RawConfig: Codable {
 
     struct RawHooks: Codable {
         var workspaceChanged: String?
+        var focusChanged: String?
 
         enum CodingKeys: String, CodingKey {
             case workspaceChanged = "workspace-changed"
+            case focusChanged = "focus-changed"
         }
     }
 

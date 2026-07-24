@@ -440,8 +440,14 @@ key = "p"
 action = "exec python3 ~/.config/panewright/user-scripts/toggle.py"</pre>
   <h3>Run scripts on events</h3>
   <pre>[hooks]
-workspace-changed = "python3 ~/.config/panewright/user-scripts/on-ws.py"</pre>
-  <p>The hook receives <code>WORKSPACE</code> and <code>PREV_WORKSPACE</code> in its environment.</p>
+workspace-changed = "python3 ~/.config/panewright/user-scripts/on-ws.py"
+focus-changed = "python3 ~/.config/panewright/user-scripts/on-focus.py"</pre>
+  <table>
+    <tr><th>Hook</th><th>Fires</th><th>Environment</th></tr>
+    <tr><td><code>workspace-changed</code></td><td>On every workspace switch</td><td><code>WORKSPACE</code>, <code>PREV_WORKSPACE</code></td></tr>
+    <tr><td><code>focus-changed</code></td><td>Whenever window focus changes</td><td><code>FOCUSED_APP</code>, <code>FOCUSED_WINDOW_ID</code>, <code>WORKSPACE</code></td></tr>
+  </table>
+  <div class="note"><code>focus-changed</code> fires <b>often</b> — on every focus change, and in bursts around system dialogs. Keep the command light (it forks a process each time); heavy work belongs in a debounced background job, not the hook itself.</div>
   <h3>Query and control from scripts</h3>
   <p>The <code>aerospace</code> CLI is the full API — everything Panewright does, your scripts can too:</p>
   <pre>aerospace list-windows --workspace focused --json

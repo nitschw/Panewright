@@ -152,6 +152,24 @@ import Testing
         #expect(aerospace.contains("ctrl-cmd-tab = 'workspace-back-and-forth'"))
     }
 
+    @Test func focusChangedHookRoundTripsAndEmitsCallback() throws {
+        let config = try ConfigParser.parse(
+            toml: """
+                [hooks]
+                focus-changed = "logger -t pw $FOCUSED_APP"
+                """)
+        #expect(config.focusChangedHook == "logger -t pw $FOCUSED_APP")
+        // Round-trips through the serializer.
+        #expect(try ConfigParser.parse(toml: PanewrightConfigSerializer.emit(config)) == config)
+        // Emits the on-focus-changed callback — but never a bar repaint there.
+        let aerospace = AeroSpaceConfigEmitter.emit(config)
+        #expect(aerospace.contains("on-focus-changed = ['exec-and-forget /bin/bash"))
+        #expect(aerospace.contains("on-focus-change.sh"))
+        #expect(!aerospace.contains("on-focus-changed = ['exec-and-forget /opt/homebrew/bin/sketchybar"))
+        // No hook set → no callback emitted.
+        #expect(!AeroSpaceConfigEmitter.emit(.default).contains("on-focus-changed"))
+    }
+
     @Test func helpActionRoundTripsAndOpensTheCheatSheet() throws {
         #expect(try ConfigParser.parseAction("help") == .help)
         let toml = AeroSpaceConfigEmitter.emit(.default)
