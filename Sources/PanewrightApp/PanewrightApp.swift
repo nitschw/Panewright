@@ -205,6 +205,7 @@ final class AppModel {
             self?.refreshStatus()
             self?.offerSetupIfIncomplete()
             self?.startPermissionWatch()
+            self?.startBarHealthCheck()
             MonitorMap.observe()
         }
         Task.detached(priority: .userInitiated) {
@@ -635,6 +636,23 @@ final class AppModel {
             report(error: "\(error)")
         }
         refreshStatus()
+    }
+
+    /// The bar has vanished before without leaving a crash report (a display
+    /// sleep/wake took it down); nothing restarted it until the app was
+    /// relaunched. Supervise it: if the bar should be up and isn't, bring it
+    /// back.
+    private func startBarHealthCheck() {
+        Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { _ in
+            Task.detached(priority: .utility) {
+                let orchestrator = Orchestrator()
+                guard let config = try? orchestrator.loadConfig(), config.statusBar.enabled,
+                    let bar = SketchyBarSupervisor.locate(), !bar.isRunning()
+                else { return }
+                DragLog.log("bar health: sketchybar is down — restarting")
+                try? orchestrator.applyBar(config)
+            }
+        }
     }
 
     private func startWatching() throws {
