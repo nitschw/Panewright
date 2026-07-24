@@ -130,10 +130,26 @@ enum MonitorMap {
         return origins
     }
 
+    /// Fingerprint of the physical display arrangement. macOS posts
+    /// didChangeScreenParametersNotification for far more than plug/unplug —
+    /// activating an app is enough — and reacting to those false alarms
+    /// reloads the bar (visible flicker) and re-spreads workspaces. Only a
+    /// changed fingerprint counts as a real display change.
+    private static var displayFingerprint = ""
+
+    private static func currentFingerprint() -> String {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return "" }
+        var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &ids, &count) == .success else { return "" }
+        return ids.map { "\($0):\(CGDisplayBounds($0))" }.joined(separator: "|")
+    }
+
     /// Rewrite the map and repaint the bar whenever the display layout changes.
     /// Plugging or unplugging a monitor also re-spreads workspaces so the new
     /// display gets one (and an unplugged one's workspaces return home).
     static func observe() {
+        displayFingerprint = currentFingerprint()
         refreshMap()
         // Initial spread: bootstrap left AeroSpace settled but with everything
         // piled on the primary, so distribute once now that we know the true
@@ -144,6 +160,10 @@ enum MonitorMap {
             object: nil, queue: .main
         ) { _ in
             MainActor.assumeIsolated {
+                let fingerprint = currentFingerprint()
+                guard fingerprint != displayFingerprint else { return }
+                DragLog.log("display change: \(fingerprint)")
+                displayFingerprint = fingerprint
                 refreshMap()
                 redistribute()
             }
