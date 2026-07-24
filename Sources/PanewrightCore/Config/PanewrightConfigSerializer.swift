@@ -36,6 +36,9 @@ public enum PanewrightConfigSerializer {
         lines.append("[bar]")
         lines.append("enabled = \(config.statusBar.enabled)")
         lines.append("theme = \"\(config.statusBar.theme.rawValue)\"")
+        if let accent = config.statusBar.accentColor {
+            lines.append("accent-color = \"\(accent)\"")
+        }
         lines.append("")
         lines.append("[todo]")
         lines.append("enabled = \(config.todo.enabled)")

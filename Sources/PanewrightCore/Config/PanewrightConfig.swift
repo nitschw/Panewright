@@ -140,10 +140,15 @@ public struct PanewrightConfig: Equatable, Sendable {
 
         public var enabled: Bool
         public var theme: Theme
+        /// Highlight color for the active workspace pill. `nil` follows
+        /// ``FocusBorder/activeColor`` so one accent drives the whole system;
+        /// set it to break the bar's highlight away from the window border.
+        public var accentColor: String?
 
-        public init(enabled: Bool = true, theme: Theme = .native) {
+        public init(enabled: Bool = true, theme: Theme = .native, accentColor: String? = nil) {
             self.enabled = enabled
             self.theme = theme
+            self.accentColor = accentColor
         }
     }
 

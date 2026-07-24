@@ -66,6 +66,11 @@ public enum ConfigParser {
                 }
                 config.statusBar.theme = parsed
             }
+            if let accent = bar.accentColor {
+                // Fail loudly here rather than emitting a bar the daemon rejects.
+                _ = try ColorHex.argb(fromCSSHex: accent)
+                config.statusBar.accentColor = accent
+            }
         }
         if let gaps = raw.gaps {
             config.gaps.inner = gaps.inner ?? config.gaps.inner
@@ -328,6 +333,12 @@ private struct RawConfig: Codable {
     struct RawBar: Codable {
         var enabled: Bool?
         var theme: String?
+        var accentColor: String?
+
+        enum CodingKeys: String, CodingKey {
+            case enabled, theme
+            case accentColor = "accent-color"
+        }
     }
 
     struct RawGaps: Codable {

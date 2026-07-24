@@ -36,6 +36,29 @@ import Testing
         #expect(files.workspacesPlugin.contains("0xffff375f"))
     }
 
+    @Test func barAccentCanBreakAwayFromTheBorder() throws {
+        var config = PanewrightConfig.default
+        config.focusBorder.activeColor = "#FF375F"
+        config.statusBar.accentColor = "#30D158"
+        let files = try SketchyBarConfigEmitter.emit(config)
+        // The pill highlight uses the bar accent, not the border color.
+        #expect(files.workspacesPlugin.contains("0xff30d158"))
+        #expect(!files.workspacesPlugin.contains("0xffff375f"))
+        // Round-trips through the config file.
+        let toml = PanewrightConfigSerializer.emit(config)
+        #expect(toml.contains("accent-color = \"#30D158\""))
+        #expect(try ConfigParser.parse(toml: toml).statusBar.accentColor == "#30D158")
+    }
+
+    @Test func workspaceStripsRepaintFromOneBatchedDriver() throws {
+        // One driver process per event, not one per pill — a per-pill stampede
+        // (30 forks, 60 AeroSpace queries) has crashed SketchyBar.
+        let files = try SketchyBarConfigEmitter.emit(.default)
+        #expect(files.sketchybarrc.contains("--subscribe spaces_driver aerospace_workspace_change"))
+        #expect(!files.sketchybarrc.contains("--subscribe space.$did.$sid"))
+        #expect(files.workspacesPlugin.contains("ARGS+=("))
+    }
+
     @Test func omitsSystemStatusItems() throws {
         // The native menu bar owns clock/wifi/battery; our bar is pure WM.
         let files = try SketchyBarConfigEmitter.emit(.default)
