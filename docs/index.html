@@ -3,8 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Panewright — Truly tiled windows for macOS</title>
-<meta name="description" content="An i3-grade tiling window manager for macOS that stays Mac-native. Ghost drag-to-tile, instant workspaces, your i3 config imported. Free and open source.">
+<title>Panewright — i3 tiling window manager for macOS</title>
+<meta name="description" content="An i3-style tiling window manager for macOS for developers who miss i3/sway. Drag-to-tile, instant workspaces, multi-monitor, import your i3 config. No SIP disable. Open-source core.">
+<meta property="og:title" content="Panewright — i3 tiling window manager for macOS">
+<meta property="og:description" content="For developers who miss i3 on their Mac. Ghost drag-to-tile, instant workspaces, multi-monitor, one config file. No SIP disable.">
+<meta name="keywords" content="i3 macOS, i3wm mac, tiling window manager macOS, aerospace, yabai alternative, sway mac, i3 for mac">
 <style>
   :root {
     --bg: #0c0c11;
@@ -130,6 +133,15 @@
     width: 100%; display: block; border-radius: 12px;
     border: 1px solid var(--line); background: #0a0a0e; margin-top: 32px;
   }
+  .notify-form { display: flex; gap: 10px; margin-top: 28px; max-width: 460px; flex-wrap: wrap; }
+  .notify-form input {
+    flex: 1; min-width: 220px; padding: 12px 16px; border-radius: 9px;
+    border: 1px solid var(--line); background: var(--bg-raise); color: var(--ink);
+    font: 15px -apple-system, sans-serif;
+  }
+  .notify-form input:focus { outline: none; border-color: var(--accent); }
+  .notify-form button { border: 0; cursor: pointer; }
+
   .gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 40px; }
   .clip { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--bg-raise); }
   .clip video { width: 100%; display: block; background: #0a0a0e; }
@@ -225,22 +237,22 @@
   <nav>
     <a class="wordmark" href="#"><img src="logo.png" alt="">Panewright</a>
     <div class="nav-links">
+      <a href="#why">Why</a>
       <a href="docs.html">Docs</a>
       <a href="https://github.com/nitschw/Panewright">GitHub</a>
-      <a href="https://patreon.com/panewright">Patreon</a>
-      <a class="dl" href="https://github.com/nitschw/Panewright/releases">Download</a>
+      <a class="dl" href="#notify">Get notified</a>
     </div>
   </nav>
 
   <div class="hero">
-    <div class="eyebrow">Free &amp; open source · macOS 14+</div>
-    <h1>i3's brain.<br>The Mac's manners.</h1>
-    <p class="lede">Panewright is a tiling window manager for macOS with <strong>instant workspaces</strong>, <strong>modal keybindings</strong>, and a drag interaction no other tiler has — wrapped around one config file and one menu bar app. <strong>Quit it, and your Mac is stock again.</strong></p>
+    <div class="eyebrow">Open-source core · macOS 14+ · no SIP disable</div>
+    <h1>You miss i3.<br>Your Mac has it now.</h1>
+    <p class="lede">Panewright is an <strong>i3-style tiling window manager for macOS</strong>, built for developers who left Linux and left their window manager behind. Instant workspaces, modal keybindings, real multi-monitor, and a drag-to-tile interaction <strong>no other Mac tiler has</strong> — one config file, one menu bar app. <strong>Quit it, and your Mac is stock again.</strong></p>
     <div class="hero-cta">
-      <a class="btn btn-fill" href="https://github.com/nitschw/Panewright/releases">Download for macOS</a>
-      <a class="btn btn-line" href="#import">Import your i3 config</a>
+      <a class="btn btn-fill" href="#notify">Get notified at launch</a>
+      <a class="btn btn-line" href="#why">Why not just AeroSpace?</a>
     </div>
-    <div class="hero-meta">MIT · Apple Silicon &amp; Intel · no SIP disable, ever</div>
+    <div class="hero-meta">Pre-1.0, in the open · Apple Silicon &amp; Intel · your i3 config imports</div>
 
     <div class="mock" aria-hidden="true">
       <div class="mock-bar">
@@ -267,6 +279,34 @@
       <div class="mock-caption"><s>where it was</s> · <u>where it lands</u> — the window itself never moves</div>
     </div>
   </div>
+
+  <section id="why">
+    <div class="kicker">The honest question</div>
+    <h2>“Isn’t this just AeroSpace?”</h2>
+    <p class="sub">Fair. <a href="https://github.com/nikitabobko/AeroSpace" style="color:var(--accent)">AeroSpace</a> is a great, free i3-like tiler, and Panewright runs on top of it — plus <a href="https://github.com/FelixKratz/JankyBorders" style="color:var(--accent)">JankyBorders</a> and <a href="https://github.com/FelixKratz/SketchyBar" style="color:var(--accent)">SketchyBar</a>. Panewright is the layer that turns three separate command-line tools into one app your parents could install — and adds the things a raw config can’t.</p>
+    <div class="inv" style="margin-top:36px">
+      <div>
+        <h4>What Panewright adds</h4>
+        <ul>
+          <li><b>Ghost drag-to-tile</b> — rearrange windows by dragging. No CLI tiler on macOS has this.</li>
+          <li><b>One config, three tools</b> — tiling, borders, and bar from a single TOML, applied live. No shell scripts, no skhd.</li>
+          <li><b>A visual editor</b> — sliders and pickers with real-time preview, for when you don’t want to hand-edit.</li>
+          <li><b>Self-healing</b> — it supervises the engine and restarts what dies, including recovering a stalled tiler that would otherwise need a manual re-grant.</li>
+          <li><b>A real off switch</b> — quit and your Mac is byte-for-byte stock.</li>
+        </ul>
+      </div>
+      <div>
+        <h4>Do it yourself instead</h4>
+        <ul>
+          <li>Install and configure AeroSpace, JankyBorders, and SketchyBar separately.</li>
+          <li>Write and maintain three config formats by hand.</li>
+          <li>Wire up your own bar scripts for workspaces, modes, and window pills.</li>
+          <li>Restart daemons yourself when the Accessibility API stalls.</li>
+          <li>That’s a legitimate choice — Panewright is MIT, so you can read exactly how it does all of it.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
 
   <section>
     <div class="kicker">The headline act</div>
@@ -466,6 +506,14 @@
         <p>Never. Panewright orchestrates <a href="https://github.com/nikitabobko/AeroSpace">AeroSpace</a>, <a href="https://github.com/FelixKratz/JankyBorders">JankyBorders</a>, and <a href="https://github.com/FelixKratz/SketchyBar">SketchyBar</a> over public APIs — one brain, one config.</p>
       </div>
       <div class="qa-item">
+        <h4>Why does it want Accessibility <em>and</em> Input Monitoring?</h4>
+        <p>Accessibility moves windows; Input Monitoring lets the drag layer see a title-bar drag begin. It's all local — nothing is logged, stored, or sent anywhere, and the <a href="https://github.com/nitschw/Panewright">source is public</a> so you can confirm it. No network calls except the update check and any integrations you turn on.</p>
+      </div>
+      <div class="qa-item">
+        <h4>Won't it get flaky like other tilers?</h4>
+        <p>macOS's Accessibility API can stall under load — the honest weakness of every Mac tiler. Panewright <b>supervises</b> its engine: it restarts the bar if it dies and detects a stalled tiler, recovering it (or telling you to re-grant) instead of silently going dead until you notice.</p>
+      </div>
+      <div class="qa-item">
         <h4>Why isn't it on the App Store?</h4>
         <p>The sandbox forbids the Accessibility API that window management requires. Every serious tiler ships direct.</p>
       </div>
@@ -474,14 +522,27 @@
         <p>Everything comes back — borders off, bar gone, every hidden window returned. macOS exactly as Apple shipped it.</p>
       </div>
       <div class="qa-item">
-        <h4>What does it cost?</h4>
-        <p>Nothing. MIT, source on GitHub, forever. It does cost evenings and weekends to build — if Panewright earns a spot in your day, consider <a href="https://patreon.com/panewright">buying me a coffee</a>.</p>
+        <h4>What will it cost?</h4>
+        <p>The <b>core is open source</b> (MIT) and stays that way — build it yourself for free, forever. A paid app is planned for the convenience layer: a signed, notarized, auto-updating build and the work-tracker integrations. Fund the roads, sell the car.</p>
       </div>
     </div>
   </section>
 
+  <section id="notify">
+    <div class="kicker">Not 1.0 yet</div>
+    <h2>Be there when it ships</h2>
+    <p class="sub">Panewright is under active development in the open. Leave an email for a single note when the first release lands — no list, no spam — or watch the repo if you'd rather.</p>
+    <form class="notify-form" action="https://formspree.io/f/your-form-id" method="POST">
+      <input type="email" name="email" placeholder="you@example.com" required aria-label="Email address">
+      <button type="submit" class="btn btn-fill">Notify me at launch</button>
+    </form>
+    <p style="margin-top:14px;font-size:13.5px;color:var(--ink-faint)">
+      Prefer no email? <a href="https://github.com/nitschw/Panewright" style="color:var(--ink-dim)">Star or watch on GitHub</a> — releases show up there too.
+    </p>
+  </section>
+
   <footer>
-    <div>© 2026 William Nitsch · MIT</div>
+    <div>© 2026 William Nitsch · open-source core, MIT</div>
     <nav class="f">
       <a href="https://github.com/nitschw/Panewright">Source</a>
       <a href="https://github.com/nitschw/Panewright/releases">Releases</a>

@@ -643,17 +643,58 @@ final class AppModel {
     /// relaunched. Supervise it: if the bar should be up and isn't, bring it
     /// back.
     private func startBarHealthCheck() {
-        Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { _ in
+        Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
             Task.detached(priority: .utility) {
                 let orchestrator = Orchestrator()
-                guard let config = try? orchestrator.loadConfig(), config.statusBar.enabled,
+                if let config = try? orchestrator.loadConfig(), config.statusBar.enabled,
                     let bar = SketchyBarSupervisor.locate(), !bar.isRunning()
-                else { return }
-                DragLog.log("bar health: sketchybar is down — restarting")
-                try? orchestrator.applyBar(config)
+                {
+                    DragLog.log("bar health: sketchybar is down — restarting")
+                    try? orchestrator.applyBar(config)
+                }
+                await self?.checkAeroSpaceHealth(orchestrator)
             }
         }
     }
+
+    /// AeroSpace can lose its Accessibility connection under load and manage
+    /// nothing while windows are clearly on screen. Try one restart to shake it
+    /// loose; if it stays blind, the permission needs re-granting — which only
+    /// the user can do, so tell them (once) instead of thrashing.
+    private var aeroStallRestarted = false
+    private var aeroStallNotified = false
+    private func checkAeroSpaceHealth(_ orchestrator: Orchestrator) async {
+        let onScreen = WindowSnapshot.capture().filter {
+            !Self.systemOwners.contains($0.ownerName)
+        }.count
+        guard orchestrator.aeroSpaceIsStalled(visibleAppWindowCount: onScreen) else {
+            // Recovered (or never stalled): rearm both stages for next time.
+            aeroStallRestarted = false
+            aeroStallNotified = false
+            return
+        }
+        if !aeroStallRestarted {
+            aeroStallRestarted = true
+            DragLog.log("aerospace health: stalled (0 managed, \(onScreen) on screen) — restarting")
+            try? orchestrator.restartAeroSpace()
+            return  // give the restart a cycle before judging it failed
+        }
+        // A process restart didn't restore the Accessibility connection, so the
+        // permission is wedged at the OS level — only the user can clear it.
+        // Say so exactly once, not every cycle.
+        guard !aeroStallNotified else { return }
+        aeroStallNotified = true
+        DragLog.log("aerospace health: still stalled after restart — notifying")
+        notify(
+            "Window tiling stopped responding. AeroSpace lost Accessibility access — "
+                + "toggle it off and on in System Settings → Privacy & Security → Accessibility.")
+    }
+
+    /// Menu-bar/overlay owners that legitimately have no AeroSpace-managed
+    /// windows, so they don't inflate the on-screen count in the stall check.
+    private static let systemOwners: Set<String> = [
+        "Panewright", "borders", "SketchyBar", "Window Server", "Dock", "Control Center",
+    ]
 
     private func startWatching() throws {
         let directory = orchestrator.paths.panewrightConfigFile.deletingLastPathComponent()

@@ -3,7 +3,7 @@
 </p>
 
 <h1 align="center">Panewright</h1>
-<p align="center"><b>Truly tiled windows for macOS.</b> i3's brain, the Mac's manners.</p>
+<p align="center"><b>An i3-style tiling window manager for macOS</b> — for developers who miss i3.</p>
 <p align="center">
   <a href="https://github.com/nitschw/Panewright/releases">Download</a> ·
   <a href="https://panewright.com">panewright.com</a> ·
@@ -24,6 +24,14 @@ It orchestrates best-in-class open primitives —
 [JankyBorders](https://github.com/FelixKratz/JankyBorders) (focus borders),
 [SketchyBar](https://github.com/FelixKratz/SketchyBar) (status bar) —
 so you configure one system, not three.
+
+**Isn't this just AeroSpace?** AeroSpace is a great, free i3-like tiler, and
+Panewright runs on it. Panewright is the layer on top: the drag-to-tile
+interaction no CLI tiler has, one live config for all three tools, a visual
+editor, work-tracker integrations, and a supervisor that restarts what dies
+and recovers a stalled tiler. Rather run the three tools by hand? That's a
+fair choice — and since Panewright is MIT, you can read exactly how it does
+all of it.
 
 ## The headline: ghost drag-to-tile
 
@@ -108,9 +116,10 @@ Read [DESIGN.md](DESIGN.md) — positioning, the wrap-don't-rewrite
 architecture, the licensing rules (MIT here; GPL tools stay out-of-process),
 the drag-to-tile spec, and the long-term path to a fully self-contained app.
 
-## License
+## License &amp; pricing
 
-[MIT](LICENSE) © 2026 William Nitsch. Fully open source, no paywall, no
-gated features. Building this costs evenings and weekends — if Panewright
-earns a spot in your day, consider
-[buying me a coffee](https://patreon.com/panewright).
+The **core is [MIT](LICENSE)** © 2026 William Nitsch — build it from source
+and run it free, forever. A paid app is planned for the convenience layer: a
+signed, notarized, auto-updating build plus the work-tracker integrations.
+Open the roads, sell the car. Until then, if the project earns a spot in your
+day, [buy me a coffee](https://patreon.com/panewright).

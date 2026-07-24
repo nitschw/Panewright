@@ -26,6 +26,17 @@ import Testing
         #expect(config == .default)
     }
 
+    @Test func stallCheckIgnoresAnEmptyDesktop() {
+        // Too few on-screen windows to distinguish a stall from a genuinely
+        // empty desktop — never cry wolf (and never touch the CLI).
+        let (orchestrator, dir) = makeOrchestrator()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        #expect(orchestrator.aeroSpaceIsStalled(visibleAppWindowCount: 0) == false)
+        #expect(
+            orchestrator.aeroSpaceIsStalled(
+                visibleAppWindowCount: Orchestrator.stallWindowThreshold - 1) == false)
+    }
+
     @Test func missingConfigFileLoadsDefaults() throws {
         let (orchestrator, dir) = makeOrchestrator()
         defer { try? FileManager.default.removeItem(at: dir) }

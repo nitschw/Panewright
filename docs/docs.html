@@ -161,6 +161,7 @@ brew install --cask karabiner-elements          <span class="c"># Caps Lock as $
 
   <h2 id="concepts">How it works</h2>
   <p>Panewright is an orchestrator: it reads your one config file and generates/supervises the configs of AeroSpace, JankyBorders, and SketchyBar. Save your config and everything downstream reloads within a second.</p>
+  <p><b>It also supervises them.</b> If the status bar dies it comes back on its own, and if AeroSpace's Accessibility connection stalls under load — the honest weakness of every macOS tiler — Panewright detects it, restarts the engine, and only bothers you (to re-grant the permission) if the restart doesn't take. The tiling is meant to stay up, not go quietly dead until you notice.</p>
   <div class="note">Files Panewright generates — <code>~/.config/aerospace/aerospace.toml</code>, <code>~/.config/sketchybar/*</code>, <code>~/.config/panewright/scripts/*</code> — are overwritten on every apply. Edit <code>panewright.toml</code>, not them.</div>
 
   <h2 id="mod">The mod key</h2>

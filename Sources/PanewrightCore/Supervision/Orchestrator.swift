@@ -694,6 +694,29 @@ public struct Orchestrator: Sendable {
         (try? runTool("/usr/bin/pgrep", ["-x", "AeroSpace"])) != nil
     }
 
+    /// True when AeroSpace is running yet manages **zero** windows while the
+    /// system clearly has application windows on screen — the signature of a
+    /// stalled Accessibility connection (macOS stops answering AeroSpace's AX
+    /// queries; it survives a process restart and needs the permission
+    /// re-granted). `visibleAppWindowCount` is the caller's independent count
+    /// from CGWindowList, which needs no AX permission.
+    public func aeroSpaceIsStalled(visibleAppWindowCount: Int) -> Bool {
+        guard visibleAppWindowCount >= Self.stallWindowThreshold,
+            let cli = AeroSpaceCLI.locate(),
+            isAeroSpaceProcessRunning()
+        else { return false }
+        // A blank line still splits to one empty element; count real ids.
+        let managed = (try? cli.run(["list-windows", "--all", "--format", "%{window-id}"]))?
+            .split(separator: "\n")
+            .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            .count ?? 0
+        return managed == 0
+    }
+
+    /// Enough on-screen app windows that AeroSpace managing none of them can't
+    /// be a legitimately empty desktop.
+    static let stallWindowThreshold = 3
+
     private func runTool(_ path: String, _ arguments: [String]) throws {
         let process = Process()
         process.executableURL = URL(filePath: path)
