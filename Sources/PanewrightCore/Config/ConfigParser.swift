@@ -229,10 +229,6 @@ public enum ConfigParser {
         if words == ["focus", "back_and_forth"] {
             return .focusBackAndForth
         }
-        if words.count == 2, words[0] == "split",
-            let orientation = PanewrightConfig.SplitOrientation(rawValue: words[1]) {
-            return .split(orientation)
-        }
         if words.count == 5, words[0] == "move", words[1] == "workspace",
             words[2] == "to", words[3] == "monitor",
             let target = PanewrightConfig.MonitorTarget(rawValue: words[4]) {

@@ -143,7 +143,6 @@ public enum PanewrightConfigSerializer {
         case .minimize: "minimize"
         case .closeOthers: "close others"
         case .focusBackAndForth: "focus back_and_forth"
-        case .split(let orientation): "split \(orientation.rawValue)"
         case .moveWorkspaceToMonitor(let target): "move workspace to monitor \(target.rawValue)"
         }
     }

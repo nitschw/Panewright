@@ -11,7 +11,6 @@ import Testing
             ("minimize", .minimize, "macos-native-minimize"),
             ("close others", .closeOthers, "close-all-windows-but-current"),
             ("focus back_and_forth", .focusBackAndForth, "focus-back-and-forth"),
-            ("split vertical", .split(.vertical), "split vertical"),
             (
                 "move workspace to monitor next", .moveWorkspaceToMonitor(.next),
                 "move-workspace-to-monitor next"

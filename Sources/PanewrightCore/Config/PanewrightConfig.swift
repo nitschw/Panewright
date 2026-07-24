@@ -108,14 +108,8 @@ public struct PanewrightConfig: Equatable, Sendable {
         /// Window-level back-and-forth — jump to the previously focused window
         /// (the counterpart to `workspaceBackAndForth`).
         case focusBackAndForth
-        /// Explicitly split the focused window's cell.
-        case split(SplitOrientation)
         /// Move the whole focused workspace to another monitor.
         case moveWorkspaceToMonitor(MonitorTarget)
-    }
-
-    public enum SplitOrientation: String, Equatable, Sendable, CaseIterable {
-        case horizontal, vertical, opposite
     }
 
     public enum MonitorTarget: String, Equatable, Sendable, CaseIterable {

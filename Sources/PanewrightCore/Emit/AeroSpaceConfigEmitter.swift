@@ -246,7 +246,6 @@ public enum AeroSpaceConfigEmitter {
         case .minimize: "macos-native-minimize"
         case .closeOthers: "close-all-windows-but-current"
         case .focusBackAndForth: "focus-back-and-forth"
-        case .split(let orientation): "split \(orientation.rawValue)"
         case .moveWorkspaceToMonitor(let target):
             "move-workspace-to-monitor \(target.rawValue)"
         case .scratchpadShow:

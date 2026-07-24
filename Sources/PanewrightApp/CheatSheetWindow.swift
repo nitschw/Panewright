@@ -127,7 +127,7 @@ struct CheatSheetView: View {
         case .focus, .move, .focusMonitor, .moveToMonitor, .close, .closeOthers,
             .minimize, .focusBackAndForth: .windows
         case .layoutTiles, .layoutAccordion, .fullscreen, .toggleFloating,
-            .joinWith, .flattenWorkspace, .resize, .split, .balanceSizes,
+            .joinWith, .flattenWorkspace, .resize, .balanceSizes,
             .nativeFullscreen: .layout
         case .enterMode: .modes
         default: .tools
@@ -169,7 +169,6 @@ struct CheatSheetView: View {
         case .minimize: "Minimize to Dock"
         case .closeOthers: "Close all other windows"
         case .focusBackAndForth: "Focus the previous window"
-        case .split(let o): "Split \(o.rawValue)"
         case .moveWorkspaceToMonitor(let t): "Move workspace to monitor \(t.rawValue)"
         }
     }
