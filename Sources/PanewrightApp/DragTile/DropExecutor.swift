@@ -19,6 +19,21 @@ struct DropExecutor: Sendable {
         guard let target else {
             return "drag-to-tile: canceled"
         }
+        // Cross-monitor drop: the walk moves by swaps, which never leave a
+        // workspace — so first rehome the dragged window into the target's
+        // workspace, then treat it like any local drop.
+        if let sourceWS = workspace(of: dragged), let targetWS = workspace(of: target.id),
+            sourceWS != targetWS {
+            DragLog.log("executor: cross-workspace drop \(sourceWS) -> \(targetWS)")
+            guard
+                (try? cli.run([
+                    "move-node-to-workspace", "--window-id", "\(dragged)", targetWS,
+                ])) != nil
+            else {
+                return "drag-to-tile: couldn't move to workspace \(targetWS)"
+            }
+            usleep(Self.settleMicroseconds)
+        }
         switch target.zone {
         case .center:
             return swap(dragged: dragged, targetID: target.id)
@@ -30,6 +45,21 @@ struct DropExecutor: Sendable {
     }
 
     // MARK: Zone operations
+
+    private func workspace(of windowID: CGWindowID) -> String? {
+        guard
+            let output = try? cli.run([
+                "list-windows", "--all", "--format", "%{window-id} %{workspace}",
+            ])
+        else { return nil }
+        for line in output.split(separator: "\n") {
+            let parts = line.split(separator: " ", maxSplits: 1)
+            if parts.count == 2, CGWindowID(parts[0]) == windowID {
+                return parts[1].trimmingCharacters(in: .whitespaces)
+            }
+        }
+        return nil
+    }
 
     private func swap(dragged: CGWindowID, targetID: CGWindowID) -> String {
         guard let (d, t) = walkToNeighbor(dragged: dragged, targetID: targetID) else {
