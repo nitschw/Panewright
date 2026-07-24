@@ -59,6 +59,15 @@ import Testing
         #expect(files.workspacesPlugin.contains("ARGS+=("))
     }
 
+    @Test func eachStripLeadsWithItsMonitorBadge() throws {
+        let files = try SketchyBarConfigEmitter.emit(.default)
+        #expect(files.sketchybarrc.contains("--add item monitor.$did left"))
+        // Badge label comes from the display→monitor map, not the display index.
+        #expect(files.workspacesPlugin.contains(#"label="M$MON""#))
+        // The badge slots in ahead of its display's workspace pills.
+        #expect(files.sketchybarrc.contains("monitor.1 space.1."))
+    }
+
     @Test func omitsSystemStatusItems() throws {
         // The native menu bar owns clock/wifi/battery; our bar is pure WM.
         let files = try SketchyBarConfigEmitter.emit(.default)

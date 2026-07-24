@@ -62,9 +62,10 @@ public enum SketchyBarConfigEmitter {
         let workspaces = AeroSpaceConfigEmitter.workspaceNumbers(in: config.bindings)
         let workspaceList = workspaces.map(String.init).joined(separator: " ")
         // Per-display item names, display outer so each monitor's strip stays
-        // contiguous. Hidden items keep their slot but don't render.
+        // contiguous. Hidden items keep their slot but don't render. Each
+        // display leads with its monitor badge (M1/M2/M3).
         let spaceOrder = (1...4)
-            .flatMap { d in workspaces.map { "space.\(d).\($0)" } }
+            .flatMap { d in ["monitor.\(d)"] + workspaces.map { "space.\(d).\($0)" } }
             .joined(separator: " ")
 
         let rc = """
@@ -100,8 +101,13 @@ public enum SketchyBarConfigEmitter {
 
             # One strip per display (associated_display). Each item shows only
             # when its workspace lives on that display's monitor. Displays
-            # beyond the actual count never render.
+            # beyond the actual count never render. The M-badge leads each
+            # strip, naming the AeroSpace monitor (the number monitor commands
+            # refer to).
             for did in 1 2 3 4; do
+              $BAR --add item monitor.$did left \\
+                --set monitor.$did associated_display=$did label="" drawing=off \\
+                  label.color=\(palette.dim) label.padding_left=8 label.padding_right=2
               for sid in \(workspaceList); do
                 $BAR --add item space.$did.$sid left \\
                   --set space.$did.$sid associated_display=$did label="$sid" drawing=off \\
@@ -164,7 +170,14 @@ public enum SketchyBarConfigEmitter {
             ARGS=()
             for did in 1 2 3 4; do
               MON=$(awk -F'\\t' -v d="$did" '$1 == d { print $2 }' "$MAP" 2>/dev/null)
-              [ -z "$MON" ] && continue
+              # No map yet (first boot): assume identity for display 1 so a
+              # single-monitor bar still renders before the app writes the map.
+              [ -z "$MON" ] && [ ! -f "$MAP" ] && [ "$did" = 1 ] && MON=1
+              if [ -z "$MON" ]; then
+                ARGS+=(--set "monitor.$did" drawing=off)
+                continue
+              fi
+              ARGS+=(--set "monitor.$did" drawing=on label="M$MON")
               VISIBLE=$("$A" list-workspaces --monitor "$MON" --visible 2>/dev/null | tr -d ' ')
               OCCUPIED=$("$A" list-workspaces --monitor "$MON" --empty no 2>/dev/null | tr -d ' ')
               for sid in \(workspaceList); do
