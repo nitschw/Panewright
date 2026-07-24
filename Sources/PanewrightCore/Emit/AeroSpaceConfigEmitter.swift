@@ -209,7 +209,11 @@ public enum AeroSpaceConfigEmitter {
 
     static func command(for action: PanewrightConfig.Action) -> String {
         switch action {
-        case .workspace(let n): "workspace \(n)"
+        // summon-workspace, not workspace: i3-style multi-monitor semantics.
+        // If the workspace is showing on another monitor, $mod+N pulls it to
+        // the focused monitor rather than yanking focus across the room; on a
+        // single monitor it behaves exactly like `workspace`.
+        case .workspace(let n): "summon-workspace \(n)"
         case .moveToWorkspace(let n): "move-node-to-workspace \(n)"
         case .focus(let direction): "focus \(direction.rawValue)"
         case .move(let direction): "move \(direction.rawValue)"

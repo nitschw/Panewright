@@ -55,7 +55,7 @@ import Testing
 
     @Test func emitsI3StyleDefaultBindings() {
         let toml = AeroSpaceConfigEmitter.emit(.default)
-        #expect(toml.contains("ctrl-cmd-1 = 'workspace 1'"))
+        #expect(toml.contains("ctrl-cmd-1 = 'summon-workspace 1'"))
         #expect(toml.contains("ctrl-cmd-shift-1 = 'move-node-to-workspace 1'"))
         #expect(toml.contains("ctrl-cmd-h = 'focus left'"))
         #expect(toml.contains("ctrl-cmd-shift-l = 'move right'"))
@@ -114,7 +114,7 @@ import Testing
         let toml = AeroSpaceConfigEmitter.emit(config)
         #expect(toml.contains("ctrl-cmd-space = 'mode panewright'"))
         #expect(toml.contains("[mode.panewright.binding]"))
-        #expect(toml.contains("1 = ['workspace 1', 'mode main']"))
+        #expect(toml.contains("1 = ['summon-workspace 1', 'mode main']"))
         #expect(toml.contains("h = ['focus left', 'mode main']"))
         // Mode entries must not chain back to main, or the mode would be dead.
         #expect(toml.contains("r = 'mode resize'"))
