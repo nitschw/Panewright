@@ -233,6 +233,14 @@ public enum AeroSpaceConfigEmitter {
             "exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/pill-window.sh\""
         case .help:
             "exec-and-forget open panewright://help"
+        case .balanceSizes: "balance-sizes"
+        case .nativeFullscreen: "macos-native-fullscreen"
+        case .minimize: "macos-native-minimize"
+        case .closeOthers: "close-all-windows-but-current"
+        case .focusBackAndForth: "focus-back-and-forth"
+        case .split(let orientation): "split \(orientation.rawValue)"
+        case .moveWorkspaceToMonitor(let target):
+            "move-workspace-to-monitor \(target.rawValue)"
         case .scratchpadShow:
             "exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/scratchpad-show.sh\""
         case .scratchpadMove:

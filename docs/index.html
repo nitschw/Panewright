@@ -518,7 +518,27 @@
         </tbody>
       </table>
     </div>
-    <p class="compare-note">Comparison as of 2026, best-effort and honest — corrections welcome on <a href="https://github.com/nitschw/Panewright" style="color:var(--ink-dim)">GitHub</a>. yabai needs SIP partially disabled for its scripting addition; without it, some features are unavailable.</p>
+    <p class="compare-note">Comparison as of 2026, best-effort and honest — corrections welcome on <a href="https://github.com/nitschw/Panewright" style="color:var(--ink-dim)">GitHub</a>.</p>
+
+    <div class="row" style="margin-top:48px">
+      <div>
+        <h3>What Panewright won't do — on purpose</h3>
+        <p>yabai's flashiest tricks — <b>per-window transparency</b>, <b>shadow removal</b>, <b>sticky all-space windows</b>, <b>pixel-grid placement</b> — all require <b>partially disabling System Integrity Protection</b>. That's the security model Apple ships to protect you, and turning it off is exactly what Panewright refuses to do.</p>
+        <p>So we don't have those, and we never will. That's not a gap we're behind on — it's the line that lets you run Panewright without weakening your Mac. If a feature needs SIP off, it's not coming here.</p>
+      </div>
+      <div class="panel">
+        <div style="padding:22px 24px">
+          <div style="font:12px var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:14px">Needs SIP disabled — not here</div>
+          <ul style="list-style:none;display:grid;gap:9px;font-size:15px;color:var(--ink-dim)">
+            <li>✗ Window opacity / transparency</li>
+            <li>✗ Custom window shadows</li>
+            <li>✗ Sticky (all-spaces) windows</li>
+            <li>✗ Pixel-grid window placement</li>
+          </ul>
+          <div style="margin-top:16px;font-size:14px;color:var(--ink)"><b>Kept intact:</b> your Mac's security, untouched.</div>
+        </div>
+      </div>
+    </div>
   </section>
 
   <section id="import">

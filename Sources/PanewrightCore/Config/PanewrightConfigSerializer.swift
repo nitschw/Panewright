@@ -133,6 +133,13 @@ public enum PanewrightConfigSerializer {
         case .todoAdd: "todo add"
         case .pillWindow: "pill window"
         case .help: "help"
+        case .balanceSizes: "balance"
+        case .nativeFullscreen: "fullscreen native"
+        case .minimize: "minimize"
+        case .closeOthers: "close others"
+        case .focusBackAndForth: "focus back_and_forth"
+        case .split(let orientation): "split \(orientation.rawValue)"
+        case .moveWorkspaceToMonitor(let target): "move workspace to monitor \(target.rawValue)"
         }
     }
 }

@@ -213,6 +213,30 @@ public enum ConfigParser {
         if words == ["help"] {
             return .help
         }
+        if words == ["balance"] {
+            return .balanceSizes
+        }
+        if words == ["fullscreen", "native"] {
+            return .nativeFullscreen
+        }
+        if words == ["minimize"] {
+            return .minimize
+        }
+        if words == ["close", "others"] {
+            return .closeOthers
+        }
+        if words == ["focus", "back_and_forth"] {
+            return .focusBackAndForth
+        }
+        if words.count == 2, words[0] == "split",
+            let orientation = PanewrightConfig.SplitOrientation(rawValue: words[1]) {
+            return .split(orientation)
+        }
+        if words.count == 5, words[0] == "move", words[1] == "workspace",
+            words[2] == "to", words[3] == "monitor",
+            let target = PanewrightConfig.MonitorTarget(rawValue: words[4]) {
+            return .moveWorkspaceToMonitor(target)
+        }
         if words == ["scratchpad", "show"] {
             return .scratchpadShow
         }

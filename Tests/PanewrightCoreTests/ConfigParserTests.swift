@@ -3,6 +3,31 @@ import Testing
 @testable import PanewrightCore
 
 @Suite struct ConfigParserTests {
+    @Test func parsesNewPassthroughActions() throws {
+        // Each exposes an AeroSpace command that had no binding before.
+        let cases: [(String, PanewrightConfig.Action, String)] = [
+            ("balance", .balanceSizes, "balance-sizes"),
+            ("fullscreen native", .nativeFullscreen, "macos-native-fullscreen"),
+            ("minimize", .minimize, "macos-native-minimize"),
+            ("close others", .closeOthers, "close-all-windows-but-current"),
+            ("focus back_and_forth", .focusBackAndForth, "focus-back-and-forth"),
+            ("split vertical", .split(.vertical), "split vertical"),
+            (
+                "move workspace to monitor next", .moveWorkspaceToMonitor(.next),
+                "move-workspace-to-monitor next"
+            ),
+        ]
+        for (text, action, command) in cases {
+            #expect(try ConfigParser.parseAction(text) == action)
+            // Serializer round-trips back to the same spelling.
+            #expect(PanewrightConfigSerializer.actionString(action) == text)
+            // Emitter maps to the right AeroSpace command.
+            #expect(AeroSpaceConfigEmitter.command(for: action) == command)
+        }
+        // `close others` must not collide with `close`.
+        #expect(try ConfigParser.parseAction("close") == .close)
+    }
+
     @Test func parsesFullConfig() throws {
         let toml = """
             modifier = "alt"

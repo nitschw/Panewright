@@ -95,6 +95,27 @@ public struct PanewrightConfig: Equatable, Sendable {
         case pillWindow
         /// Open the keybinding cheat-sheet window.
         case help
+        /// Equalize every window's size in the workspace (AeroSpace's
+        /// `balance-sizes`).
+        case balanceSizes
+        /// The real macOS green-button fullscreen, distinct from the virtual
+        /// `fullscreen` toggle.
+        case nativeFullscreen
+        /// Minimize the focused window to the Dock.
+        case minimize
+        /// Close every window on the workspace except the focused one.
+        case closeOthers
+        /// Window-level back-and-forth — jump to the previously focused window
+        /// (the counterpart to `workspaceBackAndForth`).
+        case focusBackAndForth
+        /// Explicitly split the focused window's cell.
+        case split(SplitOrientation)
+        /// Move the whole focused workspace to another monitor.
+        case moveWorkspaceToMonitor(MonitorTarget)
+    }
+
+    public enum SplitOrientation: String, Equatable, Sendable, CaseIterable {
+        case horizontal, vertical, opposite
     }
 
     public enum MonitorTarget: String, Equatable, Sendable, CaseIterable {

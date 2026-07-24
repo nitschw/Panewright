@@ -122,10 +122,13 @@ struct CheatSheetView: View {
 
     private func category(of actions: [PanewrightConfig.Action]) -> Category {
         switch actions.first {
-        case .workspace, .moveToWorkspace, .workspaceBackAndForth: .workspaces
-        case .focus, .move, .focusMonitor, .moveToMonitor, .close: .windows
+        case .workspace, .moveToWorkspace, .workspaceBackAndForth,
+            .moveWorkspaceToMonitor: .workspaces
+        case .focus, .move, .focusMonitor, .moveToMonitor, .close, .closeOthers,
+            .minimize, .focusBackAndForth: .windows
         case .layoutTiles, .layoutAccordion, .fullscreen, .toggleFloating,
-            .joinWith, .flattenWorkspace, .resize: .layout
+            .joinWith, .flattenWorkspace, .resize, .split, .balanceSizes,
+            .nativeFullscreen: .layout
         case .enterMode: .modes
         default: .tools
         }
@@ -161,6 +164,13 @@ struct CheatSheetView: View {
         case .todoAdd: "New to-do"
         case .pillWindow: "Park window as a bar pill"
         case .help: "This cheat sheet"
+        case .balanceSizes: "Equalize window sizes"
+        case .nativeFullscreen: "Native macOS fullscreen"
+        case .minimize: "Minimize to Dock"
+        case .closeOthers: "Close all other windows"
+        case .focusBackAndForth: "Focus the previous window"
+        case .split(let o): "Split \(o.rawValue)"
+        case .moveWorkspaceToMonitor(let t): "Move workspace to monitor \(t.rawValue)"
         }
     }
 
