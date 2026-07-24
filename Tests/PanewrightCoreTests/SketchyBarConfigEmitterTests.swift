@@ -62,8 +62,9 @@ import Testing
     @Test func eachStripLeadsWithItsMonitorBadge() throws {
         let files = try SketchyBarConfigEmitter.emit(.default)
         #expect(files.sketchybarrc.contains("--add item monitor.$did left"))
-        // Badge label comes from the display→monitor map, not the display index.
-        #expect(files.workspacesPlugin.contains(#"label="M$MON""#))
+        // Badge shows the human-facing number (map col 3, primary = M1),
+        // falling back to the AeroSpace id for an old-format map.
+        #expect(files.workspacesPlugin.contains(#"label="M${LBL:-$MON}""#))
         // The badge slots in ahead of its display's workspace pills.
         #expect(files.sketchybarrc.contains("monitor.1 space.1."))
     }

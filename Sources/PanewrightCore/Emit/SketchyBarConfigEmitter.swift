@@ -177,7 +177,10 @@ public enum SketchyBarConfigEmitter {
                 ARGS+=(--set "monitor.$did" drawing=off)
                 continue
               fi
-              ARGS+=(--set "monitor.$did" drawing=on label="M$MON")
+              # Badge shows the human-facing number (col 3: primary is always
+              # M1), while commands keep using the AeroSpace id (col 2).
+              LBL=$(awk -F'\\t' -v d="$did" '$1 == d { print $3 }' "$MAP" 2>/dev/null)
+              ARGS+=(--set "monitor.$did" drawing=on label="M${LBL:-$MON}")
               VISIBLE=$("$A" list-workspaces --monitor "$MON" --visible 2>/dev/null | tr -d ' ')
               OCCUPIED=$("$A" list-workspaces --monitor "$MON" --empty no 2>/dev/null | tr -d ' ')
               for sid in \(workspaceList); do

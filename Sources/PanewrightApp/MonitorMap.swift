@@ -50,7 +50,7 @@ enum MonitorMap {
         // CG origin it reports for a bar-wide item) and match that point to the
         // physical display that contains it — geometry, not list order.
         let displayOrigins = sketchyBarDisplayOrigins()
-        var lines: [String] = []
+        var entries: [(sketchyDisplay: Int, monitor: Int, displayID: CGDirectDisplayID)] = []
         if !displayOrigins.isEmpty {
             for (sketchyDisplay, origin) in displayOrigins {
                 guard
@@ -58,7 +58,7 @@ enum MonitorMap {
                     let name = screenName(for: displayID),
                     let monitor = monitorByName[normalize(name)]
                 else { continue }
-                lines.append("\(sketchyDisplay)\t\(monitor)")
+                entries.append((sketchyDisplay, monitor, displayID))
             }
         } else {
             // No bar yet (first boot): fall back to list order; observe()
@@ -67,10 +67,26 @@ enum MonitorMap {
                 guard let name = screenName(for: displayID),
                     let monitor = monitorByName[normalize(name)]
                 else { continue }
-                lines.append("\(index + 1)\t\(monitor)")
+                entries.append((index + 1, monitor, displayID))
             }
         }
-        lines.sort { $0 < $1 }
+
+        // Human-facing monitor numbers: the primary (macOS main display) is
+        // always M1; the rest count up left-to-right by position. Stable and
+        // predictable, unlike AeroSpace's internal ids.
+        let main = CGMainDisplayID()
+        let ordered = entries.sorted {
+            if ($0.displayID == main) != ($1.displayID == main) { return $0.displayID == main }
+            return CGDisplayBounds($0.displayID).minX < CGDisplayBounds($1.displayID).minX
+        }
+        var labelByDisplay: [Int: Int] = [:]
+        for (index, entry) in ordered.enumerated() {
+            labelByDisplay[entry.sketchyDisplay] = index + 1
+        }
+
+        let lines = entries
+            .map { "\($0.sketchyDisplay)\t\($0.monitor)\t\(labelByDisplay[$0.sketchyDisplay] ?? $0.monitor)" }
+            .sorted()
         DragLog.log("monitor-map: \(lines.joined(separator: " "))")
         try? (lines.joined(separator: "\n") + (lines.isEmpty ? "" : "\n"))
             .write(to: url, atomically: true, encoding: .utf8)
