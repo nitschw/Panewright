@@ -206,7 +206,7 @@ action = "workspace 4; layout accordion"   <span class="c"># chains run in order
   <h2 id="actions">Action reference</h2>
   <table>
     <tr><th>Action</th><th>Does</th></tr>
-    <tr><td><code>workspace 3</code></td><td>Switch to workspace 3</td></tr>
+    <tr><td><code>workspace 3</code></td><td>Switch to workspace 3 — i3-style summon: if it's showing on another monitor, it's pulled to the focused one instead of yanking focus away</td></tr>
     <tr><td><code>move to workspace 3</code></td><td>Send the focused window there (focus stays)</td></tr>
     <tr><td><code>workspace back_and_forth</code></td><td>Bounce to the previous workspace</td></tr>
     <tr><td><code>focus left</code></td><td>Move focus (<code>left/down/up/right</code>)</td></tr>
@@ -227,6 +227,7 @@ action = "workspace 4; layout accordion"   <span class="c"># chains run in order
     <tr><td><code>workspace back_and_forth</code></td><td>Bounce to the previous workspace</td></tr>
     <tr><td><code>todo add</code></td><td>Open the to-do editor for a new task</td></tr>
     <tr><td><code>pill window</code></td><td>Park the focused window in the bar</td></tr>
+    <tr><td><code>help</code></td><td>Open the cheat-sheet window (default: <span style="font-family:var(--mono)">$mod+?</span>)</td></tr>
     <tr><td><code>exec open -a Ghostty</code></td><td>Run any shell command</td></tr>
   </table>
 
@@ -265,6 +266,7 @@ action = "mode main"</pre>
     <tr><td><kbd>$mod T</kbd></td><td>Capture a to-do</td></tr>
     <tr><td><kbd>$mod P</kbd></td><td>Park the focused window as a bar pill</td></tr>
     <tr><td><kbd>$mod ← →</kbd> / <kbd>+⇧</kbd></td><td>Focus / move window to next monitor</td></tr>
+    <tr><td><kbd>$mod ?</kbd></td><td>Cheat sheet — every binding in your actual config, plus mouse and bar interactions (also in the menu bar dropdown)</td></tr>
   </table>
 
   <h2 id="workspaces">Workspaces</h2>
@@ -272,7 +274,8 @@ action = "mode main"</pre>
   <p><b>Empty workspaces hide.</b> i3-style, a number only appears on the bar once it holds a window (or is the one you're looking at). Move a window to workspace 4 and its pill springs into existence; empty it and the pill vanishes again.</p>
 
   <h3 id="multimonitor">Multi-monitor</h3>
-  <p>Every display gets its own status bar, and each bar shows <b>only the workspaces living on that monitor</b> — highlighting the one currently visible there. Monitors are <b>independent</b>: switching a workspace on one display leaves the others exactly where they were, just like i3.</p>
+  <p>Every display gets its own status bar, and each bar shows <b>only the workspaces living on that monitor</b> — highlighting the one currently visible there and leading with an <b>M1/M2/M3 badge</b> naming the monitor (the primary is always M1; externals count left-to-right). Monitors are <b>independent</b>: switching a workspace on one display leaves the others exactly where they were, just like i3.</p>
+  <p><b>Summon semantics.</b> Pressing <span style="font-family:var(--mono)">$mod+N</span> while the workspace is showing on <em>another</em> monitor pulls it over to the one you're focused on — i3's model — instead of moving your focus across the room. The vacated monitor falls back to a free workspace on its own.</p>
   <p>Workspaces <b>auto-distribute</b> across your displays. On launch — and whenever you plug in or unplug a monitor — Panewright hands one workspace to each additional display and keeps the rest on your primary, migrating windows off any throwaway workspace macOS's tiler would otherwise strand. Unplug a display and its workspaces return to a surviving one.</p>
   <div class="note">The bar-to-monitor mapping is derived from real display geometry, so each monitor's pill labels always match the workspace actually on it — even though macOS, AeroSpace, and SketchyBar each number displays differently.</div>
 
@@ -294,9 +297,10 @@ action = "mode main"</pre>
     <li><b>Center</b> of another window → swap places</li>
     <li><b>Edge</b> of another window → split that cell and take the half</li>
     <li><b>Workspace number</b> on the bar → send it to that workspace</li>
-    <li><b>Nothing</b> → cancel; the layout never changed</li>
+    <li><b>Another display's empty area</b> → send it to that monitor's visible workspace (the whole screen lights up as the target)</li>
+    <li><b>Nothing</b> (on the screen you started from) → cancel; the layout never changed</li>
   </ul>
-  <p>Always on (it's how Panewright works); needs Panewright's two permissions from the install table.</p>
+  <p>All of it works <b>across monitors</b>: carry a window to another display and drop it on a window there to swap, split, or stack into that monitor's layout. Always on (it's how Panewright works); needs Panewright's two permissions from the install table.</p>
 
   <h2 id="scratchpad">Scratchpad</h2>
   <p>A hidden shelf for one-or-more windows — classically a terminal you summon anywhere.</p>
@@ -342,7 +346,7 @@ accent-color = "#30D158"      <span class="c"># workspace highlight only; omit t
 enabled = true
 theme = "native"     <span class="c"># vibrancy + SF Pro — or "technical": square, monospace</span>
 accent-color = "#30D158"   <span class="c"># optional; defaults to the focus border's active color</span></pre>
-  <p>Shows workspace numbers (clickable, drag targets, accent highlight on the active one), a <b>mode badge</b> while resize/join is active, and the frontmost app. Disabling the bar returns everything to the native macOS menu bar. Quick toggles for the bar and borders live in the menu bar icon's dropdown.</p>
+  <p>Each monitor's bar leads with its <b>M1/M2/M3 badge</b>, then that monitor's workspace numbers (clickable, drag targets, accent highlight on the active one), a <b>mode badge</b> while resize/join is active, and the frontmost app. Disabling the bar returns everything to the native macOS menu bar. Quick toggles for the bar and borders live in the menu bar icon's dropdown.</p>
 
   <h2 id="todo">To-do list</h2>
   <p>Tasks live as pills on the right of the bar, newest last, with a <b>+</b> button at the end.</p>

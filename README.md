@@ -38,10 +38,12 @@ tree reshapes on release, in one motion. No other macOS tiler has this.
 - **Ten instant workspaces** (1–9, 0) — virtual, not macOS Spaces: zero
   animation, drag-a-window-onto-the-bar-number support; **empty workspaces
   hide** until occupied, i3-style
-- **True multi-monitor** — a status bar on *every* display showing only that
-  monitor's workspaces, independent per-monitor switching (change one, the
-  others stay put), and workspaces **auto-distributed** across displays as you
-  plug and unplug them
+- **True multi-monitor** — a status bar on *every* display (with an `M1`/`M2`
+  monitor badge, primary always `M1`) showing only that monitor's workspaces,
+  independent per-monitor switching, i3-style **summon** (`$mod+N` pulls the
+  workspace to your monitor), drag windows **across displays** (drop on a
+  window there, or on empty screen to send it over), and workspaces
+  **auto-distributed** as you plug and unplug displays
 - **i3 muscle memory** — `$mod+hjkl` focus/move, modal **resize** and
   **join** modes with a live mode badge in the bar, fullscreen/float
   toggles, `$mod+minus` scratchpad, flatten-tree panic button
@@ -58,6 +60,8 @@ tree reshapes on release, in one motion. No other macOS tiler has this.
 - **Status bar** — clickable workspace numbers with accent highlight, mode
   badge, front app; one per monitor, each scoped to its own display;
   native-vibrancy or square-monospace "technical" theme, one toggle apart
+- **Built-in cheat sheet** — `$mod+?` pops a window listing every binding in
+  *your* config (not a stock list), plus the drag zones and bar interactions
 - **A real off switch** — quitting stops the daemons, un-parks every
   hidden window, and leaves macOS exactly as Apple shipped it
 
