@@ -108,6 +108,7 @@
       <h5>Windows</h5>
       <a href="#workspaces">Workspaces</a>
       <a href="#multimonitor">Multi-monitor</a>
+      <a href="#spaces">macOS Spaces</a>
       <a href="#drag">Drag-to-tile</a>
       <a href="#scratchpad">Scratchpad</a>
       <a href="#rules">Per-app rules</a>
@@ -274,6 +275,11 @@ action = "mode main"</pre>
   <p>Every display gets its own status bar, and each bar shows <b>only the workspaces living on that monitor</b> — highlighting the one currently visible there. Monitors are <b>independent</b>: switching a workspace on one display leaves the others exactly where they were, just like i3.</p>
   <p>Workspaces <b>auto-distribute</b> across your displays. On launch — and whenever you plug in or unplug a monitor — Panewright hands one workspace to each additional display and keeps the rest on your primary, migrating windows off any throwaway workspace macOS's tiler would otherwise strand. Unplug a display and its workspaces return to a surviving one.</p>
   <div class="note">The bar-to-monitor mapping is derived from real display geometry, so each monitor's pill labels always match the workspace actually on it — even though macOS, AeroSpace, and SketchyBar each number displays differently.</div>
+
+  <h3 id="spaces">macOS Spaces</h3>
+  <p>Keep <b>one macOS Space per display</b> and let Panewright workspaces do the rest — they are the "multiple desktops" layer, with two things Spaces can't offer: instant animation-free switching and full keyboard/scripting control.</p>
+  <p>Why not build on Spaces directly? macOS has <b>no public API</b> for them — nothing can enumerate Spaces, move a window between them, or switch without the swipe animation. Tools that do manipulate Spaces rely on private calls and disabling SIP, which Panewright will never require. So extra Spaces are invisible to the tiler: windows parked on a non-current Space can't be tiled, dragged, or found until that Space comes back.</p>
+  <div class="note">If you use extra Spaces today: System Settings → Desktop &amp; Dock → turn <b>off</b> "Automatically rearrange Spaces based on most recent use", and prune down to one Space per display. Mission Control's "Displays have separate Spaces" should stay <b>on</b> — that's what gives each monitor its own bar and full-screen behavior.</div>
 
   <h3>Pinning to monitors</h3>
   <p>Want a workspace to always live on a specific display instead of following the auto-distribution? Pin it:</p>
