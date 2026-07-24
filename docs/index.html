@@ -142,6 +142,19 @@
   .notify-form input:focus { outline: none; border-color: var(--accent); }
   .notify-form button { border: 0; cursor: pointer; }
 
+  /* ---- comparison ---- */
+  .compare-wrap { overflow-x: auto; margin-top: 40px; border: 1px solid var(--line); border-radius: 12px; }
+  table.compare { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 14.5px; }
+  table.compare th, table.compare td { padding: 12px 16px; text-align: center; border-bottom: 1px solid var(--line-soft); }
+  table.compare thead th { font: 12px var(--mono); letter-spacing: .04em; text-transform: uppercase; color: var(--ink-faint); background: var(--bg-raise); }
+  table.compare thead th.me { color: var(--accent); }
+  table.compare tbody th { text-align: left; font-weight: 500; color: var(--ink-dim); white-space: nowrap; }
+  table.compare td.me { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+  table.compare .yes { color: #37c26a; font-weight: 700; }
+  table.compare .no { color: var(--ink-faint); }
+  table.compare .part { color: #d9a03f; font-size: 13px; }
+  .compare-note { font-size: 13px; color: var(--ink-faint); margin-top: 14px; }
+
   .gallery { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 40px; }
   .clip { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--bg-raise); }
   .clip video { width: 100%; display: block; background: #0a0a0e; }
@@ -469,6 +482,33 @@
         </ul>
       </div>
     </div>
+  </section>
+
+  <section id="compare">
+    <div class="kicker">How it stacks up</div>
+    <h2>Against the other Mac tilers</h2>
+    <p class="sub">AeroSpace, yabai, and Amethyst are all good tools — Panewright even runs on AeroSpace. Here's where it's genuinely different.</p>
+    <div class="compare-wrap">
+      <table class="compare">
+        <thead>
+          <tr><th></th><th class="me">Panewright</th><th>AeroSpace</th><th>yabai</th><th>Amethyst</th></tr>
+        </thead>
+        <tbody>
+          <tr><th>No SIP disable</th><td class="me"><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="part">partial</span></td><td><span class="yes">✓</span></td></tr>
+          <tr><th>Drag-to-tile (ghost)</th><td class="me"><span class="yes">✓</span></td><td><span class="no">—</span></td><td><span class="no">—</span></td><td><span class="no">—</span></td></tr>
+          <tr><th>Instant workspaces (no animation)</th><td class="me"><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="no">native Spaces</span></td><td><span class="no">native Spaces</span></td></tr>
+          <tr><th>One config file</th><td class="me"><span class="yes">✓ TOML</span></td><td><span class="yes">✓ TOML</span></td><td><span class="no">script + skhd</span></td><td><span class="part">GUI</span></td></tr>
+          <tr><th>Visual editor</th><td class="me"><span class="yes">✓</span></td><td><span class="no">—</span></td><td><span class="no">—</span></td><td><span class="part">prefs pane</span></td></tr>
+          <tr><th>Status bar included</th><td class="me"><span class="yes">✓</span></td><td><span class="no">bring your own</span></td><td><span class="no">bring your own</span></td><td><span class="no">—</span></td></tr>
+          <tr><th>Focus borders</th><td class="me"><span class="yes">✓</span></td><td><span class="no">add-on</span></td><td><span class="no">add-on</span></td><td><span class="no">—</span></td></tr>
+          <tr><th>Import your i3 config</th><td class="me"><span class="yes">✓</span></td><td><span class="no">—</span></td><td><span class="no">—</span></td><td><span class="no">—</span></td></tr>
+          <tr><th>Self-heals a stalled engine</th><td class="me"><span class="yes">✓</span></td><td><span class="no">—</span></td><td><span class="no">—</span></td><td><span class="no">—</span></td></tr>
+          <tr><th>One-click setup (installs the stack)</th><td class="me"><span class="yes">✓</span></td><td><span class="no">manual</span></td><td><span class="no">manual</span></td><td><span class="yes">✓</span></td></tr>
+          <tr><th>Open source</th><td class="me"><span class="yes">✓ core</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="compare-note">Comparison as of 2026, best-effort and honest — corrections welcome on <a href="https://github.com/nitschw/Panewright" style="color:var(--ink-dim)">GitHub</a>. yabai needs SIP partially disabled for its scripting addition; without it, some features are unavailable.</p>
   </section>
 
   <section id="import">
