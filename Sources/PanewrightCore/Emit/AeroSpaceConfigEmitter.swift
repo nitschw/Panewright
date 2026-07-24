@@ -15,14 +15,10 @@ public enum AeroSpaceConfigEmitter {
                 "exec-on-workspace-change = ['/bin/bash', '-c', '\"$HOME\"/.config/panewright/scripts/on-workspace-change.sh']"
             )
         }
-        if config.statusBar.enabled {
-            // i3-style dynamic pills need occupancy to update the moment a
-            // window moves — not just on workspace switch. Focus shifts on
-            // every move, so repaint the bar's workspace strips on focus change.
-            lines.append(
-                "on-focus-changed = ['exec-and-forget /opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change']"
-            )
-        }
+        // NB: no on-focus-changed trigger. Focus changes arrive in bursts
+        // (system permission dialogs especially), and the concurrent repaints
+        // they spawned kept tripping a heap-corruption abort inside SketchyBar.
+        // Pill occupancy freshness comes from the driver's update_freq poll.
         lines.append("")
         // i3 split behavior: workspaces come up tiling, nested splits alternate
         // orientation, and redundant single-child containers are flattened.

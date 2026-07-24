@@ -121,8 +121,13 @@ public enum SketchyBarConfigEmitter {
             # Subscribing each pill individually would fork one process (and two
             # AeroSpace queries) per pill per event — a stampede that has
             # crashed SketchyBar. One process, one query per display instead.
+            # update_freq keeps occupancy fresh (a window moved to a background
+            # workspace) without an on-focus-changed trigger — focus changes
+            # burst around system dialogs and the resulting concurrent repaints
+            # crashed SketchyBar. Workspace switches still repaint instantly
+            # via the event.
             $BAR --add item spaces_driver left \\
-              --set spaces_driver drawing=off \\
+              --set spaces_driver drawing=off update_freq=2 \\
                 script="$PLUGINS/panewright_workspaces.sh" \\
               --subscribe spaces_driver aerospace_workspace_change
 
