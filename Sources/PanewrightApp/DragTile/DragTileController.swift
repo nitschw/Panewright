@@ -168,8 +168,10 @@ final class DragTileController {
         // a @MainActor method but must run on the utility queue).
         timer.setEventHandler { @Sendable [weak self] in
             guard let cli = AeroSpaceCLI.locate(),
+                // "visible", not "focused": every monitor's frontmost workspace
+                // counts, or windows on unfocused monitors never arm for drag.
                 let output = try? cli.run([
-                    "list-windows", "--workspace", "focused",
+                    "list-windows", "--workspace", "visible",
                     "--format", "%{window-id} %{window-layout}",
                 ])
             else { return }
@@ -305,7 +307,7 @@ final class DragTileController {
         Task.detached(priority: .utility) {
             guard
                 let output = try? cli.run([
-                    "list-windows", "--workspace", "focused", "--format", "%{window-id}",
+                    "list-windows", "--workspace", "visible", "--format", "%{window-id}",
                 ])
             else { return }
             let ids = Set(

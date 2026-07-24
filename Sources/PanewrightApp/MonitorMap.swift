@@ -60,9 +60,16 @@ enum MonitorMap {
                 else { continue }
                 entries.append((sketchyDisplay, monitor, displayID))
             }
+        } else if FileManager.default.fileExists(atPath: url.path) {
+            // The bar is mid-reload (all rects are off-screen sentinels), but a
+            // previous geometry-derived map exists. Keep it: a stale-but-right
+            // map beats overwriting with the guessed list order, which briefly
+            // misroutes every bar click and drag (the map was observed flapping
+            // wrong→right on every display event).
+            return
         } else {
-            // No bar yet (first boot): fall back to list order; observe()
-            // rewrites the map once the bar is up.
+            // No bar and no map yet (first boot): fall back to list order;
+            // observe() rewrites the map once the bar is up.
             for (index, displayID) in ids.enumerated() {
                 guard let name = screenName(for: displayID),
                     let monitor = monitorByName[normalize(name)]
