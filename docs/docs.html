@@ -327,12 +327,15 @@ enabled = true
 width = 4
 active-color = "#D6295F"      <span class="c"># #RRGGBB or #RRGGBBAA</span>
 inactive-color = "#00000000"</pre>
-  <p>The border accent also drives the bar's workspace highlight — one color, one system.</p>
+  <p>The border accent also drives the bar's workspace highlight — one color, one system. To break them apart, give the bar its own accent:</p>
+  <pre>[bar]
+accent-color = "#30D158"      <span class="c"># workspace highlight only; omit to follow the border</span></pre>
 
   <h2 id="bar">Status bar</h2>
   <pre>[bar]
 enabled = true
-theme = "native"     <span class="c"># vibrancy + SF Pro — or "technical": square, monospace</span></pre>
+theme = "native"     <span class="c"># vibrancy + SF Pro — or "technical": square, monospace</span>
+accent-color = "#30D158"   <span class="c"># optional; defaults to the focus border's active color</span></pre>
   <p>Shows workspace numbers (clickable, drag targets, accent highlight on the active one), a <b>mode badge</b> while resize/join is active, and the frontmost app. Disabling the bar returns everything to the native macOS menu bar. Quick toggles for the bar and borders live in the menu bar icon's dropdown.</p>
 
   <h2 id="todo">To-do list</h2>
