@@ -229,10 +229,18 @@ public enum SketchyBarConfigEmitter {
             # Storage is TSV: title<TAB>notes. Each task becomes its own pill
             # in the bar, growing leftward from the "+" button; click one to
             # open its editor.
+            #
+            # Incremental, not rebuild: removing and re-adding every pill on
+            # each update made the whole bar flicker and visibly resort. Reuse
+            # existing items (a --set repaints in place), add or remove only at
+            # the tail, batch everything into ONE sketchybar call, and reorder
+            # only when the item count actually changed.
             MAX=6
-            for i in $(seq 0 19); do "$BAR" --remove todo.item.$i >/dev/null 2>&1; done
+            EXISTING=$("$BAR" --query bar 2>/dev/null | /usr/bin/python3 -c \\
+              'import sys,json;print(sum(1 for i in json.load(sys.stdin).get("items",[]) if i.startswith("todo.item.")))' 2>/dev/null)
+            EXISTING=${EXISTING:-0}
 
-            ORDER=""
+            ARGS=()
             i=0
             while IFS= read -r line; do
               case "$line" in ""|" ") continue ;; esac
@@ -242,26 +250,32 @@ public enum SketchyBarConfigEmitter {
               SHORT=$(printf '%.18s' "$TITLE")
               [ "${#TITLE}" -gt 18 ] && SHORT="$SHORT…"
               [ -n "$NOTES" ] && SHORT="$SHORT ·"
-              "$BAR" --add item todo.item.$i right \\
-                --set todo.item.$i label="$SHORT" label.color=\(palette.text) \\
-                  label.padding_left=8 label.padding_right=8 \\
-                  background.corner_radius=6 background.height=20 \\
-                  background.color=0x1affffff background.drawing=on \\
-                  click_script="$SCRIPTS/todo-edit.sh $((i + 1))"
-              ORDER="$ORDER todo.item.$i"
+              [ "$i" -ge "$EXISTING" ] && ARGS+=(--add item todo.item.$i right)
+              ARGS+=(--set todo.item.$i label="$SHORT" label.color=\(palette.text) \\
+                label.padding_left=8 label.padding_right=8 \\
+                background.corner_radius=6 background.height=20 \\
+                background.color=0x1affffff background.drawing=on \\
+                click_script="$SCRIPTS/todo-edit.sh $((i + 1))")
               i=$((i + 1))
             done < "$TODO"
+            j=$i
+            while [ "$j" -lt "$EXISTING" ]; do
+              ARGS+=(--remove todo.item.$j)
+              j=$((j + 1))
+            done
 
             # awk, not `grep -c || echo 0`: grep prints 0 *and* exits 1 when
             # nothing matches, which yields a two-line "count".
             TOTAL=$(awk 'NF' "$TODO" 2>/dev/null | wc -l | tr -d ' ')
             if [ "$TOTAL" -gt "$MAX" ]; then
-              "$BAR" --set todo label="+$((TOTAL - MAX)) more  +"
+              ARGS+=(--set todo label="+$((TOTAL - MAX)) more  +")
             else
-              "$BAR" --set todo label="+"
+              ARGS+=(--set todo label="+")
             fi
-            # One authority for right-side order — see the reorder plugin.
-            "$PLUGINS_DIR/panewright_reorder.sh"
+            [ ${#ARGS[@]} -gt 0 ] && "$BAR" "${ARGS[@]}"
+            # One authority for right-side order — only when items came or went.
+            [ "$i" -ne "$EXISTING" ] && "$PLUGINS_DIR/panewright_reorder.sh"
+            exit 0
             """
 
         let integrationsPlugin = """
@@ -274,7 +288,12 @@ public enum SketchyBarConfigEmitter {
             STATUS="$HOME/.config/panewright/integrations.status"
             [ -f "$STATUS" ] || exit 0
 
-            for i in $(seq 0 5); do "$BAR" --remove integration.$i >/dev/null 2>&1; done
+            # Incremental like the todo plugin: reuse items, one batched call,
+            # reorder only when the pill count changed (see there for why).
+            EXISTING=$("$BAR" --query bar 2>/dev/null | /usr/bin/python3 -c \\
+              'import sys,json;print(sum(1 for i in json.load(sys.stdin).get("items",[]) if i.startswith("integration.")))' 2>/dev/null)
+            EXISTING=${EXISTING:-0}
+            ARGS=()
             i=0
             while IFS=$'\\t' read -r id count label; do
               [ -z "$id" ] && continue
@@ -284,15 +303,22 @@ public enum SketchyBarConfigEmitter {
               # from the to-do pills.
               PAD=8
               [ "$i" -eq 0 ] && PAD=20
-              "$BAR" --add item integration.$i right \\
-                --set integration.$i label="$label ${count:-0}" label.color="$COLOR" \\
-                  label.padding_left=$PAD label.padding_right=8 \\
-                  background.corner_radius=6 background.height=20 \\
-                  background.color=0x1affffff background.drawing=on \\
-                  click_script="open 'panewright://integrations/$id'"
+              [ "$i" -ge "$EXISTING" ] && ARGS+=(--add item integration.$i right)
+              ARGS+=(--set integration.$i label="$label ${count:-0}" label.color="$COLOR" \\
+                label.padding_left=$PAD label.padding_right=8 \\
+                background.corner_radius=6 background.height=20 \\
+                background.color=0x1affffff background.drawing=on \\
+                click_script="open 'panewright://integrations/$id'")
               i=$((i + 1))
             done < "$STATUS"
-            "$PLUGINS_DIR/panewright_reorder.sh"
+            j=$i
+            while [ "$j" -lt "$EXISTING" ]; do
+              ARGS+=(--remove integration.$j)
+              j=$((j + 1))
+            done
+            [ ${#ARGS[@]} -gt 0 ] && "$BAR" "${ARGS[@]}"
+            [ "$i" -ne "$EXISTING" ] && "$PLUGINS_DIR/panewright_reorder.sh"
+            exit 0
             """
 
         let pillsPlugin = """
@@ -307,11 +333,16 @@ public enum SketchyBarConfigEmitter {
             PILLS="$HOME/.config/panewright/pills.tsv"
             [ -f "$PILLS" ] || touch "$PILLS"
 
-            for i in $(seq 0 9); do "$BAR" --remove pill.$i >/dev/null 2>&1; done
+            # Incremental like the todo plugin: reuse items, one batched call,
+            # reorder only when the pill count changed (see there for why).
+            EXISTING=$("$BAR" --query bar 2>/dev/null | /usr/bin/python3 -c \\
+              'import sys,json;print(sum(1 for i in json.load(sys.stdin).get("items",[]) if i.startswith("pill.")))' 2>/dev/null)
+            EXISTING=${EXISTING:-0}
             LIVE=$("$A" list-windows --all --format '%{window-id}' 2>/dev/null | tr -d ' ')
             PARKED=$("$A" list-windows --workspace P --format '%{window-id}' 2>/dev/null | tr -d ' ')
 
             TMP=$(mktemp)
+            ARGS=()
             i=0
             while IFS=$'\\t' read -r id app title; do
               [ -z "$id" ] && continue
@@ -325,16 +356,23 @@ public enum SketchyBarConfigEmitter {
               else
                 COLOR=\(accent); MARK="▾"
               fi
-              "$BAR" --add item pill.$i left \\
-                --set pill.$i label="$MARK $LABEL" label.color="$COLOR" \\
-                  label.padding_left=8 label.padding_right=8 \\
-                  background.corner_radius=6 background.height=20 \\
-                  background.color=0x1affffff background.drawing=on \\
-                  click_script="if [ \\"\\$BUTTON\\" = \\"right\\" ]; then $SCRIPTS/pill-release.sh $id; else $SCRIPTS/pill-toggle.sh $id; fi"
+              [ "$i" -ge "$EXISTING" ] && ARGS+=(--add item pill.$i left)
+              ARGS+=(--set pill.$i label="$MARK $LABEL" label.color="$COLOR" \\
+                label.padding_left=8 label.padding_right=8 \\
+                background.corner_radius=6 background.height=20 \\
+                background.color=0x1affffff background.drawing=on \\
+                click_script="if [ \\"\\$BUTTON\\" = \\"right\\" ]; then $SCRIPTS/pill-release.sh $id; else $SCRIPTS/pill-toggle.sh $id; fi")
               i=$((i + 1))
             done < "$PILLS"
             mv "$TMP" "$PILLS"
-            "$PLUGINS_DIR/panewright_reorder.sh"
+            j=$i
+            while [ "$j" -lt "$EXISTING" ]; do
+              ARGS+=(--remove pill.$j)
+              j=$((j + 1))
+            done
+            [ ${#ARGS[@]} -gt 0 ] && "$BAR" "${ARGS[@]}"
+            [ "$i" -ne "$EXISTING" ] && "$PLUGINS_DIR/panewright_reorder.sh"
+            exit 0
             """
 
         let reorderPlugin = """
