@@ -49,6 +49,10 @@ final class WindowFitController {
     /// set changes — see currentWindows.
     private var cachedBundleIDs: [UInt32: String] = [:]
     private var cachedFloating: Set<UInt32> = []
+    /// Windows currently filling the display. Kept separately from the tiled
+    /// set so they're left out of fitting, and raised like floaters — a
+    /// fullscreen window covered by a tiled one is plainly wrong.
+    private var fullscreenIDs: Set<UInt32> = []
     private var cachedWindowIDs: Set<UInt32> = []
     private var cachedAt = Date.distantPast
 
@@ -205,11 +209,29 @@ final class WindowFitController {
                 bundleID: target.bundleID, requested: requested,
                 before: axis.extent(target.frame), after: axis.extent(now.frame))
         else { return }
+        // A "minimum" near the size of the display is a resize that did
+        // nothing, not a constraint the app expressed. Recording it would make
+        // the app read as unshrinkable forever and push the fitter toward
+        // evicting instead of resizing.
+        if let screen = NSScreen.main,
+            learned.minimum >= axis.extent(screen.frame) * 0.8
+        {
+            DragLog.log(
+                "fitting: ignoring implausible \(learned.bundleID) floor of "
+                    + "\(Int(learned.minimum))pt \(axis.rawValue)")
+            return
+        }
         DragLog.log(
             "fitting: learned \(learned.bundleID) won't go below "
                 + "\(Int(learned.minimum))pt \(axis.rawValue)")
         minimums.record(bundleID: learned.bundleID, axis: axis, minimum: learned.minimum)
         minimums.save()
+    }
+
+    /// Is this window filling the display? A little tolerance, since a
+    /// fullscreen frame can sit a point or two inside the screen rect.
+    private func covers(_ frame: CGRect, _ display: CGRect) -> Bool {
+        frame.width >= display.width * 0.98 && frame.height >= display.height * 0.95
     }
 
     /// The visible bounds of the display the focused workspace is on. A window
@@ -264,11 +286,11 @@ final class WindowFitController {
     /// it. Only ever acts when that's actually happening, so it can't fight the
     /// user for control of their own stacking.
     private func raiseFloaters() {
-        guard !cachedFloating.isEmpty else { return }
+        guard !cachedFloating.isEmpty || !fullscreenIDs.isEmpty else { return }
         let raised = FloatingWindowRaiser.raiseOccludedFloaters(
             onScreen: WindowSnapshot.capture(allLayers: true),
-            floating: cachedFloating,
-            tiled: Set(cachedBundleIDs.keys))
+            floating: cachedFloating.union(fullscreenIDs),
+            tiled: Set(cachedBundleIDs.keys).subtracting(fullscreenIDs))
         if !raised.isEmpty {
             DragLog.log("fitting: raised floating window(s) \(raised) above the tiling")
         }
@@ -294,6 +316,7 @@ final class WindowFitController {
         guard !cachedBundleIDs.isEmpty else { return [] }
         let now = Date()
         let visible = displayBounds()
+        fullscreenIDs = []
         var windows: [WindowFitting.Window] = []
         for window in onScreen {
             guard let bundleID = cachedBundleIDs[window.id] else { continue }
@@ -307,6 +330,20 @@ final class WindowFitController {
             // three times. A window with no pixels on the display isn't part
             // of the layout and has no business influencing it.
             if let visible, !window.frame.intersects(visible) { continue }
+            // A window covering essentially the whole display isn't sharing it
+            // with anyone, so it isn't tiling and must not be measured against
+            // its neighbours.
+            //
+            // Judged on geometry rather than on AeroSpace's is-fullscreen flag,
+            // which lags: for up to two seconds after the green button the app
+            // is drawn fullscreen while still reported as tiled. In that gap it
+            // looks like one window overlapping every other, nothing can shrink
+            // to fix it, and the only move left is eviction — which is exactly
+            // how full-screening an app kicked it to the next workspace.
+            if let visible, covers(window.frame, visible) {
+                fullscreenIDs.insert(window.id)
+                continue
+            }
             let arrived = firstSeen[window.id] ?? now
             firstSeen[window.id] = arrived
             windows.append(

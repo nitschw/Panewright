@@ -625,3 +625,40 @@ private func window(
                 axis: .vertical) > 0)
     }
 }
+
+/// A window filling the display isn't sharing it, so it isn't tiling. The
+/// controller drops these before measuring; this documents what happens if one
+/// ever reaches the algorithm, which is why it must not.
+@Suite struct FullscreenWindowTests {
+    private let screen = CGRect(x: 0, y: 0, width: 1728, height: 1117)
+
+    @Test func aFullscreenWindowWouldLookLikeAnUnfixableCollision() {
+        let fullscreen = WindowFitting.Window(
+            id: 1, bundleID: "iterm",
+            frame: CGRect(x: 0, y: 0, width: 1728, height: 1117),
+            arrived: Date(timeIntervalSince1970: 100))
+        let tiled = WindowFitting.Window(
+            id: 2, bundleID: "safari",
+            frame: CGRect(x: 54, y: 36, width: 600, height: 1045),
+            arrived: Date(timeIntervalSince1970: 200))
+        // It overlaps its neighbour completely, and no resize closes that —
+        // which is how full-screening an app got it evicted to the next
+        // workspace. Hence the geometric filter in the controller.
+        #expect(WindowFitting.deficit(in: [fullscreen, tiled], bounds: screen, separation: 5) > 0)
+    }
+
+    @Test func theWindowsBeneathStillTileNormallyOnceItIsExcluded() {
+        // With the fullscreen window filtered out, what remains is an ordinary
+        // layout and must be judged as one.
+        let a = WindowFitting.Window(
+            id: 2, bundleID: "safari",
+            frame: CGRect(x: 54, y: 36, width: 600, height: 1045), arrived: Date())
+        let b = WindowFitting.Window(
+            id: 3, bundleID: "claude",
+            frame: CGRect(x: 659, y: 36, width: 600, height: 1045), arrived: Date())
+        #expect(
+            WindowFitting.nextStep(
+                for: [a, b], minimums: WindowFitting.Minimums(), bounds: screen,
+                separation: 5) == .fits)
+    }
+}
