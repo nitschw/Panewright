@@ -27,6 +27,14 @@ public enum PanewrightConfigSerializer {
             }
             lines.append("]")
         }
+        if !config.ignoredConflicts.isEmpty {
+            lines.append("# Keybinding warnings you've chosen to live with.")
+            lines.append("ignored-conflicts = [")
+            for id in config.ignoredConflicts {
+                lines.append("  \"\(id)\",")
+            }
+            lines.append("]")
+        }
         lines.append("")
         lines.append("[gaps]")
         lines.append("inner = \(config.gaps.inner)")

@@ -108,6 +108,9 @@ public enum ConfigParser {
         if let floatingApps = raw.floatingApps {
             config.floatingApps = floatingApps
         }
+        if let ignored = raw.ignoredConflicts {
+            config.ignoredConflicts = ignored
+        }
         if let assignments = raw.workspaceMonitors {
             var monitors: [Int: String] = [:]
             for (key, monitor) in assignments {
@@ -307,6 +310,7 @@ private struct RawConfig: Codable {
     var leaderKey: String?
     var focusFollowsMouse: Bool?
     var floatingApps: [String]?
+    var ignoredConflicts: [String]?
     var workspaceMonitors: [String: String]?
     var workspaceApps: [String: Int]?
     var hooks: RawHooks?
@@ -320,6 +324,7 @@ private struct RawConfig: Codable {
         case leaderKey = "leader-key"
         case focusFollowsMouse = "focus-follows-mouse"
         case floatingApps = "floating-apps"
+        case ignoredConflicts = "ignored-conflicts"
         case workspaceMonitors = "workspace-monitors"
         case workspaceApps = "workspace-apps"
     }

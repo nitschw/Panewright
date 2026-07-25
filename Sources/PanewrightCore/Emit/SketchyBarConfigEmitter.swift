@@ -148,6 +148,7 @@ public enum SketchyBarConfigEmitter {
             \(widgetItems(config.modules, accent: accent, palette: palette))
             \(config.integrations.anyEnabled ? integrationsItem(accent: accent) : "")
             \(config.todo.enabled ? todoItem(accent: accent) : "")
+            \(conflictsItem(count: BindingConflicts.rows(in: config).count))
             # Pin the order explicitly: without this, items can shuffle when
             # the bar re-renders (a screenshot or display change is enough).
             $BAR --reorder \(spaceOrder) mode front_app
@@ -929,4 +930,28 @@ public enum SketchyBarConfigEmitter {
           --subscribe todo panewright_todo
         """
     }
+
+    /// The keybinding-conflict chip: amber, right-aligned, and absent entirely
+    /// when the keymap is clean — a warning that's always there is wallpaper.
+    /// Conflicts are known at emit time (they're a property of the config), so
+    /// this needs no plugin or polling; regenerating the bar is what refreshes it.
+    ///
+    /// The count is *rows*, not findings — it has to match what clicking
+    /// through actually shows, and it's a count of decisions to make, not of
+    /// sentences to read.
+    static func conflictsItem(count: Int) -> String {
+        guard count > 0 else { return "" }
+        return """
+            $BAR --add item conflicts right \\
+              --set conflicts label="⚠ \(count)" label.color=\(warningColor) \\
+                label.padding_left=8 label.padding_right=8 \\
+                background.corner_radius=6 background.height=20 \\
+                background.color=0x22e0af68 background.drawing=on \\
+                click_script="open 'panewright://conflicts'"
+            """
+    }
+
+    /// Amber in both themes — it has to read as "look at this" against the
+    /// native bar's vibrancy and the technical theme's slate alike.
+    static let warningColor = "0xffe0af68"
 }

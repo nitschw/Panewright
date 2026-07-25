@@ -344,6 +344,10 @@ public struct PanewrightConfig: Equatable, Sendable {
     /// `FOCUSED_WINDOW_ID`, and `WORKSPACE` set. Fires often (every focus
     /// change) — keep the command light.
     public var focusChangedHook: String?
+    /// Conflict IDs the user has chosen to live with. Kept in the config
+    /// rather than app preferences so "Ignore" also silences the bar's ⚠ chip
+    /// — a warning you dismissed that keeps glowing is worse than no warning.
+    public var ignoredConflicts: [String]
 
     public init(
         // Ctrl+Cmd: a real chord (one keypress per command), types no
@@ -367,7 +371,8 @@ public struct PanewrightConfig: Equatable, Sendable {
         workspaceMonitors: [Int: String] = [:],
         appWorkspaces: [String: Int] = [:],
         workspaceChangedHook: String? = nil,
-        focusChangedHook: String? = nil
+        focusChangedHook: String? = nil,
+        ignoredConflicts: [String] = []
     ) {
         self.modifier = modifier
         self.leaderKey = leaderKey
@@ -386,6 +391,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         self.appWorkspaces = appWorkspaces
         self.workspaceChangedHook = workspaceChangedHook
         self.focusChangedHook = focusChangedHook
+        self.ignoredConflicts = ignoredConflicts
     }
 
     /// i3-familiar defaults: workspaces 1–9 on number keys, vim-style focus/move.
