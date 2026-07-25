@@ -224,10 +224,6 @@ final class WindowFitController {
 
     // MARK: Reading the world
 
-    /// Join AeroSpace's idea of the workspace (which windows are tiled, and
-    /// what app they belong to) with the actual frames from CGWindowList.
-    /// AeroSpace has no geometry and CGWindowList has no workspace, so neither
-    /// is sufficient alone. The window id is the same number in both.
     private func currentWindows(cli: AeroSpaceCLI) -> [WindowFitting.Window] {
         let onScreen = WindowSnapshot.capture(allLayers: true)
         let live = Set(onScreen.map(\.id))
@@ -259,19 +255,28 @@ final class WindowFitController {
     /// what app they belong to) with the frames from CGWindowList. AeroSpace
     /// has no geometry and CGWindowList has no workspace, so neither is
     /// sufficient alone. The window id is the same number in both.
+    ///
+    /// Only genuinely tiled windows are returned. A floating window isn't part
+    /// of the layout — it's deliberately sitting on top of it — so counting it
+    /// would have the fitter endlessly resizing the tiled windows underneath
+    /// to get away from something that is supposed to overlap them. Fullscreen
+    /// windows are excluded for the same reason: one covers everything, which
+    /// reads as a collision with every window at once.
     private func fetchBundleIDs(cli: AeroSpaceCLI) -> [UInt32: String] {
         guard
             let listing = try? cli.run([
                 "list-windows", "--workspace", "focused",
-                "--format", "%{window-id}|%{app-bundle-id}",
+                "--format",
+                "%{window-id}|%{app-bundle-id}|%{window-layout}|%{window-is-fullscreen}",
             ])
         else { return [:] }
         var bundleIDs: [UInt32: String] = [:]
         for line in listing.split(separator: "\n") {
-            let parts = line.split(separator: "|", maxSplits: 1).map {
+            let parts = line.split(separator: "|").map {
                 $0.trimmingCharacters(in: .whitespaces)
             }
-            guard parts.count == 2, let id = UInt32(parts[0]) else { continue }
+            guard parts.count >= 4, let id = UInt32(parts[0]) else { continue }
+            guard parts[2] != "floating", parts[3] != "true" else { continue }
             bundleIDs[id] = parts[1]
         }
         return bundleIDs
