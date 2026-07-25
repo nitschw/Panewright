@@ -362,3 +362,23 @@ import Testing
         #expect(conflicts.first?.summary.contains("Enter Full Screen") == true)
     }
 }
+
+@Suite struct BindingConflictModifierTests {
+    @Test func theSameKeyConflictsOnlyUnderSomeModifiers() {
+        // $mod+f is fine or broken depending entirely on the modifier: ctrl-cmd-f
+        // is macOS's Enter Full Screen, alt-f is nobody's. Conflicts must be
+        // judged on the resolved chord, never the bare key.
+        var clashing = PanewrightConfig.default
+        clashing.modifier = .ctrlCmd
+        clashing.bindings = [.init(key: "f", action: .fullscreen)]
+        #expect(BindingConflicts.find(in: clashing).count == 1)
+
+        var fine = clashing
+        fine.modifier = .alt
+        #expect(BindingConflicts.find(in: fine).isEmpty)
+
+        var hyper = clashing
+        hyper.modifier = .hyper
+        #expect(BindingConflicts.find(in: hyper).isEmpty)
+    }
+}
