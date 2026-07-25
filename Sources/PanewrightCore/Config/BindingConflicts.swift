@@ -13,6 +13,8 @@ public enum BindingConflicts {
             case duplicate(actions: [String])
             /// macOS claims the chord system-wide, so it never reaches us.
             case systemShortcut(owner: String)
+            /// Playable, but an uncomfortable stretch on a Mac keyboard.
+            case awkward(modifiers: Int, suggestion: String)
         }
 
         public var id: String { "\(scope)/\(key)" }
@@ -27,6 +29,8 @@ public enum BindingConflicts {
                 "\(display) is bound twice (\(actions.joined(separator: " / "))) — only the last one runs"
             case .systemShortcut(let owner):
                 "\(display) is taken by macOS (\(owner)) and may never reach Panewright"
+            case .awkward(let modifiers, let suggestion):
+                "\(display) needs \(modifiers) modifiers at once — \(suggestion)"
             }
         }
 
@@ -76,7 +80,28 @@ public enum BindingConflicts {
                 Conflict(
                     scope: "main", key: config.leaderKey, kind: .systemShortcut(owner: owner)))
         }
+        conflicts += awkwardChords(in: config)
         return conflicts
+    }
+
+    /// Mac keyboards put Control and Shift on the same pinky, so a binding
+    /// needing three or more held modifiers is a genuine stretch. Modes and a
+    /// one-key modifier both dissolve these, so the warning names the fix
+    /// rather than just complaining.
+    static func awkwardChords(in config: PanewrightConfig) -> [Conflict] {
+        // Hyper is one physical key (Caps Lock), so it never counts as a stretch.
+        guard config.modifier != .hyper, config.modifier != .leader else { return [] }
+        let base = config.modifier.rawValue.split(separator: "-").count
+        guard base >= 2 else { return [] }  // single-modifier setups are fine
+        return config.bindings.compactMap { binding in
+            guard binding.key.hasPrefix("shift-") else { return nil }
+            return Conflict(
+                scope: "main", key: binding.key,
+                kind: .awkward(
+                    modifiers: base + 1,
+                    suggestion:
+                        "use a mode, or Caps Lock as hyper, to reach it with two fingers"))
+        }
     }
 
     private static func duplicates(

@@ -357,9 +357,17 @@ import Testing
         // it. Asserted rather than hidden so the decision to rebind is
         // deliberate — and so a NEW conflict still fails this test.
         let conflicts = BindingConflicts.find(in: .default)
-        #expect(conflicts.count == 1)
-        #expect(conflicts.first?.key == "f")
-        #expect(conflicts.first?.summary.contains("Enter Full Screen") == true)
+        let system = conflicts.filter { if case .systemShortcut = $0.kind { true } else { false } }
+        #expect(system.count == 1)
+        #expect(system.first?.key == "f")
+        #expect(system.first?.summary.contains("Enter Full Screen") == true)
+
+        // And the ergonomics check measures the other half of the problem:
+        // under the ctrl-cmd default, every $mod+Shift binding is a
+        // three-modifier stretch. That count is the case for replacing them
+        // with a mode — it should go DOWN, never up.
+        let awkward = conflicts.filter { if case .awkward = $0.kind { true } else { false } }
+        #expect(awkward.count == 20)
     }
 }
 
@@ -380,5 +388,36 @@ import Testing
         var hyper = clashing
         hyper.modifier = .hyper
         #expect(BindingConflicts.find(in: hyper).isEmpty)
+    }
+}
+
+@Suite struct ErgonomicsWarningTests {
+    @Test func flagsThreeModifierChordsAndNamesTheFix() {
+        var config = PanewrightConfig.default
+        config.modifier = .ctrlCmd
+        config.bindings = [
+            .init(key: "1", action: .workspace(1)),          // ⌃⌘1 — fine
+            .init(key: "shift-1", action: .moveToWorkspace(1)),  // ⌃⌘⇧1 — a stretch
+        ]
+        let awkward = BindingConflicts.awkwardChords(in: config)
+        #expect(awkward.count == 1)
+        #expect(awkward.first?.key == "shift-1")
+        #expect(awkward.first?.summary.contains("3 modifiers") == true)
+        // The warning has to name the remedy, not just the problem.
+        #expect(awkward.first?.summary.contains("mode") == true)
+    }
+
+    @Test func oneKeyAndSingleModifierSetupsAreNeverAwkward() {
+        var config = PanewrightConfig.default
+        config.bindings = [.init(key: "shift-1", action: .moveToWorkspace(1))]
+        // Caps Lock hyper is one physical key, so ⇧ on top is still two fingers.
+        config.modifier = .hyper
+        #expect(BindingConflicts.awkwardChords(in: config).isEmpty)
+        // A single modifier plus shift is two keys — also fine.
+        config.modifier = .alt
+        #expect(BindingConflicts.awkwardChords(in: config).isEmpty)
+        // Leader style holds nothing at all.
+        config.modifier = .leader
+        #expect(BindingConflicts.awkwardChords(in: config).isEmpty)
     }
 }
