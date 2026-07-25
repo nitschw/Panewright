@@ -464,3 +464,76 @@ private func window(
                 == 20)
     }
 }
+
+/// A window can only give up space in a direction where it has a sibling to
+/// give it to. Asking otherwise doesn't just waste a step — the no-op looks
+/// identical to hitting a minimum, and records a fictional floor.
+@Suite struct NeighbourTests {
+    private let screen = CGRect(x: 0, y: 0, width: 1728, height: 1117)
+
+    /// Two full-height windows side by side, overlapping vertically with a
+    /// third that's stacked under one of them.
+    private var mixedLayout: [WindowFitting.Window] {
+        [
+            // Alone in its column: full height, no vertical sibling.
+            WindowFitting.Window(
+                id: 1, bundleID: "solo",
+                frame: CGRect(x: 54, y: 36, width: 600, height: 1045),
+                arrived: Date(timeIntervalSince1970: 100)),
+            // A stacked pair sharing the right column, overlapping by 15pt.
+            WindowFitting.Window(
+                id: 2, bundleID: "top",
+                frame: CGRect(x: 661, y: 36, width: 600, height: 520),
+                arrived: Date(timeIntervalSince1970: 200)),
+            WindowFitting.Window(
+                id: 3, bundleID: "bottom",
+                frame: CGRect(x: 661, y: 541, width: 600, height: 520),
+                arrived: Date(timeIntervalSince1970: 300)),
+        ]
+    }
+
+    @Test func aWindowAloneInItsColumnIsNeverAskedForHeight() {
+        // The live bug: "learned claude won't go below 1045pt vertical" — the
+        // full workspace height, recorded because a lone window in a column
+        // physically cannot shrink vertically and its refusal was mistaken for
+        // a minimum.
+        let windows = mixedLayout
+        guard
+            case .adjusting(.shrink(let id, _, let axis)) = WindowFitting.nextStep(
+                for: windows, minimums: WindowFitting.Minimums(), bounds: screen,
+                separation: 5, step: 60)
+        else {
+            Issue.record("expected a shrink")
+            return
+        }
+        #expect(axis == .vertical)
+        // Only the stacked pair can trade height; the solo window must not be
+        // picked however much apparent slack it has.
+        #expect(id != 1)
+    }
+
+    @Test func theSoloWindowIsStillEligibleForWidth() {
+        // It has horizontal neighbours, so width is fair game — the constraint
+        // is per axis, not a blanket exclusion.
+        let windows = [
+            WindowFitting.Window(
+                id: 1, bundleID: "solo",
+                frame: CGRect(x: 54, y: 36, width: 700, height: 1045),
+                arrived: Date(timeIntervalSince1970: 100)),
+            WindowFitting.Window(
+                id: 2, bundleID: "other",
+                frame: CGRect(x: 700, y: 36, width: 600, height: 1045),
+                arrived: Date(timeIntervalSince1970: 200)),
+        ]
+        guard
+            case .adjusting(.shrink(let id, _, let axis)) = WindowFitting.nextStep(
+                for: windows, minimums: WindowFitting.Minimums(), bounds: screen,
+                separation: 5, step: 60)
+        else {
+            Issue.record("expected a shrink")
+            return
+        }
+        #expect(axis == .horizontal)
+        #expect(id == 1)
+    }
+}

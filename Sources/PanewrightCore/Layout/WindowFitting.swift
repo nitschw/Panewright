@@ -221,6 +221,7 @@ public enum WindowFitting {
         // something has to leave.
         let candidates =
             windows
+            .filter { hasNeighbour($0, among: windows, along: worst.axis) }
             .map { (window: $0, slack: slack(of: $0, minimums: minimums, axis: worst.axis)) }
             .filter { $0.slack >= CGFloat(ask) }
             .sorted { $0.slack > $1.slack }
@@ -238,6 +239,31 @@ public enum WindowFitting {
     /// frames, floored at something worth a round trip, capped by the step.
     private static func clamp(_ need: CGFloat, step: Int) -> Int {
         min(step, max(8, Int((need + 4).rounded(.up))))
+    }
+
+    /// Whether this window has anyone to trade space with along `axis`.
+    ///
+    /// A window alone in its column cannot give up height: there is no
+    /// vertical sibling for AeroSpace to hand the space to, so the resize is a
+    /// no-op. Asking anyway wastes a step, and — worse — the window's refusal
+    /// to change looks exactly like hitting its minimum, which writes a
+    /// fictional floor into the learned sizes. A phantom floor equal to the
+    /// full workspace height would make that app read as permanently
+    /// unshrinkable and push the fitter toward evicting instead of resizing.
+    ///
+    /// Sharing the cross axis is what makes two windows neighbours: side by
+    /// side they share rows and can trade width, stacked they share columns
+    /// and can trade height.
+    private static func hasNeighbour(
+        _ window: Window, among windows: [Window], along axis: Axis, tolerance: CGFloat = 1
+    ) -> Bool {
+        windows.contains { other in
+            guard other.id != window.id else { return false }
+            let shared =
+                min(axis.cross.end(other.frame), axis.cross.end(window.frame))
+                - max(axis.cross.start(other.frame), axis.cross.start(window.frame))
+            return shared > tolerance
+        }
     }
 
     /// Room above the floor this app will honor along `axis`. An unknown floor
