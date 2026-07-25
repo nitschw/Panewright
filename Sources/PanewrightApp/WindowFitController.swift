@@ -257,9 +257,20 @@ final class WindowFitController {
         }
         guard !cachedBundleIDs.isEmpty else { return [] }
         let now = Date()
+        let visible = displayBounds()
         var windows: [WindowFitting.Window] = []
         for window in onScreen {
             guard let bundleID = cachedBundleIDs[window.id] else { continue }
+            // AeroSpace hides windows by parking them far off-screen rather
+            // than using Spaces, and a window parked in a bar pill is hidden
+            // the same way. Mid-move, such a window can still be listed as
+            // belonging to the focused workspace while its frame is nowhere
+            // near the display — which reads as an enormous out-of-bounds
+            // deficit that no resize can fix, so the only move left is to
+            // evict it. That is what scattered real windows across workspaces
+            // three times. A window with no pixels on the display isn't part
+            // of the layout and has no business influencing it.
+            if let visible, !window.frame.intersects(visible) { continue }
             let arrived = firstSeen[window.id] ?? now
             firstSeen[window.id] = arrived
             windows.append(

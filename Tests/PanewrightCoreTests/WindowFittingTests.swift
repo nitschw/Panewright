@@ -537,3 +537,45 @@ private func window(
         #expect(id == 1)
     }
 }
+
+/// Eviction moves a real window to another workspace, so the bar for reaching
+/// it has to be high. These pin the situations that must never get there.
+@Suite struct EvictionRestraintTests {
+    private let screen = CGRect(x: 0, y: 0, width: 1728, height: 1117)
+
+    @Test func aParkedOffScreenWindowWouldHaveForcedAnEviction() {
+        // Not a fix in this type, but the reason the controller filters these
+        // out before they ever arrive: AeroSpace parks hidden windows far off
+        // the display, and a frame out there reads as a deficit no resize can
+        // close. This documents the size of the phantom.
+        let parked = WindowFitting.Window(
+            id: 1, bundleID: "hidden",
+            frame: CGRect(x: -20000, y: 36, width: 600, height: 1045),
+            arrived: Date())
+        let real = WindowFitting.Window(
+            id: 2, bundleID: "visible",
+            frame: CGRect(x: 54, y: 36, width: 600, height: 1045),
+            arrived: Date())
+        let need = WindowFitting.deficit(in: [parked, real], bounds: screen, separation: 5)
+        // Twenty thousand points of "deficit" from a window that isn't on the
+        // screen at all — unfixable by any resize, so the fitter would evict.
+        #expect(need > 10000)
+    }
+
+    @Test func aWindowWithSlackIsAlwaysPreferredToEviction() {
+        // Slots sum to the display, so while anything has room above its floor
+        // a fitting arrangement is still reachable and nothing should be moved.
+        let windows = [
+            window(1, "pinned", x: 54, width: 600, arrived: 100),
+            window(2, "roomy", x: 600, width: 900, arrived: 200),
+        ]
+        let verdict = WindowFitting.nextStep(
+            for: windows, minimums: WindowFitting.Minimums(widths: ["pinned": 600]),
+            bounds: screen, separation: 5, step: 60)
+        guard case .adjusting(.shrink(let id, _, _)) = verdict else {
+            Issue.record("expected a shrink, not an eviction")
+            return
+        }
+        #expect(id == 2)
+    }
+}
