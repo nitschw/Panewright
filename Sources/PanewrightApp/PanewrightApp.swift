@@ -216,6 +216,7 @@ final class AppModel {
             self?.offerSetupIfIncomplete()
             self?.startPermissionWatch()
             self?.startBarHealthCheck()
+            self?.startWindowFitting()
             MonitorMap.observe()
         }
         Task.detached(priority: .userInitiated) {
@@ -255,6 +256,7 @@ final class AppModel {
     private var widgetsWindowController: WidgetsWindowController?
     private var editorWindowController: EditorWindowController?
     private var conflictsWindowController: ConflictsWindowController?
+    private var windowFitController: WindowFitController?
     private var todoWindowController: TodoEditorWindowController?
     private var integrationsWindowController: IntegrationsWindowController?
     private var confluenceWindowController: ConfluenceWindowController?
@@ -748,6 +750,18 @@ final class AppModel {
     /// sleep/wake took it down); nothing restarted it until the app was
     /// relaunched. Supervise it: if the bar should be up and isn't, bring it
     /// back.
+    /// Corrects windows that render over each other because their app won't
+    /// shrink any further. Idle unless windows actually overlap.
+    private func startWindowFitting() {
+        guard windowFitController == nil else { return }
+        let controller = WindowFitController { [weak self] message in
+            self?.notify(message)
+            self?.lastMessage = message
+        }
+        windowFitController = controller
+        controller.start()
+    }
+
     private func startBarHealthCheck() {
         Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
             Task.detached(priority: .utility) {

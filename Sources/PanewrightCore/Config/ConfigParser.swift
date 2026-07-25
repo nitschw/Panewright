@@ -127,6 +127,11 @@ public enum ConfigParser {
         if let todo = raw.todo {
             config.todo.enabled = todo.enabled ?? config.todo.enabled
         }
+        if let fitting = raw.fitting {
+            config.fitting.enabled = fitting.enabled ?? config.fitting.enabled
+            config.fitting.overflow = fitting.overflow ?? config.fitting.overflow
+            config.fitting.step = fitting.step ?? config.fitting.step
+        }
         if let pills = raw.pills {
             config.pills.enabled = pills.enabled ?? config.pills.enabled
             config.pills.dragToBar = pills.dragToBar ?? config.pills.dragToBar
@@ -318,9 +323,11 @@ private struct RawConfig: Codable {
     var integrations: RawIntegrations?
     var pills: RawPills?
     var modules: RawModules?
+    var fitting: RawFitting?
 
     enum CodingKeys: String, CodingKey {
         case modifier, gaps, border, bar, binding, mode, hooks, todo, integrations, pills, modules
+        case fitting
         case leaderKey = "leader-key"
         case focusFollowsMouse = "focus-follows-mouse"
         case floatingApps = "floating-apps"
@@ -372,6 +379,12 @@ private struct RawConfig: Codable {
                 try container.encode(order, forKey: coding)
             }
         }
+    }
+
+    struct RawFitting: Codable {
+        var enabled: Bool?
+        var overflow: Bool?
+        var step: Int?
     }
 
     struct RawPills: Codable {

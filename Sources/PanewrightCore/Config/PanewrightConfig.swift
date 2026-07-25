@@ -23,6 +23,28 @@ public struct PanewrightConfig: Equatable, Sendable {
         case leader
     }
 
+    /// What to do when tiled windows overlap because an app won't shrink past
+    /// its minimum size. See `WindowFitting` for why this can't just be a
+    /// layout calculation.
+    public struct Fitting: Equatable, Sendable {
+        /// Watch for overlap and correct it at all.
+        public var enabled: Bool
+        /// When no arrangement of the windows fits, move the newest arrival to
+        /// another workspace. On by default, but never silently — overlapping
+        /// windows are broken tiling, so fixing it is the right default as
+        /// long as we always say we did.
+        public var overflow: Bool
+        /// Points to ask for per shrink attempt. Large enough to make progress
+        /// in a few passes, small enough not to overshoot a fitting layout.
+        public var step: Int
+
+        public init(enabled: Bool = true, overflow: Bool = true, step: Int = 60) {
+            self.enabled = enabled
+            self.overflow = overflow
+            self.step = step
+        }
+    }
+
     public struct Gaps: Equatable, Sendable {
         public var inner: Int
         public var outer: Int
@@ -326,6 +348,7 @@ public struct PanewrightConfig: Equatable, Sendable {
     public var focusFollowsMouse: Bool
     public var statusBar: StatusBar
     public var gaps: Gaps
+    public var fitting: Fitting
     public var focusBorder: FocusBorder
     public var bindings: [Binding]
     public var modes: [Mode]
@@ -364,6 +387,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         focusFollowsMouse: Bool = false,
         statusBar: StatusBar = StatusBar(),
         gaps: Gaps = Gaps(),
+        fitting: Fitting = Fitting(),
         focusBorder: FocusBorder = FocusBorder(),
         bindings: [Binding] = [],
         modes: [Mode] = [],
@@ -383,6 +407,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         self.focusFollowsMouse = focusFollowsMouse
         self.statusBar = statusBar
         self.gaps = gaps
+        self.fitting = fitting
         self.focusBorder = focusBorder
         self.bindings = bindings
         self.modes = modes
