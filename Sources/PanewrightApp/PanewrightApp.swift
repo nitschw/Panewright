@@ -315,19 +315,32 @@ final class AppModel {
     func openWidgets() {
         let controller = widgetsWindowController ?? WidgetsWindowController()
         widgetsWindowController = controller
-        controller.show(modules: modules) { [weak self] updated in
-            self?.applyModules(updated)
+        let config = (try? orchestrator.loadConfig()) ?? .default
+        controller.show(modules: modules, integrations: config.integrations) {
+            [weak self] updatedModules, updatedIntegrations in
+            self?.applyModules(updatedModules, integrations: updatedIntegrations)
         }
     }
 
     /// Persist a whole widget set and repaint — used by the picker and by
     /// right-clicking a widget in the bar.
-    func applyModules(_ updated: PanewrightConfig.Modules) {
+    func applyModules(
+        _ updated: PanewrightConfig.Modules, integrations: IntegrationsConfig? = nil
+    ) {
         do {
             var config = try orchestrator.loadConfig()
+            let integrationsChanged = integrations.map { $0 != config.integrations } ?? false
             config.modules = updated
+            if let integrations { config.integrations = integrations }
             try orchestrator.writeConfig(config)
-            try orchestrator.refreshWidgets(config)
+            // Work widgets live in their own bar items created at build time,
+            // so toggling one still needs the bar rebuilt; the rest don't.
+            if integrationsChanged {
+                try orchestrator.applyBar(config)
+                self.integrations.configure(config.integrations)
+            } else {
+                try orchestrator.refreshWidgets(config)
+            }
         } catch {
             report(error: "\(error)")
         }

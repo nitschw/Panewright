@@ -56,6 +56,10 @@ public enum PanewrightConfigSerializer {
         for entry in PanewrightConfig.Modules.catalog {
             lines.append("\(entry.key) = \(config.modules[keyPath: entry.path])")
         }
+        if !config.modules.order.isEmpty {
+            let list = config.modules.order.map { "\"\($0)\"" }.joined(separator: ", ")
+            lines.append("order = [\(list)]")
+        }
         // Tokens live in the Keychain, never here.
         let services: [(String, IntegrationsConfig.Service)] = [
             ("github", config.integrations.github),

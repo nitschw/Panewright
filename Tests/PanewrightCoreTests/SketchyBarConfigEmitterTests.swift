@@ -286,3 +286,27 @@ import Testing
         }
     }
 }
+
+@Suite struct WidgetOrderingTests {
+    @Test func orderSurvivesAlongsideToggles() throws {
+        // A non-boolean key in [modules] must not wipe out the toggles.
+        let config = try ConfigParser.parse(
+            toml: """
+                [modules]
+                weather = true
+                battery = true
+                order = ["weather", "battery"]
+                """)
+        #expect(config.modules.weather)
+        #expect(config.modules.battery)
+        #expect(config.modules.order == ["weather", "battery"])
+        // Configured keys lead; everything else follows in catalog order, so a
+        // newly added widget still appears without editing the order.
+        let resolved = config.modules.resolvedOrder
+        #expect(resolved.prefix(2) == ["weather", "battery"])
+        #expect(Set(resolved) == Set(PanewrightConfig.Modules.catalog.map(\.key)))
+        // Round-trips.
+        #expect(try ConfigParser.parse(toml: PanewrightConfigSerializer.emit(config)).modules
+            == config.modules)
+    }
+}

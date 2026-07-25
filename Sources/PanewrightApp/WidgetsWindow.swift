@@ -2,15 +2,25 @@ import AppKit
 import PanewrightCore
 import SwiftUI
 
-/// The widgets picker: every available widget in one list with a checkbox and
-/// a line on what it shows, so they can be compared side by side rather than
-/// discovered one config key at a time.
+/// The widgets picker: everything the bar can show, grouped by category, with
+/// what each one displays and a live example — so widgets can be compared side
+/// by side instead of discovered one config key at a time. The Order tab is
+/// where their left-to-right arrangement is set by dragging.
 struct WidgetsView: View {
     @State private var modules: PanewrightConfig.Modules
-    let onChange: (PanewrightConfig.Modules) -> Void
+    @State private var integrations: IntegrationsConfig
+    @State private var tab = Tab.available
+    let onChange: (PanewrightConfig.Modules, IntegrationsConfig) -> Void
 
-    init(modules: PanewrightConfig.Modules, onChange: @escaping (PanewrightConfig.Modules) -> Void) {
+    enum Tab: String, CaseIterable { case available = "Available", order = "Order" }
+
+    init(
+        modules: PanewrightConfig.Modules,
+        integrations: IntegrationsConfig,
+        onChange: @escaping (PanewrightConfig.Modules, IntegrationsConfig) -> Void
+    ) {
         _modules = State(initialValue: modules)
+        _integrations = State(initialValue: integrations)
         self.onChange = onChange
     }
 
@@ -34,87 +44,179 @@ struct WidgetsView: View {
         "weather": ("Current conditions, refreshed hourly", "☀️ 79°F"),
     ]
 
+    /// Work-tracker services are widgets too — same bar, same picker. They
+    /// carry credentials, so they keep their own config section.
+    private static let workWidgets:
+        [(name: String, what: String, example: String, path: WritableKeyPath<IntegrationsConfig, Bool>)] = [
+            ("GitHub", "Pull requests awaiting your review, plus your own open PRs", "PR 4", \.github.enabled),
+            ("GitLab", "Merge requests you opened or were assigned, with pipeline status", "MR 2", \.gitlab.enabled),
+            ("Jira", "Unresolved issues assigned to you", "JIRA 41", \.jira.enabled),
+            ("Confluence", "Wiki activity and favorites", "WIKI 2", \.confluence.enabled),
+            ("Microsoft Teams", "Your next meeting; click to join", "MTG Standup · 12m", \.teams.enabled),
+        ]
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Widgets").font(.title2).bold()
-                Text("Everything the bar can show. Toggling takes effect immediately.")
-                    .font(.callout).foregroundStyle(.secondary)
+            header
+            Picker("", selection: $tab) {
+                ForEach(Tab.allCases, id: \.self) { Text($0.rawValue).tag($0) }
             }
+            .pickerStyle(.segmented)
+            .labelsHidden()
             .padding(.horizontal, 22)
-            .padding(.top, 20)
-            .padding(.bottom, 14)
-
+            .padding(.bottom, 12)
             Divider()
+            if tab == .available { availableList } else { orderList }
+            Divider()
+            footer
+        }
+        .frame(width: 580, height: 640)
+    }
 
-            ScrollView {
-                VStack(spacing: 0) {
-                    ForEach(Array(PanewrightConfig.Modules.catalog.enumerated()), id: \.element.key) {
-                        index, entry in
-                        let blurb = Self.blurbs[entry.key]
-                        Toggle(isOn: binding(for: entry.path)) {
-                            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(entry.name).font(.system(size: 13, weight: .semibold))
-                                    if let blurb {
-                                        Text(blurb.what)
-                                            .font(.system(size: 12))
-                                            .foregroundStyle(.secondary)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                    }
-                                }
-                                Spacer(minLength: 12)
-                                if let blurb {
-                                    Text(blurb.example)
-                                        .font(.system(size: 11, design: .monospaced))
-                                        .foregroundStyle(.tertiary)
-                                        .lineLimit(1)
-                                }
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Widgets").font(.title2).bold()
+            Text("Everything the bar can show. Changes take effect immediately.")
+                .font(.callout).foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 22)
+        .padding(.top, 20)
+        .padding(.bottom, 14)
+    }
+
+    private var availableList: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(PanewrightConfig.Modules.categories, id: \.self) { category in
+                    let entries = PanewrightConfig.Modules.catalog.filter { $0.category == category }
+                    if !entries.isEmpty {
+                        sectionHeader(category)
+                        ForEach(entries, id: \.key) { entry in
+                            row(
+                                name: entry.name,
+                                blurb: Self.blurbs[entry.key],
+                                isOn: Binding(
+                                    get: { modules[keyPath: entry.path] },
+                                    set: { modules[keyPath: entry.path] = $0; push() }))
+                        }
+                    }
+                }
+                sectionHeader("Work")
+                ForEach(Self.workWidgets, id: \.name) { item in
+                    row(
+                        name: item.name,
+                        blurb: (item.what, item.example),
+                        isOn: Binding(
+                            get: { integrations[keyPath: item.path] },
+                            set: { integrations[keyPath: item.path] = $0; push() }))
+                }
+            }
+            .padding(.bottom, 8)
+        }
+    }
+
+    /// Drag to arrange; the list reads left to right as the bar does.
+    private var orderList: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Drag to arrange. The top of this list is the leftmost widget in the bar.")
+                .font(.caption).foregroundStyle(.secondary)
+                .padding(.horizontal, 22).padding(.top, 12).padding(.bottom, 6)
+            List {
+                ForEach(modules.resolvedOrder, id: \.self) { key in
+                    if let entry = PanewrightConfig.Modules.catalog.first(where: { $0.key == key }) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "line.3.horizontal")
+                                .foregroundStyle(.tertiary).font(.system(size: 11))
+                            Text(entry.name)
+                                .font(.system(size: 13))
+                                .foregroundStyle(modules[keyPath: entry.path] ? .primary : .tertiary)
+                            Spacer()
+                            if !modules[keyPath: entry.path] {
+                                Text("off").font(.system(size: 11)).foregroundStyle(.tertiary)
                             }
                         }
-                        .toggleStyle(.switch)
-                        .padding(.horizontal, 22)
-                        .padding(.vertical, 9)
-                        .background(index.isMultiple(of: 2) ? Color.clear : Color.primary.opacity(0.03))
                     }
                 }
-            }
-
-            Divider()
-            HStack {
-                Text("Right-click any widget in the bar to turn it off.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Button("Turn All Off") {
-                    for entry in PanewrightConfig.Modules.catalog {
-                        modules[keyPath: entry.path] = false
-                    }
-                    onChange(modules)
+                .onMove { source, destination in
+                    var current = modules.resolvedOrder
+                    current.move(fromOffsets: source, toOffset: destination)
+                    modules.order = current
+                    push()
                 }
             }
-            .padding(.horizontal, 22)
-            .padding(.vertical, 12)
+            .listStyle(.inset)
         }
-        .frame(width: 560, height: 620)
     }
 
-    private func binding(for path: WritableKeyPath<PanewrightConfig.Modules, Bool>) -> Binding<Bool> {
-        Binding(
-            get: { modules[keyPath: path] },
-            set: {
-                modules[keyPath: path] = $0
-                onChange(modules)
-            })
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+            .foregroundStyle(.tertiary)
+            .kerning(0.8)
+            .padding(.horizontal, 22)
+            .padding(.top, 16)
+            .padding(.bottom, 4)
     }
+
+    private func row(
+        name: String, blurb: (what: String, example: String)?, isOn: Binding<Bool>
+    ) -> some View {
+        Toggle(isOn: isOn) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name).font(.system(size: 13, weight: .semibold))
+                    if let blurb {
+                        Text(blurb.what)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer(minLength: 12)
+                if let blurb {
+                    Text(blurb.example)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .toggleStyle(.switch)
+        .padding(.horizontal, 22)
+        .padding(.vertical, 7)
+    }
+
+    private var footer: some View {
+        HStack {
+            Text("Right-click any widget in the bar to turn it off.")
+                .font(.caption).foregroundStyle(.secondary)
+            Spacer()
+            Button("Turn All Off") {
+                for entry in PanewrightConfig.Modules.catalog {
+                    modules[keyPath: entry.path] = false
+                }
+                push()
+            }
+        }
+        .padding(.horizontal, 22)
+        .padding(.vertical, 12)
+    }
+
+    private func push() { onChange(modules, integrations) }
 }
 
 @MainActor
 final class WidgetsWindowController {
     private var window: NSWindow?
 
-    func show(modules: PanewrightConfig.Modules, onChange: @escaping (PanewrightConfig.Modules) -> Void) {
+    func show(
+        modules: PanewrightConfig.Modules,
+        integrations: IntegrationsConfig,
+        onChange: @escaping (PanewrightConfig.Modules, IntegrationsConfig) -> Void
+    ) {
         let hosting = NSHostingController(
-            rootView: WidgetsView(modules: modules, onChange: onChange))
+            rootView: WidgetsView(
+                modules: modules, integrations: integrations, onChange: onChange))
         if let window {
             window.contentViewController = hosting
         } else {

@@ -217,13 +217,18 @@ public struct PanewrightConfig: Equatable, Sendable {
         public var nowPlaying: Bool
         /// Current conditions, refreshed hourly.
         public var weather: Bool
+        /// Bar order, left to right, by config key. Keys missing from this list
+        /// fall in behind it in catalog order, so a new widget appears without
+        /// anyone having to edit their ordering.
+        public var order: [String]
 
         public init(
             systemMonitor: Bool = false, network: Bool = false, ports: Bool = false,
             disk: Bool = false, battery: Bool = false, docker: Bool = false,
             cloudContext: Bool = false, scratchpad: Bool = false, micMute: Bool = false, volume: Bool = false,
             brewUpdates: Bool = false, vpn: Bool = false, keyboardLayout: Bool = false,
-            focusMode: Bool = false, nowPlaying: Bool = false, weather: Bool = false
+            focusMode: Bool = false, nowPlaying: Bool = false, weather: Bool = false,
+            order: [String] = []
         ) {
             self.systemMonitor = systemMonitor
             self.network = network
@@ -241,30 +246,46 @@ public struct PanewrightConfig: Equatable, Sendable {
             self.focusMode = focusMode
             self.nowPlaying = nowPlaying
             self.weather = weather
+            self.order = order
         }
 
         /// Every widget as (config key, human name, keypath) — the single list
         /// the menu, the parser, and the serializer all work from, so adding a
         /// widget never means remembering to update three places.
-        public static var catalog: [(key: String, name: String, path: WritableKeyPath<Modules, Bool>)] {
+        public static var catalog: [(key: String, name: String, category: String, path: WritableKeyPath<Modules, Bool>)] {
             [
-            ("system-monitor", "CPU & Memory", \.systemMonitor),
-            ("network", "Network", \.network),
-            ("ports", "Listening Ports", \.ports),
-            ("disk", "Disk", \.disk),
-            ("battery", "Battery", \.battery),
-            ("docker", "Docker", \.docker),
-            ("cloud-context", "Cloud Context", \.cloudContext),
-            ("scratchpad", "Scratchpad", \.scratchpad),
-            ("mic-mute", "Microphone", \.micMute),
-            ("volume", "Volume", \.volume),
-            ("brew-updates", "Homebrew Updates", \.brewUpdates),
-            ("vpn", "VPN", \.vpn),
-            ("keyboard-layout", "Keyboard Layout", \.keyboardLayout),
-            ("focus-mode", "Focus / DND", \.focusMode),
-            ("now-playing", "Now Playing", \.nowPlaying),
-            ("weather", "Weather", \.weather),
+            ("system-monitor", "CPU & Memory", "System", \.systemMonitor),
+            ("network", "Network", "System", \.network),
+            ("ports", "Listening Ports", "Developer", \.ports),
+            ("disk", "Disk", "System", \.disk),
+            ("battery", "Battery", "System", \.battery),
+            ("docker", "Docker", "Developer", \.docker),
+            ("cloud-context", "Cloud Context", "Developer", \.cloudContext),
+            ("scratchpad", "Scratchpad", "Window Manager", \.scratchpad),
+            ("mic-mute", "Microphone", "Media & Input", \.micMute),
+            ("volume", "Volume", "Media & Input", \.volume),
+            ("brew-updates", "Homebrew Updates", "Developer", \.brewUpdates),
+            ("vpn", "VPN", "Developer", \.vpn),
+            ("keyboard-layout", "Keyboard Layout", "Media & Input", \.keyboardLayout),
+            ("focus-mode", "Focus / DND", "Media & Input", \.focusMode),
+            ("now-playing", "Now Playing", "Media & Input", \.nowPlaying),
+            ("weather", "Weather", "Ambient", \.weather),
             ]
+        }
+
+        /// Every widget key in bar order — the configured order first, then
+        /// anything new appended in catalog order.
+        public var resolvedOrder: [String] {
+            let known = Set(Self.catalog.map(\.key))
+            var result = order.filter(known.contains)
+            let seen = Set(result)
+            result.append(contentsOf: Self.catalog.map(\.key).filter { !seen.contains($0) })
+            return result
+        }
+
+        /// Display order for the picker's sections.
+        public static var categories: [String] {
+            ["Window Manager", "System", "Developer", "Media & Input", "Ambient"]
         }
 
         /// True when any driver-polled widget is on (the system monitor has its

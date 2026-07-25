@@ -555,11 +555,33 @@ public struct Orchestrator: Sendable {
         try (keys.joined(separator: "\n") + "\n").write(to: file, atomically: true, encoding: .utf8)
     }
 
-    /// Flip widgets without rebuilding the bar: rewrite the runtime list and
-    /// nudge the driver to repaint. Instant and flicker-free.
+    /// Bar item name for a widget key — the picker's order has to be
+    /// translated into SketchyBar's item names to reorder without a reload.
+    static let widgetItemNames: [String: String] = [
+        "system-monitor": "sys", "network": "w.net", "ports": "w.ports", "disk": "w.disk",
+        "battery": "w.batt", "docker": "w.docker", "cloud-context": "w.cloud",
+        "scratchpad": "w.scratch", "mic-mute": "w.mic", "volume": "w.vol",
+        "brew-updates": "w.brew", "vpn": "w.vpn", "keyboard-layout": "w.kbd",
+        "focus-mode": "w.focus", "now-playing": "w.play", "weather": "w.weather",
+    ]
+
+    /// Flip widgets without rebuilding the bar: rewrite the runtime list,
+    /// re-apply the order, and nudge the driver to repaint. Instant and
+    /// flicker-free — a full reload visibly tears the bar down.
     public func refreshWidgets(_ config: PanewrightConfig) throws {
         try writeEnabledWidgets(config)
         guard let bar = SketchyBarSupervisor.locate(), bar.isRunning() else { return }
+        // --reorder moves existing items, so ordering costs no rebuild either.
+        let ordered = config.modules.resolvedOrder.compactMap { Self.widgetItemNames[$0] }
+        if !ordered.isEmpty {
+            let reorder = Process()
+            reorder.executableURL = bar.executableURL
+            reorder.arguments = ["--reorder"] + ordered.reversed()
+            reorder.standardOutput = FileHandle.nullDevice
+            reorder.standardError = FileHandle.nullDevice
+            try? reorder.run()
+            reorder.waitUntilExit()
+        }
         let process = Process()
         process.executableURL = bar.executableURL
         process.arguments = ["--trigger", "panewright_widgets"]

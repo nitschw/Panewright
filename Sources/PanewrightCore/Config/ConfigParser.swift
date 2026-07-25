@@ -135,6 +135,7 @@ public enum ConfigParser {
                     config.modules[keyPath: entry.path] = value
                 }
             }
+            config.modules.order = m.order ?? []
         }
         if let integrations = raw.integrations {
             func service(_ raw: RawConfig.RawService?) -> IntegrationsConfig.Service {
@@ -329,17 +330,42 @@ private struct RawConfig: Codable {
 
     /// Widget toggles arrive as a flat table of booleans; decoding into a
     /// dictionary means the catalog is the only place a widget is declared.
+    /// Widget toggles arrive as a flat table of booleans plus an `order`
+    /// array. Decoding key-by-key (rather than as one [String: Bool]) matters:
+    /// a single non-boolean key would otherwise fail the whole table and
+    /// silently drop every toggle.
     struct RawModules: Codable {
         var values: [String: Bool] = [:]
+        var order: [String]?
+
+        private struct AnyKey: CodingKey {
+            var stringValue: String
+            var intValue: Int? { nil }
+            init?(stringValue: String) { self.stringValue = stringValue }
+            init?(intValue: Int) { nil }
+        }
 
         init(from decoder: Decoder) throws {
-            let container = try decoder.singleValueContainer()
-            values = (try? container.decode([String: Bool].self)) ?? [:]
+            let container = try decoder.container(keyedBy: AnyKey.self)
+            for key in container.allKeys {
+                if key.stringValue == "order" {
+                    order = try? container.decode([String].self, forKey: key)
+                } else if let flag = try? container.decode(Bool.self, forKey: key) {
+                    values[key.stringValue] = flag
+                }
+            }
         }
 
         func encode(to encoder: Encoder) throws {
-            var container = encoder.singleValueContainer()
-            try container.encode(values)
+            var container = encoder.container(keyedBy: AnyKey.self)
+            for (key, value) in values {
+                if let coding = AnyKey(stringValue: key) {
+                    try container.encode(value, forKey: coding)
+                }
+            }
+            if let order, let coding = AnyKey(stringValue: "order") {
+                try container.encode(order, forKey: coding)
+            }
         }
     }
 

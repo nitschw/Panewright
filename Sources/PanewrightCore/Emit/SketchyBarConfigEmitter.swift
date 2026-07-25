@@ -769,24 +769,10 @@ public enum SketchyBarConfigEmitter {
                     + " click_script=\"\(action)\"")
             lines.append(tooltip(name, tip))
         }
-        // Rightmost first — SketchyBar stacks `right` items leftward.
-        chip("w.weather", "weather", "Weather · current conditions")
-        chip("w.play", "now-playing", "Now playing · click to play/pause", click: "osascript -e 'tell application \\\"Spotify\\\" to playpause' 2>/dev/null || osascript -e 'tell application \\\"Music\\\" to playpause'")
-        chip("w.focus", "focus-mode", "Focus · Do Not Disturb state")
-        chip("w.kbd", "keyboard-layout", "Keyboard · input source")
-        chip("w.vpn", "vpn", "VPN · tunnel status")
-        chip("w.brew", "brew-updates", "Homebrew · outdated packages", click: "open -a Terminal")
-        chip("w.vol", "volume", "Volume · click to mute", click: "osascript -e 'set volume output muted (not (output muted of (get volume settings)))'")
-        chip("w.mic", "mic-mute", "Microphone · click to toggle mute", click: "$SCRIPTS_DIR/mic-toggle.sh")
-        chip("w.scratch", "scratchpad", "Scratchpad · stashed windows")
-        chip("w.cloud", "cloud-context", "kubectl context / AWS profile")
-        chip("w.docker", "docker", "Docker · running containers")
-        chip("w.batt", "battery", "Battery · charge and time left")
-        chip("w.disk", "disk", "Disk · boot volume")
-        chip("w.net", "network", "Network · down / up per second")
-        do {
-            // Ports already unfurls a list on click, so its popup leads with a
-            // title row that doubles as the hover tooltip.
+        /// Ports already unfurls a list on click, so its popup leads with a
+        /// title row that doubles as the hover tooltip.
+        func portsChip() {
+            let disable = "open 'panewright://widgets/disable/ports'"
             lines.append(
                 "$BAR --add item w.ports right --set w.ports label=\"…\" drawing=off"
                     + " label.font=\"\(palette.font)\" label.padding_left=8 label.padding_right=8"
@@ -795,7 +781,8 @@ public enum SketchyBarConfigEmitter {
                     + " popup.background.color=0xf01a1a22 popup.background.border_color=0x44ffffff"
                     + " popup.horizontal=off popup.align=right popup.y_offset=-6"
                     + " script=\"$PLUGINS/panewright_tooltip.sh\""
-                    + " click_script=\"$BAR --set w.ports popup.drawing=toggle\"")
+                    + " click_script=\"if [ \\\\\\\"$BUTTON\\\\\\\" = \\\\\\\"right\\\\\\\" ]; then \(disable);"
+                    + " else $BAR --set w.ports popup.drawing=toggle; fi\"")
             lines.append(
                 "$BAR --add item w.ports.tip popup.w.ports --set w.ports.tip"
                     + " label=\"Listening ports\" label.font=\"\(palette.font)\""
@@ -807,6 +794,36 @@ public enum SketchyBarConfigEmitter {
                         + " label.padding_right=10 label.color=\(palette.dim)")
             }
             lines.append("$BAR --subscribe w.ports mouse.entered mouse.exited")
+        }
+        // Emitted in the user's configured order. SketchyBar stacks `right`
+        // items leftward, so the list is reversed: the first configured widget
+        // ends up leftmost, matching what the picker shows top to bottom.
+        let specs: [String: (item: String, tip: String, click: String?)] = [
+            "weather": ("w.weather", "Weather · current conditions", nil),
+            "now-playing": (
+                "w.play", "Now playing · click to play/pause",
+                "osascript -e 'tell application \\\"Spotify\\\" to playpause' 2>/dev/null || osascript -e 'tell application \\\"Music\\\" to playpause'"),
+            "focus-mode": ("w.focus", "Focus · Do Not Disturb state", nil),
+            "keyboard-layout": ("w.kbd", "Keyboard · input source", nil),
+            "vpn": ("w.vpn", "VPN · tunnel status", nil),
+            "brew-updates": ("w.brew", "Homebrew · outdated packages", "open -a Terminal"),
+            "volume": (
+                "w.vol", "Volume · click to mute",
+                "osascript -e 'set volume output muted (not (output muted of (get volume settings)))'"),
+            "mic-mute": ("w.mic", "Microphone · click to toggle mute", "$SCRIPTS_DIR/mic-toggle.sh"),
+            "scratchpad": ("w.scratch", "Scratchpad · stashed windows", nil),
+            "cloud-context": ("w.cloud", "kubectl context / AWS profile", nil),
+            "docker": ("w.docker", "Docker · running containers", nil),
+            "battery": ("w.batt", "Battery · charge and time left", nil),
+            "disk": ("w.disk", "Disk · boot volume", nil),
+            "network": ("w.net", "Network · down / up per second", nil),
+        ]
+        for key in modules.resolvedOrder.reversed() {
+            if key == "ports" {
+                portsChip()
+            } else if let spec = specs[key] {
+                chip(spec.item, key, spec.tip, click: spec.click)
+            }
         }
         lines.append(
             "$BAR --add item widgets_driver right --set widgets_driver drawing=off"
