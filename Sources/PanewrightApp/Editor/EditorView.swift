@@ -253,13 +253,11 @@ struct EditorView: View {
     private var widgetsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Widgets").font(.headline)
-            Text("Drag to reorder — the top of the list is the leftmost widget.")
+            Text("Use the arrows to reorder — the top of the list is the leftmost widget.")
                 .font(.caption).foregroundStyle(.secondary)
             ForEach(model.config.modules.resolvedOrder, id: \.self) { key in
                 if let entry = PanewrightConfig.Modules.catalog.first(where: { $0.key == key }) {
                     HStack(spacing: 8) {
-                        Image(systemName: "line.3.horizontal")
-                            .foregroundStyle(.tertiary).font(.system(size: 10))
                         Toggle(
                             entry.name,
                             isOn: Binding(

@@ -144,11 +144,11 @@ public enum SketchyBarConfigEmitter {
               --set front_app script="$PLUGINS/panewright_front_app.sh" \\
               --subscribe front_app front_app_switched
 
+            \(conflictsItem(count: BindingConflicts.rows(in: config).count))
             \(config.modules.systemMonitor ? systemItem(accent: accent, palette: palette) : "")
             \(widgetItems(config.modules, accent: accent, palette: palette))
             \(config.integrations.anyEnabled ? integrationsItem(accent: accent) : "")
             \(config.todo.enabled ? todoItem(accent: accent) : "")
-            \(conflictsItem(count: BindingConflicts.rows(in: config).count))
             # Pin the order explicitly: without this, items can shuffle when
             # the bar re-renders (a screenshot or display change is enough).
             $BAR --reorder \(spaceOrder) mode front_app
@@ -951,6 +951,13 @@ public enum SketchyBarConfigEmitter {
             """
     }
 
+    /// Emitted before every other right-side item on purpose. SketchyBar
+    /// orders a side by insertion, and the to-do plugin grows its pills
+    /// leftward from its anchor — so a chip added after the anchor lands
+    /// *between* the "+" and the first task, splitting that group in half.
+    /// First means the far right edge: outside every cluster, and the most
+    /// visible place for a warning.
+    ///
     /// Amber in both themes — it has to read as "look at this" against the
     /// native bar's vibrancy and the technical theme's slate alike.
     static let warningColor = "0xffe0af68"

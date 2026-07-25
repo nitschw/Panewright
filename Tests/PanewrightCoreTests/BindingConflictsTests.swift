@@ -357,3 +357,21 @@ import Testing
         #expect(group.implicatesModifier)
     }
 }
+
+@Suite struct ConflictChipPlacementTests {
+    @Test func theChipSitsOutsideTheTodoCluster() throws {
+        var config = PanewrightConfig.default
+        config.todo.enabled = true
+        let rc = try SketchyBarConfigEmitter.emit(config).sketchybarrc
+        guard let chip = rc.range(of: "--add item conflicts"),
+            let todo = rc.range(of: "--add item todo right")
+        else {
+            Issue.record("expected both the chip and the to-do anchor")
+            return
+        }
+        // SketchyBar orders a side by insertion and the to-do plugin grows its
+        // pills leftward from the anchor, so a chip added afterwards lands
+        // between the "+" and the first task and splits the group.
+        #expect(chip.lowerBound < todo.lowerBound)
+    }
+}
