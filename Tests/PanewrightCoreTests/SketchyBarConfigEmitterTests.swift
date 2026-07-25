@@ -8,7 +8,9 @@ import Testing
         #expect(files.sketchybarrc.contains("position=bottom"))
         #expect(files.sketchybarrc.contains("corner_radius=9"))
         #expect(files.sketchybarrc.contains("SF Pro"))
-        #expect(files.sketchybarrc.contains("for sid in 1 2 3 4 5 6 7 8 9 0"))
+        // Numeric order, not number-row order: the bar reads as a list of
+        // numbers, and 0 trailing 9 there looks like a bug.
+        #expect(files.sketchybarrc.contains("for sid in 0 1 2 3 4 5 6 7 8 9"))
         // Per-display strips filtered to each monitor's own workspaces.
         #expect(files.sketchybarrc.contains("associated_display=$did"))
         #expect(files.sketchybarrc.contains("workspace-select.sh $did $sid"))

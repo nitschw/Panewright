@@ -151,10 +151,11 @@ public enum AeroSpaceConfigEmitter {
                 break
             }
         }
-        // Keyboard-row order: 0 sits after 9, not before 1.
-        return numbers.sorted { lhs, rhs in
-            (lhs == 0 ? 10 : lhs) < (rhs == 0 ? 10 : rhs)
-        }
+        // Numeric order: 0123456789. This used to follow the number row —
+        // 0 after 9, matching where the keys sit — but the bar is read as a
+        // list of numbers rather than as a picture of a keyboard, and 0 in
+        // the last position reads as a mistake there.
+        return numbers.sorted()
     }
 
     /// The status bar can't observe mode changes, so every mode switch pings
