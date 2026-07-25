@@ -644,7 +644,15 @@ private func window(
         // It overlaps its neighbour completely, and no resize closes that —
         // which is how full-screening an app got it evicted to the next
         // workspace. Hence the geometric filter in the controller.
-        #expect(WindowFitting.deficit(in: [fullscreen, tiled], bounds: screen, separation: 5) > 0)
+        //
+        // Checked across both axes: a pair is attributed to the axis they're
+        // closest to being separated on, and for a window swallowing another
+        // entirely that can be either one.
+        let worst = WindowFitting.Axis.allCases.map {
+            WindowFitting.deficit(
+                in: [fullscreen, tiled], bounds: screen, separation: 5, axis: $0)
+        }.max() ?? 0
+        #expect(worst > 0)
     }
 
     @Test func theWindowsBeneathStillTileNormallyOnceItIsExcluded() {
