@@ -187,6 +187,9 @@ public struct PanewrightConfig: Equatable, Sendable {
     public struct Modules: Equatable, Sendable {
         /// CPU/memory chip that unfurls a mini-htop perf panel.
         public var systemMonitor: Bool
+        /// The two sparkline plots beside the CPU/memory readout. Separate
+        /// from `systemMonitor` so the numbers can stay without the graphics.
+        public var systemGraphs: Bool
         /// Live ↓/↑ throughput for the default interface.
         public var network: Bool
         /// Ports currently listening, click to see what owns them.
@@ -223,7 +226,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         public var order: [String]
 
         public init(
-            systemMonitor: Bool = false, network: Bool = false, ports: Bool = false,
+            systemMonitor: Bool = false, systemGraphs: Bool = true, network: Bool = false, ports: Bool = false,
             disk: Bool = false, battery: Bool = false, docker: Bool = false,
             cloudContext: Bool = false, scratchpad: Bool = false, micMute: Bool = false, volume: Bool = false,
             brewUpdates: Bool = false, vpn: Bool = false, keyboardLayout: Bool = false,
@@ -231,6 +234,7 @@ public struct PanewrightConfig: Equatable, Sendable {
             order: [String] = []
         ) {
             self.systemMonitor = systemMonitor
+            self.systemGraphs = systemGraphs
             self.network = network
             self.ports = ports
             self.disk = disk
@@ -255,6 +259,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         public static var catalog: [(key: String, name: String, category: String, path: WritableKeyPath<Modules, Bool>)] {
             [
             ("system-monitor", "CPU & Memory", "System", \.systemMonitor),
+            ("system-graphs", "CPU & Memory Graphs", "System", \.systemGraphs),
             ("network", "Network", "System", \.network),
             ("ports", "Listening Ports", "Developer", \.ports),
             ("disk", "Disk", "System", \.disk),

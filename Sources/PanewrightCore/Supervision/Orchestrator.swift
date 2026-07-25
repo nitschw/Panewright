@@ -558,12 +558,34 @@ public struct Orchestrator: Sendable {
     /// Bar item name for a widget key — the picker's order has to be
     /// translated into SketchyBar's item names to reorder without a reload.
     static let widgetItemNames: [String: String] = [
-        "system-monitor": "sys", "network": "w.net", "ports": "w.ports", "disk": "w.disk",
+        "system-monitor": "sys", "system-graphs": "sys.cpu.graph", "network": "w.net", "ports": "w.ports", "disk": "w.disk",
         "battery": "w.batt", "docker": "w.docker", "cloud-context": "w.cloud",
         "scratchpad": "w.scratch", "mic-mute": "w.mic", "volume": "w.vol",
         "brew-updates": "w.brew", "vpn": "w.vpn", "keyboard-layout": "w.kbd",
         "focus-mode": "w.focus", "now-playing": "w.play", "weather": "w.weather",
     ]
+
+    /// The widget item names in bar order (rightmost first, matching how
+    /// SketchyBar stacks `right` items). Graphs stay adjacent to the chip they
+    /// belong to, so the CPU/memory sparklines travel with their readout.
+    public func writeWidgetOrder(_ config: PanewrightConfig) throws {
+        let file = paths.panewrightConfigFile.deletingLastPathComponent()
+            .appending(path: ".widgets-order")
+        let items = config.modules.resolvedOrder.reversed().flatMap { key -> [String] in
+            // Graphs have no chip of their own; they're emitted with the CPU
+            // chip below, so ordering them separately would split the pair.
+            guard key != "system-graphs", let name = Self.widgetItemNames[key] else { return [] }
+            // Graphs ride with the chip so the pair never separates.
+            return key == "system-monitor"
+                ? (config.modules.systemGraphs
+                    ? ["sys.cpu.graph", "sys.mem.graph", name] : [name])
+                : [name]
+        }
+        try FileManager.default.createDirectory(
+            at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try (items.joined(separator: "\n") + "\n").write(
+            to: file, atomically: true, encoding: .utf8)
+    }
 
     /// Flip widgets without rebuilding the bar: rewrite the runtime list,
     /// re-apply the order, and nudge the driver to repaint. Instant and
@@ -571,17 +593,17 @@ public struct Orchestrator: Sendable {
     public func refreshWidgets(_ config: PanewrightConfig) throws {
         try writeEnabledWidgets(config)
         guard let bar = SketchyBarSupervisor.locate(), bar.isRunning() else { return }
-        // --reorder moves existing items, so ordering costs no rebuild either.
-        let ordered = config.modules.resolvedOrder.compactMap { Self.widgetItemNames[$0] }
-        if !ordered.isEmpty {
-            let reorder = Process()
-            reorder.executableURL = bar.executableURL
-            reorder.arguments = ["--reorder"] + ordered.reversed()
-            reorder.standardOutput = FileHandle.nullDevice
-            reorder.standardError = FileHandle.nullDevice
-            try? reorder.run()
-            reorder.waitUntilExit()
-        }
+        // Hand the order to the reorder plugin rather than issuing our own
+        // partial --reorder: a subset reorder shuffled widgets in between the
+        // to-do pills and their "+" button. One authority, one call.
+        try writeWidgetOrder(config)
+        let reorder = Process()
+        reorder.executableURL = URL(filePath: NSHomeDirectory())
+            .appending(path: ".config/sketchybar/plugins/panewright_reorder.sh")
+        reorder.standardOutput = FileHandle.nullDevice
+        reorder.standardError = FileHandle.nullDevice
+        try? reorder.run()
+        reorder.waitUntilExit()
         let process = Process()
         process.executableURL = bar.executableURL
         process.arguments = ["--trigger", "panewright_widgets"]
@@ -596,6 +618,7 @@ public struct Orchestrator: Sendable {
         if config.statusBar.enabled {
             try writeSketchyBarConfig(config)
             try writeEnabledWidgets(config)
+            try writeWidgetOrder(config)
             if bar.isRunning() {
                 try bar.reload()
             } else {
