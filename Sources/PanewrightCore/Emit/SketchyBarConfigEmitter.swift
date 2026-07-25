@@ -511,21 +511,6 @@ public enum SketchyBarConfigEmitter {
             fi
             """ : "")
 
-            \(m.git ? """
-            # Repo of the focused window's app, resolved via its working dir.
-            WPID=$("$A" list-windows --focused --format '%{app-pid}' 2>/dev/null | awk '{print $1}')
-            RDIR=""
-            [ -n "$WPID" ] && RDIR=$(lsof -a -p "$WPID" -d cwd -Fn 2>/dev/null | awk '/^n/{print substr($0,2); exit}')
-            [ -z "$RDIR" ] && RDIR="$PWD"
-            BR=$(git -C "$RDIR" rev-parse --abbrev-ref HEAD 2>/dev/null)
-            if [ -n "$BR" ]; then
-              DIRTY=$(git -C "$RDIR" status --porcelain 2>/dev/null | grep -c .)
-              [ "$DIRTY" -gt 0 ] && GCOL=\(accent) || GCOL=\(palette.dim)
-              ARGS+=(--set w.git drawing=on label="⎇ $BR${DIRTY:+ ●$DIRTY}" label.color=$GCOL)
-            else
-              ARGS+=(--set w.git drawing=off)
-            fi
-            """ : "")
 
             \(m.layout ? """
             LAY=$("$A" list-windows --focused --format '%{window-layout}' 2>/dev/null | awk '{print $1}')
@@ -626,7 +611,6 @@ public enum SketchyBarConfigEmitter {
         // Rightmost first — SketchyBar stacks `right` items leftward.
         if modules.scratchpad { chip("w.scratch") }
         if modules.layout { chip("w.layout") }
-        if modules.git { chip("w.git") }
         if modules.cloudContext { chip("w.cloud") }
         if modules.docker { chip("w.docker") }
         if modules.battery { chip("w.batt") }

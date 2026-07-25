@@ -136,7 +136,6 @@ public enum ConfigParser {
             config.modules.battery = m.battery ?? config.modules.battery
             config.modules.docker = m.docker ?? config.modules.docker
             config.modules.cloudContext = m.cloudContext ?? config.modules.cloudContext
-            config.modules.git = m.git ?? config.modules.git
             config.modules.layout = m.layout ?? config.modules.layout
             config.modules.scratchpad = m.scratchpad ?? config.modules.scratchpad
         }
@@ -338,12 +337,11 @@ private struct RawConfig: Codable {
         var battery: Bool?
         var docker: Bool?
         var cloudContext: Bool?
-        var git: Bool?
         var layout: Bool?
         var scratchpad: Bool?
 
         enum CodingKeys: String, CodingKey {
-            case network, ports, disk, battery, docker, git, layout, scratchpad
+            case network, ports, disk, battery, docker, layout, scratchpad
             case systemMonitor = "system-monitor"
             case cloudContext = "cloud-context"
         }

@@ -145,12 +145,10 @@ import Testing
         var config = PanewrightConfig.default
         config.modules.network = true
         config.modules.ports = true
-        config.modules.git = true
         let on = try SketchyBarConfigEmitter.emit(config)
         // Enabled widgets get items; disabled ones don't.
         #expect(on.sketchybarrc.contains("--add item w.net"))
         #expect(on.sketchybarrc.contains("--add item w.ports"))
-        #expect(on.sketchybarrc.contains("--add item w.git"))
         #expect(!on.sketchybarrc.contains("--add item w.docker"))
         // ONE driver refreshes them all — never a poller per widget.
         #expect(on.sketchybarrc.contains("--add item widgets_driver"))

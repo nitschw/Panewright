@@ -366,7 +366,6 @@ disk = true             <span class="c"># boot volume usage</span>
 battery = true          <span class="c"># charge + time remaining</span>
 docker = true           <span class="c"># running containers</span>
 cloud-context = true    <span class="c"># kubectl context / AWS profile</span>
-git = true              <span class="c"># branch + dirty count of the focused repo</span>
 layout = true           <span class="c"># tiles / accordion / floating / fullscreen</span>
 scratchpad = true       <span class="c"># how many windows are stashed</span></pre>
   <table>
@@ -377,11 +376,10 @@ scratchpad = true       <span class="c"># how many windows are stashed</span></p
     <tr><td><code>battery</code></td><td>Charge, <b>time remaining</b>, and a ⚡ while charging — the parts the menu bar hides</td><td><code>pmset -g batt</code></td></tr>
     <tr><td><code>docker</code></td><td>Running container count (hidden when Docker isn't installed)</td><td><code>docker ps</code></td></tr>
     <tr><td><code>cloud-context</code></td><td>kubectl context and/or <code>AWS_PROFILE</code>, <b>tinted with your accent when it looks like production</b> — a guard against running things against the wrong cluster</td><td><code>kubectl</code>, env</td></tr>
-    <tr><td><code>git</code></td><td>Branch and dirty-file count for <b>the focused window's repo</b>, accent-tinted when dirty</td><td>the window's working directory</td></tr>
     <tr><td><code>layout</code></td><td>A glyph for the focused workspace's layout</td><td>AeroSpace</td></tr>
     <tr><td><code>scratchpad</code></td><td>Stashed window count, so parked windows aren't forgotten</td><td>AeroSpace</td></tr>
   </table>
-  <div class="note">The <code>git</code> widget resolves the repo from the focused window's working directory, so it's most reliable for <b>terminal and editor windows</b>; apps launched from the Dock often report <code>/</code> and the widget simply hides. Widgets that have nothing to report (no Docker, no cloud context, an empty scratchpad) hide themselves rather than showing zeros.</div>
+  <div class="note">Widgets that have nothing to report (no Docker, no cloud context, an empty scratchpad) hide themselves rather than showing zeros.</div>
 
   <h3>System monitor</h3>
   <pre>[modules]

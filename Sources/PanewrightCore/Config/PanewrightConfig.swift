@@ -199,8 +199,6 @@ public struct PanewrightConfig: Equatable, Sendable {
         public var docker: Bool
         /// kubectl context / AWS profile, highlighted when it looks like prod.
         public var cloudContext: Bool
-        /// Branch and dirty count for the focused window's repo.
-        public var git: Bool
         /// Layout of the focused workspace (tiles / accordion / floating).
         public var layout: Bool
         /// How many windows are stashed on the scratchpad.
@@ -209,7 +207,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         public init(
             systemMonitor: Bool = false, network: Bool = false, ports: Bool = false,
             disk: Bool = false, battery: Bool = false, docker: Bool = false,
-            cloudContext: Bool = false, git: Bool = false, layout: Bool = false,
+            cloudContext: Bool = false, layout: Bool = false,
             scratchpad: Bool = false
         ) {
             self.systemMonitor = systemMonitor
@@ -219,7 +217,6 @@ public struct PanewrightConfig: Equatable, Sendable {
             self.battery = battery
             self.docker = docker
             self.cloudContext = cloudContext
-            self.git = git
             self.layout = layout
             self.scratchpad = scratchpad
         }
@@ -227,8 +224,8 @@ public struct PanewrightConfig: Equatable, Sendable {
         /// True when any driver-polled widget is on (the system monitor has its
         /// own item and plugin, so it doesn't count here).
         public var anyDriverWidget: Bool {
-            network || ports || disk || battery || docker || cloudContext || git
-                || layout || scratchpad
+            network || ports || disk || battery || docker || cloudContext || layout
+                || scratchpad
         }
     }
 

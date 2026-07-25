@@ -60,7 +60,6 @@ public enum PanewrightConfigSerializer {
         lines.append("battery = \(config.modules.battery)")
         lines.append("docker = \(config.modules.docker)")
         lines.append("cloud-context = \(config.modules.cloudContext)")
-        lines.append("git = \(config.modules.git)")
         lines.append("layout = \(config.modules.layout)")
         lines.append("scratchpad = \(config.modules.scratchpad)")
         // Tokens live in the Keychain, never here.
