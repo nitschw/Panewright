@@ -137,6 +137,32 @@ import Testing
         #expect(on.systemPlugin.contains("vm_stat"))
     }
 
+    @Test func widgetsAreOptInAndShareOneDriver() throws {
+        // All off by default — the bar stays pure WM.
+        let off = try SketchyBarConfigEmitter.emit(.default)
+        #expect(!off.sketchybarrc.contains("widgets_driver"))
+
+        var config = PanewrightConfig.default
+        config.modules.network = true
+        config.modules.ports = true
+        config.modules.git = true
+        let on = try SketchyBarConfigEmitter.emit(config)
+        // Enabled widgets get items; disabled ones don't.
+        #expect(on.sketchybarrc.contains("--add item w.net"))
+        #expect(on.sketchybarrc.contains("--add item w.ports"))
+        #expect(on.sketchybarrc.contains("--add item w.git"))
+        #expect(!on.sketchybarrc.contains("--add item w.docker"))
+        // ONE driver refreshes them all — never a poller per widget.
+        #expect(on.sketchybarrc.contains("--add item widgets_driver"))
+        #expect(on.sketchybarrc.components(separatedBy: "panewright_widgets.sh").count == 2)
+        // The plugin only contains the enabled widgets' logic.
+        #expect(on.widgetsPlugin.contains("netstat -ib"))
+        #expect(on.widgetsPlugin.contains("lsof -iTCP"))
+        #expect(!on.widgetsPlugin.contains("docker ps"))
+        // And batches every update into a single sketchybar call.
+        #expect(on.widgetsPlugin.contains(#""$BAR" "${ARGS[@]}""#))
+    }
+
     @Test func modePluginUppercasesAndClears() throws {
         let files = try SketchyBarConfigEmitter.emit(.default)
         #expect(files.modePlugin.contains(#"[ "$MODE" = "main" ]"#))

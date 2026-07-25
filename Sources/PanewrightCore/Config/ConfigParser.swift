@@ -128,8 +128,17 @@ public enum ConfigParser {
             config.pills.enabled = pills.enabled ?? config.pills.enabled
             config.pills.dragToBar = pills.dragToBar ?? config.pills.dragToBar
         }
-        if let modules = raw.modules {
-            config.modules.systemMonitor = modules.systemMonitor ?? config.modules.systemMonitor
+        if let m = raw.modules {
+            config.modules.systemMonitor = m.systemMonitor ?? config.modules.systemMonitor
+            config.modules.network = m.network ?? config.modules.network
+            config.modules.ports = m.ports ?? config.modules.ports
+            config.modules.disk = m.disk ?? config.modules.disk
+            config.modules.battery = m.battery ?? config.modules.battery
+            config.modules.docker = m.docker ?? config.modules.docker
+            config.modules.cloudContext = m.cloudContext ?? config.modules.cloudContext
+            config.modules.git = m.git ?? config.modules.git
+            config.modules.layout = m.layout ?? config.modules.layout
+            config.modules.scratchpad = m.scratchpad ?? config.modules.scratchpad
         }
         if let integrations = raw.integrations {
             func service(_ raw: RawConfig.RawService?) -> IntegrationsConfig.Service {
@@ -323,9 +332,20 @@ private struct RawConfig: Codable {
 
     struct RawModules: Codable {
         var systemMonitor: Bool?
+        var network: Bool?
+        var ports: Bool?
+        var disk: Bool?
+        var battery: Bool?
+        var docker: Bool?
+        var cloudContext: Bool?
+        var git: Bool?
+        var layout: Bool?
+        var scratchpad: Bool?
 
         enum CodingKeys: String, CodingKey {
+            case network, ports, disk, battery, docker, git, layout, scratchpad
             case systemMonitor = "system-monitor"
+            case cloudContext = "cloud-context"
         }
     }
 
