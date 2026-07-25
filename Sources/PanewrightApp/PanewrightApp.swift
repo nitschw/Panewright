@@ -256,6 +256,11 @@ final class AppModel {
     private var settingsWindowController: SettingsWindowController?
     private var conflictsWindowController: ConflictsWindowController?
     private var windowFitController: WindowFitController?
+    private let shortcutOverride = ShortcutOverrideTap()
+    /// Deliberately not persisted: a tap that swallows keystrokes must always
+    /// be off after a restart, so quitting Panewright is a guaranteed way out
+    /// of a keyboard that's misbehaving.
+    var overridingShortcuts = false
     private var todoWindowController: TodoEditorWindowController?
     private var integrationsWindowController: IntegrationsWindowController?
     private var confluenceWindowController: ConfluenceWindowController?
@@ -399,6 +404,25 @@ final class AppModel {
         let controller = settingsWindowController ?? SettingsWindowController()
         settingsWindowController = controller
         controller.show(appModel: self, reveal: reveal)
+    }
+
+    /// Take the chords macOS reserves, so bindings on them can work. Session
+    /// only — never written to the config.
+    func toggleShortcutOverride() {
+        overridingShortcuts.toggle()
+        if overridingShortcuts {
+            shortcutOverride.configure(with: (try? orchestrator.loadConfig()) ?? .default)
+            guard !shortcutOverride.overriddenChords.isEmpty else {
+                overridingShortcuts = false
+                lastMessage = "No system-reserved chords to take"
+                return
+            }
+            shortcutOverride.start()
+            lastMessage = "Taking \(shortcutOverride.overriddenChords.joined(separator: ", "))"
+        } else {
+            shortcutOverride.stop()
+            lastMessage = "System shortcuts released"
+        }
     }
 
     /// panewright://conflicts — the bar's ⚠ chip, and the menu item.
@@ -910,6 +934,12 @@ struct PanewrightMenu: View {
         if model.conflictCount > 0 {
             Button("⚠ Keybinding Conflicts (\(model.conflictCount))…") {
                 model.openConflicts()
+            }
+            Button(
+                model.overridingShortcuts
+                    ? "✓ Overriding System Shortcuts" : "Override System Shortcuts"
+            ) {
+                model.toggleShortcutOverride()
             }
         }
         Button("Edit Config File…") {

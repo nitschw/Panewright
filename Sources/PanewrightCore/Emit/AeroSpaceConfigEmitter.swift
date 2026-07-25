@@ -119,7 +119,7 @@ public enum AeroSpaceConfigEmitter {
     ///
     /// The hyper base is Cmd+Opt+Ctrl *without* Shift so that i3-style
     /// `$mod+Shift+…` chords remain distinguishable from plain `$mod+…`.
-    static func keyCombo(modifier: PanewrightConfig.Modifier, key: String) -> String {
+    public static func keyCombo(modifier: PanewrightConfig.Modifier, key: String) -> String {
         // Leader style never chords: bindings live bare inside the
         // panewright mode, so a combo request passes the key through.
         if modifier == .leader {
@@ -180,7 +180,7 @@ public enum AeroSpaceConfigEmitter {
     }
 
     /// Most actions are one AeroSpace command; a few expand to several.
-    static func commands(for action: PanewrightConfig.Action) -> [String] {
+    public static func commands(for action: PanewrightConfig.Action) -> [String] {
         switch action {
         case .scratchpadMove:
             // Stash: float (i3 scratchpad windows are floating) and park on
