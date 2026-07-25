@@ -68,6 +68,8 @@ public enum PanewrightConfigSerializer {
         lines.append("# Move the newest window to another workspace when nothing fits.")
         lines.append("overflow = \(config.fitting.overflow)")
         lines.append("step = \(config.fitting.step)")
+        lines.append("# Keep floating windows above tiled ones.")
+        lines.append("float-on-top = \(config.fitting.floatOnTop)")
         lines.append("")
         lines.append("[pills]")
         lines.append("enabled = \(config.pills.enabled)")

@@ -82,3 +82,26 @@ import Testing
         #expect(config.fitting == PanewrightConfig.Fitting())
     }
 }
+
+@Suite struct FloatOnTopConfigTests {
+    @Test func theSettingSurvivesTheConfigFile() throws {
+        var config = PanewrightConfig.default
+        config.fitting.floatOnTop = false
+        let reparsed = try ConfigParser.parse(toml: PanewrightConfigSerializer.emit(config))
+        #expect(reparsed.fitting.floatOnTop == false)
+    }
+
+    @Test func floatingWindowsRideOnTopByDefault() {
+        // It's what i3 does, and it's the reason floating a window is useful.
+        #expect(PanewrightConfig.Fitting().floatOnTop)
+    }
+
+    @Test func anOlderConfigWithoutTheKeyStillLoads() throws {
+        let toml = """
+            modifier = "alt"
+            [fitting]
+            enabled = true
+            """
+        #expect(try ConfigParser.parse(toml: toml).fitting.floatOnTop)
+    }
+}

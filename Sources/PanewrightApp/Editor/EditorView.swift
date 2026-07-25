@@ -362,7 +362,12 @@ struct EditorView: View {
                 )
                 .font(.caption).foregroundStyle(.secondary)
                 intSlider("Step", value: bind(\.fitting.step), range: 20...160)
-                Text("How much width to reclaim per attempt.")
+                Text("How much space to reclaim per attempt.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Toggle("Keep floating windows above tiled ones", isOn: bind(\.fitting.floatOnTop))
+            if model.config.fitting.floatOnTop {
+                Text("A floating window covered by a tiled one defeats the point of floating it.")
                     .font(.caption).foregroundStyle(.secondary)
             }
         }

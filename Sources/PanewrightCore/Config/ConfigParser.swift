@@ -131,6 +131,7 @@ public enum ConfigParser {
             config.fitting.enabled = fitting.enabled ?? config.fitting.enabled
             config.fitting.overflow = fitting.overflow ?? config.fitting.overflow
             config.fitting.step = fitting.step ?? config.fitting.step
+            config.fitting.floatOnTop = fitting.floatOnTop ?? config.fitting.floatOnTop
         }
         if let pills = raw.pills {
             config.pills.enabled = pills.enabled ?? config.pills.enabled
@@ -385,6 +386,12 @@ private struct RawConfig: Codable {
         var enabled: Bool?
         var overflow: Bool?
         var step: Int?
+        var floatOnTop: Bool?
+
+        enum CodingKeys: String, CodingKey {
+            case enabled, overflow, step
+            case floatOnTop = "float-on-top"
+        }
     }
 
     struct RawPills: Codable {

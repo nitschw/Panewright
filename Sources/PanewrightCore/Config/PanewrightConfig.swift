@@ -37,11 +37,22 @@ public struct PanewrightConfig: Equatable, Sendable {
         /// Points to ask for per shrink attempt. Large enough to make progress
         /// in a few passes, small enough not to overshoot a fitting layout.
         public var step: Int
+        /// Keep floating windows above tiled ones.
+        ///
+        /// Grouped with fitting because it's the same job — keeping the layout
+        /// looking like what was asked for — and it's driven by the same watch
+        /// loop. A floating window covered by a tiled one defeats the purpose
+        /// of floating it.
+        public var floatOnTop: Bool
 
-        public init(enabled: Bool = true, overflow: Bool = true, step: Int = 60) {
+        public init(
+            enabled: Bool = true, overflow: Bool = true, step: Int = 60,
+            floatOnTop: Bool = true
+        ) {
             self.enabled = enabled
             self.overflow = overflow
             self.step = step
+            self.floatOnTop = floatOnTop
         }
     }
 

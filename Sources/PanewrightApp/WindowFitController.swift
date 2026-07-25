@@ -40,6 +40,7 @@ final class WindowFitController {
     /// Cached workspace membership, refreshed only when the on-screen window
     /// set changes — see currentWindows.
     private var cachedBundleIDs: [UInt32: String] = [:]
+    private var cachedFloating: Set<UInt32> = []
     private var cachedWindowIDs: Set<UInt32> = []
     private var cachedAt = Date.distantPast
 
@@ -71,6 +72,7 @@ final class WindowFitController {
         else { return }
         let windows = currentWindows(cli: cli)
         prune(to: windows)
+        if config.fitting.floatOnTop { raiseFloaters() }
         guard windows.count > 1 else {
             reset()
             return
@@ -222,6 +224,20 @@ final class WindowFitController {
         }
     }
 
+    /// A floating window covered by a tiled one defeats the point of floating
+    /// it. Only ever acts when that's actually happening, so it can't fight the
+    /// user for control of their own stacking.
+    private func raiseFloaters() {
+        guard !cachedFloating.isEmpty else { return }
+        let raised = FloatingWindowRaiser.raiseOccludedFloaters(
+            onScreen: WindowSnapshot.capture(allLayers: true),
+            floating: cachedFloating,
+            tiled: Set(cachedBundleIDs.keys))
+        if !raised.isEmpty {
+            DragLog.log("fitting: raised floating window(s) \(raised) above the tiling")
+        }
+    }
+
     // MARK: Reading the world
 
     private func currentWindows(cli: AeroSpaceCLI) -> [WindowFitting.Window] {
@@ -233,7 +249,9 @@ final class WindowFitController {
         // polling loop down to one CGWindowList call, which is what makes a
         // sub-second cadence affordable.
         if live != cachedWindowIDs || Date().timeIntervalSince(cachedAt) > 2 {
-            cachedBundleIDs = fetchBundleIDs(cli: cli)
+            let listing = fetchWorkspace(cli: cli)
+            cachedBundleIDs = listing.tiled
+            cachedFloating = listing.floating
             cachedWindowIDs = live
             cachedAt = Date()
         }
@@ -262,24 +280,31 @@ final class WindowFitController {
     /// to get away from something that is supposed to overlap them. Fullscreen
     /// windows are excluded for the same reason: one covers everything, which
     /// reads as a collision with every window at once.
-    private func fetchBundleIDs(cli: AeroSpaceCLI) -> [UInt32: String] {
+    private func fetchWorkspace(
+        cli: AeroSpaceCLI
+    ) -> (tiled: [UInt32: String], floating: Set<UInt32>) {
         guard
             let listing = try? cli.run([
                 "list-windows", "--workspace", "focused",
                 "--format",
                 "%{window-id}|%{app-bundle-id}|%{window-layout}|%{window-is-fullscreen}",
             ])
-        else { return [:] }
+        else { return ([:], []) }
         var bundleIDs: [UInt32: String] = [:]
+        var floating: Set<UInt32> = []
         for line in listing.split(separator: "\n") {
             let parts = line.split(separator: "|").map {
                 $0.trimmingCharacters(in: .whitespaces)
             }
             guard parts.count >= 4, let id = UInt32(parts[0]) else { continue }
-            guard parts[2] != "floating", parts[3] != "true" else { continue }
+            if parts[2] == "floating" {
+                floating.insert(id)
+                continue
+            }
+            guard parts[3] != "true" else { continue }
             bundleIDs[id] = parts[1]
         }
-        return bundleIDs
+        return (bundleIDs, floating)
     }
 
     private func firstEmptyWorkspace(cli: AeroSpaceCLI) -> String? {
