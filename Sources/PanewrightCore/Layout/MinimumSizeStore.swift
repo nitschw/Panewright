@@ -39,19 +39,40 @@ public struct MinimumSizeStore: Sendable {
         minimums.floor(bundleID, axis)
     }
 
-    /// Records a floor, keeping the *smallest* seen.
+    /// Records a refusal: the app declined to go below this, so this is the
+    /// floor as of now.
     ///
-    /// A window can refuse to shrink for reasons that aren't its minimum — it
-    /// was mid-animation, the app was busy, a sheet was up. Those look like a
-    /// higher floor than the truth. Taking the smallest observation means a
-    /// spurious refusal is corrected by the next honest one, instead of
-    /// permanently over-reserving space for that app.
+    /// Deliberately *not* "keep the smallest ever seen", which is what this
+    /// used to do. An app's minimum is not a constant — Safari's changes with
+    /// its sidebar and content, and was measured at 574 one hour and 753 the
+    /// next. Keeping the smallest meant every fresh, correct measurement was
+    /// thrown away in favour of a stale optimistic one, so the fitter believed
+    /// a window could shrink further than it could: it asked, was refused,
+    /// asked again, and burned its whole attempt budget instead of concluding
+    /// the windows genuinely don't fit. An optimistic floor doesn't just waste
+    /// effort — it hides the case where something needs to be evicted.
+    ///
+    /// The risk of trusting the latest refusal is that a window can decline
+    /// for reasons that aren't its minimum (mid-animation, app busy), which
+    /// records a floor that's too high. `observe` is the correction for that.
     public mutating func record(
         bundleID: String, axis: WindowFitting.Axis = .horizontal, minimum: CGFloat
     ) {
         guard minimum > 0 else { return }
-        if let known = minimums.floor(bundleID, axis), known <= minimum { return }
         minimums.record(bundleID, axis, minimum)
+    }
+
+    /// Records a size the window was actually seen at.
+    ///
+    /// Proof, not inference: if a window is sitting at 600 points wide then its
+    /// minimum cannot be more than 600, whatever we previously recorded. This
+    /// is what lets a floor come back down after a spurious refusal inflated
+    /// it, without which `record` would ratchet upward forever.
+    public mutating func observe(
+        bundleID: String, axis: WindowFitting.Axis, size: CGFloat
+    ) {
+        guard size > 0, let known = minimums.floor(bundleID, axis), known > size else { return }
+        minimums.record(bundleID, axis, size)
     }
 
     /// Forget everything — for when a display or scaling change makes the

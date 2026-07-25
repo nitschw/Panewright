@@ -83,6 +83,20 @@ final class WindowFitController {
             reset()
             return
         }
+        // Every window seen is evidence about its floor: it cannot be larger
+        // than the size the window is actually at.
+        var corrected = false
+        for window in windows {
+            for axis in WindowFitting.Axis.allCases {
+                let before = minimums.minimum(for: window.bundleID, axis: axis)
+                minimums.observe(
+                    bundleID: window.bundleID, axis: axis, size: axis.extent(window.frame))
+                if before != minimums.minimum(for: window.bundleID, axis: axis) {
+                    corrected = true
+                }
+            }
+        }
+        if corrected { minimums.save() }
         let bounds = displayBounds()
         let separation = CGFloat(config.gaps.inner)
         let broken = WindowFitting.Axis.allCases.contains {

@@ -23,17 +23,44 @@ import Testing
         #expect(reloaded.minimum(for: "com.hnc.Discord") == 940)
     }
 
-    @Test func theSmallestObservationWins() {
-        // A window can refuse to shrink because it was busy or animating, not
-        // because it hit its floor. That reads as a *higher* minimum than the
-        // truth, and keeping it would over-reserve space for that app forever.
+    @Test func theLatestRefusalWins() {
+        // An app's minimum is not a constant. Safari's changes with its
+        // sidebar and content — measured at 574 one hour and 753 the next.
+        // Keeping the smallest ever seen threw away every fresh, correct
+        // measurement, so the fitter believed a window could shrink further
+        // than it could: it asked, was refused, and burned its attempt budget
+        // instead of concluding the windows genuinely don't fit.
+        var store = MinimumSizeStore(file: temporaryFile())
+        store.record(bundleID: "com.apple.Safari", minimum: 574)
+        store.record(bundleID: "com.apple.Safari", minimum: 753)
+        #expect(store.minimum(for: "com.apple.Safari") == 753)
+    }
+
+    @Test func seeingAWindowSmallerThanItsFloorCorrectsTheFloor() {
+        // The counterweight to trusting the latest refusal: a window can
+        // decline for reasons that aren't its minimum, and without this the
+        // estimate would ratchet upward forever. Sitting at 600 points is
+        // proof the minimum is no more than 600.
         var store = MinimumSizeStore(file: temporaryFile())
         store.record(bundleID: "com.apple.Safari", minimum: 900)
-        store.record(bundleID: "com.apple.Safari", minimum: 620)
-        #expect(store.minimum(for: "com.apple.Safari") == 620)
-        // And a later spurious refusal doesn't undo the correction.
-        store.record(bundleID: "com.apple.Safari", minimum: 880)
-        #expect(store.minimum(for: "com.apple.Safari") == 620)
+        store.observe(bundleID: "com.apple.Safari", axis: .horizontal, size: 600)
+        #expect(store.minimum(for: "com.apple.Safari") == 600)
+    }
+
+    @Test func seeingAWindowLargerThanItsFloorProvesNothing() {
+        // A window being wide says nothing about how narrow it could go.
+        var store = MinimumSizeStore(file: temporaryFile())
+        store.record(bundleID: "com.apple.Safari", minimum: 600)
+        store.observe(bundleID: "com.apple.Safari", axis: .horizontal, size: 1200)
+        #expect(store.minimum(for: "com.apple.Safari") == 600)
+    }
+
+    @Test func observingAnAppWeKnowNothingAboutStaysUnknown() {
+        // Absent means "worth asking". Recording a size as though it were a
+        // floor would invent a constraint the app never expressed.
+        var store = MinimumSizeStore(file: temporaryFile())
+        store.observe(bundleID: "com.example.new", axis: .horizontal, size: 800)
+        #expect(store.minimum(for: "com.example.new") == nil)
     }
 
     @Test func anUnknownAppIsNotAssumedConstrained() {
