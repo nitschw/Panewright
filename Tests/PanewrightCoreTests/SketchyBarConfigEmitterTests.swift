@@ -310,3 +310,55 @@ import Testing
             == config.modules)
     }
 }
+
+@Suite struct BindingConflictTests {
+    @Test func flagsDuplicateKeysAndSystemChords() {
+        var config = PanewrightConfig.default
+        config.modifier = .ctrlCmd
+        config.bindings = [
+            .init(key: "1", action: .workspace(1)),
+            .init(key: "1", action: .workspace(9)),   // duplicate
+            .init(key: "space", action: .fullscreen), // ctrl-cmd-space = Emoji picker
+            .init(key: "j", action: .focus(.down)),
+        ]
+        let conflicts = BindingConflicts.find(in: config)
+        #expect(conflicts.count == 2)
+        // The duplicate names both actions, so it's obvious which one wins.
+        let duplicate = conflicts.first { $0.key == "1" }
+        #expect(duplicate?.summary.contains("bound twice") == true)
+        #expect(duplicate?.summary.contains("workspace 9") == true)
+        // The system chord names its owner rather than just saying "conflict".
+        #expect(conflicts.first { $0.key == "space" }?.summary.contains("Emoji") == true)
+        // A clean binding isn't flagged.
+        #expect(!conflicts.contains { $0.key == "j" })
+    }
+
+    @Test func modeKeysAreScopedAndNeverSystemChords() {
+        var config = PanewrightConfig.default
+        config.bindings = []
+        config.modes = [
+            .init(name: "resize", bindings: [
+                .init(key: "h", action: .resize(.width, -50)),
+                .init(key: "h", action: .resize(.width, 50)),
+            ])
+        ]
+        let conflicts = BindingConflicts.find(in: config)
+        // Same key in different modes is fine; the same key twice in one is not.
+        #expect(conflicts.count == 1)
+        #expect(conflicts.first?.scope == "resize")
+        // Mode keys are bare, so they can't collide with a macOS chord.
+        #expect(conflicts.allSatisfy { if case .duplicate = $0.kind { true } else { false } })
+    }
+
+    @Test func defaultsHaveOneKnownSystemCollision() {
+        // Found by this detector on its first run: the default $mod+f
+        // (fullscreen) becomes ctrl-cmd-f, which is macOS's own "Enter Full
+        // Screen". Apps with that menu item swallow it before AeroSpace sees
+        // it. Asserted rather than hidden so the decision to rebind is
+        // deliberate — and so a NEW conflict still fails this test.
+        let conflicts = BindingConflicts.find(in: .default)
+        #expect(conflicts.count == 1)
+        #expect(conflicts.first?.key == "f")
+        #expect(conflicts.first?.summary.contains("Enter Full Screen") == true)
+    }
+}
