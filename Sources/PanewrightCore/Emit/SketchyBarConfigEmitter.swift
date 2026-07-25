@@ -542,23 +542,6 @@ public enum SketchyBarConfigEmitter {
             """ : "")
 
 
-            \(m.layout ? """
-            LAY=$("$A" list-windows --focused --format '%{window-layout}' 2>/dev/null | awk '{print $1}')
-            case "$LAY" in
-              *fullscreen*) LSYM="⛶";;
-              h_tiles|*h_tiles*) LSYM="▥";;
-              v_tiles|*v_tiles*) LSYM="▤";;
-              *tiles*) LSYM="▦";;
-              *accordion*) LSYM="▤▤";;
-              float*) LSYM="◇";;
-              *) LSYM="";;
-            esac
-            if [ -n "$LSYM" ]; then
-              ARGS+=(--set w.layout drawing=on label="$LSYM")
-            else
-              ARGS+=(--set w.layout drawing=off)
-            fi
-            """ : "")
 
             \(m.scratchpad ? """
             SC=$("$A" list-windows --workspace S --format '%{window-id}' 2>/dev/null | grep -c .)
@@ -752,7 +735,6 @@ public enum SketchyBarConfigEmitter {
         if modules.volume { chip("w.vol", "Volume · click to mute", click: "osascript -e 'set volume output muted (not (output muted of (get volume settings)))'") }
         if modules.micMute { chip("w.mic", "Microphone · click to toggle mute", click: "$SCRIPTS_DIR/mic-toggle.sh") }
         if modules.scratchpad { chip("w.scratch", "Scratchpad · stashed windows") }
-        if modules.layout { chip("w.layout", "Layout of the focused workspace") }
         if modules.cloudContext { chip("w.cloud", "kubectl context / AWS profile") }
         if modules.docker { chip("w.docker", "Docker · running containers") }
         if modules.battery { chip("w.batt", "Battery · charge and time left") }
