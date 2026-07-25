@@ -92,16 +92,30 @@ public enum WindowFitting {
     /// deficit is usually small — eleven points, not sixty — and asking for a
     /// fixed step overshoots, which makes AeroSpace redistribute space and
     /// move the problem somewhere else instead of fixing it.
+    /// - Parameter separation: the gap neighbours are supposed to have between
+    ///   them (the config's inner gap). Aiming merely for "not overlapping"
+    ///   leaves windows touching, which still looks broken — more so than it
+    ///   sounds, because the focus border is drawn *outside* the frame, so a
+    ///   two-point window overlap shows up as a couple of dozen points of
+    ///   overlapping border.
     public static func deficit(
-        in windows: [Window], bounds: CGRect?, tolerance: CGFloat = 2
+        in windows: [Window], bounds: CGRect?, separation: CGFloat = 0,
+        tolerance: CGFloat = 1
     ) -> CGFloat {
         var worst: CGFloat = 0
         for i in windows.indices {
             for j in windows.indices where j > i {
-                let shared = windows[i].frame.intersection(windows[j].frame)
-                guard !shared.isNull, shared.width > tolerance, shared.height > tolerance
-                else { continue }
-                worst = max(worst, shared.width)
+                let a = windows[i].frame
+                let b = windows[j].frame
+                // Only side-by-side windows compete for width. Stacked ones
+                // share a column and their horizontal spacing is irrelevant.
+                let sharedRows = min(a.maxY, b.maxY) - max(a.minY, b.minY)
+                guard sharedRows > tolerance else { continue }
+                let left = a.minX <= b.minX ? a : b
+                let right = a.minX <= b.minX ? b : a
+                let gap = right.minX - left.maxX
+                let missing = separation - gap
+                if missing > tolerance { worst = max(worst, missing) }
             }
         }
         if let bounds {
@@ -130,10 +144,11 @@ public enum WindowFitting {
         for windows: [Window],
         minimums: [String: CGFloat],
         bounds: CGRect? = nil,
+        separation: CGFloat = 0,
         step: Int = 60,
         overflowEnabled: Bool = true
     ) -> Verdict {
-        let need = deficit(in: windows, bounds: bounds)
+        let need = deficit(in: windows, bounds: bounds, separation: separation)
         guard need > 0 else { return .fits }
         // Ask for what's actually missing, not a fixed step. Overshooting
         // makes AeroSpace redistribute more than the layout needed, which

@@ -158,6 +158,64 @@ private func window(
     }
 }
 
+/// Tiling means neighbours sit an inner gap apart. Merely "not overlapping"
+/// is not the goal, and treating it as one leaves a visibly broken layout.
+@Suite struct SeparationTests {
+    @Test func touchingNeighboursAreStillWrong() {
+        // The live failure: Claude ended at 654, iTerm began at 652. A two-point
+        // overlap sat inside the old tolerance, so it reported a fitting layout
+        // and stopped — while the focus borders, drawn outside the frame,
+        // overlapped by more than twenty points and looked obviously broken.
+        let windows = [
+            window(1, "claude", x: 54, width: 600),  // 54…654
+            window(2, "iterm", x: 652, width: 490),  // 652…1142
+        ]
+        // Two points of overlap, five points of gap owed: seven to reclaim.
+        #expect(WindowFitting.deficit(in: windows, bounds: nil, separation: 5) == 7)
+    }
+
+    @Test func exactlyTheRightGapIsLeftAlone() {
+        let windows = [
+            window(1, "a", x: 0, width: 600),  // ends 600
+            window(2, "b", x: 605, width: 500),  // starts 605
+        ]
+        #expect(WindowFitting.deficit(in: windows, bounds: nil, separation: 5) == 0)
+        #expect(
+            WindowFitting.nextStep(for: windows, minimums: [:], separation: 5) == .fits)
+    }
+
+    @Test func aGapWiderThanRequiredIsFine() {
+        // Reclaiming width is the job; nothing here should push windows together.
+        let windows = [
+            window(1, "a", x: 0, width: 600),
+            window(2, "b", x: 700, width: 500),
+        ]
+        #expect(WindowFitting.deficit(in: windows, bounds: nil, separation: 5) == 0)
+    }
+
+    @Test func stackedWindowsDoNotCompeteForWidth() {
+        // One above the other in the same column: they share no rows, so the
+        // horizontal distance between them means nothing.
+        let a = WindowFitting.Window(
+            id: 1, bundleID: "a", frame: CGRect(x: 0, y: 0, width: 600, height: 500),
+            arrived: Date())
+        let b = WindowFitting.Window(
+            id: 2, bundleID: "b", frame: CGRect(x: 0, y: 505, width: 600, height: 500),
+            arrived: Date())
+        #expect(WindowFitting.deficit(in: [a, b], bounds: nil, separation: 5) == 0)
+    }
+
+    @Test func subPointJitterIsNotChased() {
+        // Frames land on fractional points after gap division; a half-point
+        // discrepancy must not trigger an endless correction loop.
+        let windows = [
+            window(1, "a", x: 0, width: 600),
+            window(2, "b", x: 604.6, width: 500),
+        ]
+        #expect(WindowFitting.deficit(in: windows, bounds: nil, separation: 5) == 0)
+    }
+}
+
 @Suite struct WindowFittingPlanTests {
     /// Two windows overlapping by 120pt, neither known to be constrained.
     private var cramped: [WindowFitting.Window] {

@@ -68,7 +68,9 @@ final class WindowFitController {
             return
         }
         let bounds = displayBounds()
-        guard WindowFitting.deficit(in: windows, bounds: bounds) > 0 else {
+        let separation = CGFloat(config.gaps.inner)
+        guard WindowFitting.deficit(in: windows, bounds: bounds, separation: separation) > 0
+        else {
             reset()
             return
         }
@@ -78,7 +80,7 @@ final class WindowFitController {
         // its own is how this turns into a tug of war with AeroSpace.
         consecutiveOverlaps += 1
         guard consecutiveOverlaps >= 2 else { return }
-        converge(cli: cli, config: config, bounds: bounds)
+        converge(cli: cli, config: config, bounds: bounds, separation: separation)
     }
 
     /// Fix it in one burst rather than one nudge per tick.
@@ -89,7 +91,7 @@ final class WindowFitController {
     /// immediately — so the whole convergence happens in a few hundred
     /// milliseconds and looks like one reflow.
     private func converge(
-        cli: AeroSpaceCLI, config: PanewrightConfig, bounds: CGRect?
+        cli: AeroSpaceCLI, config: PanewrightConfig, bounds: CGRect?, separation: CGFloat
     ) {
         converging = true
         Task { @MainActor in
@@ -102,7 +104,7 @@ final class WindowFitController {
                 guard windows.count > 1 else { return }
                 let verdict = WindowFitting.nextStep(
                     for: windows, minimums: minimums.widths, bounds: bounds,
-                    step: config.fitting.step, overflowEnabled: config.fitting.overflow)
+                    separation: separation, step: config.fitting.step, overflowEnabled: config.fitting.overflow)
                 switch verdict {
                 case .fits:
                     if attempt > 1 { DragLog.log("fitting: settled after \(attempt - 1) steps") }
