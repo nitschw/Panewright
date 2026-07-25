@@ -36,6 +36,14 @@ final class WindowFitController {
     private var settled: String?
 
     private static let maxAttempts = 8
+    /// How long to leave a workspace alone after moving a window out of it.
+    ///
+    /// Evicting changes the problem: the windows that remain have more room,
+    /// and usually now fit. Deciding again immediately — off geometry that
+    /// hasn't re-tiled yet — is how one necessary eviction became three, and
+    /// split a workspace that only ever needed to lose a single window.
+    private static let evictionCooldown: TimeInterval = 4
+    private var lastEviction = Date.distantPast
 
     /// Cached workspace membership, refreshed only when the on-screen window
     /// set changes — see currentWindows.
@@ -151,6 +159,13 @@ final class WindowFitController {
                     settled = signature(of: windows)
                     return
                 case .adjusting(.evict(let id)):
+                    guard Date().timeIntervalSince(lastEviction) >= Self.evictionCooldown
+                    else {
+                        // Let the previous eviction land and the layout re-tile
+                        // before concluding anything else has to go.
+                        DragLog.log("fitting: holding off — just evicted a window")
+                        return
+                    }
                     evict(id: id, windows: windows, cli: cli)
                     return
                 case .adjusting(.shrink(let id, let by, let axis)):
@@ -235,6 +250,7 @@ final class WindowFitController {
             try cli.run([
                 "move-node-to-workspace", "--window-id", "\(id)", destination,
             ])
+            lastEviction = Date()
             notify("\(name) moved to workspace \(destination) — it wouldn't fit")
             DragLog.log("fitting: evicted \(name) (\(id)) to workspace \(destination)")
             reset()

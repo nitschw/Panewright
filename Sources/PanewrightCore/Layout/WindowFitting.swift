@@ -221,7 +221,9 @@ public enum WindowFitting {
         // something has to leave.
         let candidates =
             windows
-            .filter { hasNeighbour($0, among: windows, along: worst.axis) }
+            .filter {
+                hasNeighbour($0, among: windows, along: worst.axis, separation: separation)
+            }
             .map { (window: $0, slack: slack(of: $0, minimums: minimums, axis: worst.axis)) }
             .filter { $0.slack >= CGFloat(ask) }
             .sorted { $0.slack > $1.slack }
@@ -241,28 +243,44 @@ public enum WindowFitting {
         min(step, max(8, Int((need + 4).rounded(.up))))
     }
 
+    /// Which axis two windows are neighbours along, if any.
+    ///
+    /// A pair competes along exactly one axis: the one where they're closest
+    /// to being properly separated. This is the same judgement `deficit` makes
+    /// and it has to be the same rule, because a pair that is *overlapping*
+    /// shares both spans and so looks adjacent in both directions at once.
+    private static func neighbourAxis(
+        _ a: CGRect, _ b: CGRect, separation: CGFloat
+    ) -> (axis: Axis, missing: CGFloat)? {
+        Axis.allCases.map { axis -> (axis: Axis, missing: CGFloat) in
+            let leadingIsA = axis.start(a) <= axis.start(b)
+            let leading = leadingIsA ? a : b
+            let trailing = leadingIsA ? b : a
+            return (axis, separation - (axis.start(trailing) - axis.end(leading)))
+        }
+        .min { $0.missing < $1.missing }
+    }
+
     /// Whether this window has anyone to trade space with along `axis`.
     ///
     /// A window alone in its column cannot give up height: there is no
     /// vertical sibling for AeroSpace to hand the space to, so the resize is a
     /// no-op. Asking anyway wastes a step, and — worse — the window's refusal
     /// to change looks exactly like hitting its minimum, which writes a
-    /// fictional floor into the learned sizes. A phantom floor equal to the
-    /// full workspace height would make that app read as permanently
-    /// unshrinkable and push the fitter toward evicting instead of resizing.
+    /// fictional floor into the learned sizes.
     ///
-    /// Sharing the cross axis is what makes two windows neighbours: side by
-    /// side they share rows and can trade width, stacked they share columns
-    /// and can trade height.
+    /// Judged through `neighbourAxis` rather than by asking whether some other
+    /// window merely overlaps this one's cross-axis span. That looser test was
+    /// fooled by precisely the situation this code exists for: two windows
+    /// drawn on top of each other share both spans, so a side-by-side pair
+    /// registered as vertical neighbours, got asked to give up height they had
+    /// no way to give, and recorded floors equal to the full screen height.
     private static func hasNeighbour(
-        _ window: Window, among windows: [Window], along axis: Axis, tolerance: CGFloat = 1
+        _ window: Window, among windows: [Window], along axis: Axis, separation: CGFloat
     ) -> Bool {
         windows.contains { other in
             guard other.id != window.id else { return false }
-            let shared =
-                min(axis.cross.end(other.frame), axis.cross.end(window.frame))
-                - max(axis.cross.start(other.frame), axis.cross.start(window.frame))
-            return shared > tolerance
+            return neighbourAxis(window.frame, other.frame, separation: separation)?.axis == axis
         }
     }
 

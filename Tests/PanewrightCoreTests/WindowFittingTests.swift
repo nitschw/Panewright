@@ -579,3 +579,49 @@ private func window(
         #expect(id == 2)
     }
 }
+
+/// Side-by-side windows that are overlapping share both spans, so a naive
+/// "do we share a cross-axis span?" test declares them neighbours in both
+/// directions at once — which had them asked to give up height they had no way
+/// to give, recording floors equal to the whole screen.
+@Suite struct NeighbourAxisTests {
+    private let screen = CGRect(x: 0, y: 0, width: 1728, height: 1117)
+
+    @Test func overlappingSideBySideWindowsAreNotVerticalNeighbours() {
+        // Full height, overlapping horizontally by 80pt: the classic failure.
+        let a = WindowFitting.Window(
+            id: 1, bundleID: "a", frame: CGRect(x: 54, y: 36, width: 600, height: 1045),
+            arrived: Date(timeIntervalSince1970: 100))
+        let b = WindowFitting.Window(
+            id: 2, bundleID: "b", frame: CGRect(x: 574, y: 36, width: 663, height: 1045),
+            arrived: Date(timeIntervalSince1970: 200))
+        // The pair competes for width, never height.
+        #expect(
+            WindowFitting.deficit(in: [a, b], bounds: screen, separation: 5, axis: .vertical)
+                == 0)
+        guard
+            case .adjusting(.shrink(_, _, let axis)) = WindowFitting.nextStep(
+                for: [a, b], minimums: WindowFitting.Minimums(), bounds: screen,
+                separation: 5, step: 60)
+        else {
+            Issue.record("expected a shrink")
+            return
+        }
+        // A vertical ask here can only be refused, and that refusal would be
+        // written down as a fictional full-height minimum.
+        #expect(axis == .horizontal)
+    }
+
+    @Test func genuinelyStackedWindowsStillCompeteVertically() {
+        // The guard must not overcorrect into ignoring real vertical layouts.
+        let top = WindowFitting.Window(
+            id: 1, bundleID: "a", frame: CGRect(x: 54, y: 36, width: 600, height: 540),
+            arrived: Date())
+        let bottom = WindowFitting.Window(
+            id: 2, bundleID: "b", frame: CGRect(x: 54, y: 561, width: 600, height: 520),
+            arrived: Date())
+        #expect(
+            WindowFitting.deficit(in: [top, bottom], bounds: screen, separation: 5,
+                axis: .vertical) > 0)
+    }
+}
