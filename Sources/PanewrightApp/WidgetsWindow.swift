@@ -9,24 +9,33 @@ import SwiftUI
 struct WidgetsView: View {
     @State private var modules: PanewrightConfig.Modules
     @State private var integrations: IntegrationsConfig
+    @State private var todoEnabled: Bool
+    @State private var pillsEnabled: Bool
     @State private var tab = Tab.available
-    let onChange: (PanewrightConfig.Modules, IntegrationsConfig) -> Void
+    /// Companions (to-dos, window pills) build their own bar items, so they
+    /// come back separately from the driver-polled widgets.
+    let onChange: (PanewrightConfig.Modules, IntegrationsConfig, Bool, Bool) -> Void
 
     enum Tab: String, CaseIterable { case available = "Available", order = "Order" }
 
     init(
         modules: PanewrightConfig.Modules,
         integrations: IntegrationsConfig,
-        onChange: @escaping (PanewrightConfig.Modules, IntegrationsConfig) -> Void
+        todoEnabled: Bool,
+        pillsEnabled: Bool,
+        onChange: @escaping (PanewrightConfig.Modules, IntegrationsConfig, Bool, Bool) -> Void
     ) {
         _modules = State(initialValue: modules)
         _integrations = State(initialValue: integrations)
+        _todoEnabled = State(initialValue: todoEnabled)
+        _pillsEnabled = State(initialValue: pillsEnabled)
         self.onChange = onChange
     }
 
     /// What each widget puts in the bar — the reason to pick one.
     private static let blurbs: [String: (what: String, example: String)] = [
         "system-monitor": ("CPU and memory with live graphs; click for a mini-htop panel", "CPU 18%  MEM 39%"),
+        "system-graphs": ("Live sparklines beside the readout — see a spike building, not just its current value", "▁▃▅▇▅▃"),
         "network": ("Download and upload rate on the active interface", "↓1.2M ↑340K"),
         "ports": ("How many ports are listening; click for the list and what owns them", "⇄ 8"),
         "disk": ("Boot volume used and free", "SSD 2% · 1057G free"),
@@ -101,6 +110,16 @@ struct WidgetsView: View {
                         }
                     }
                 }
+                sectionHeader("Companions")
+                row(
+                    name: "To-do List",
+                    blurb: ("Tasks as pills with a + button; click one to edit or resolve it", "Ship 0.3 release  +"),
+                    isOn: Binding(get: { todoEnabled }, set: { todoEnabled = $0; push() }))
+                row(
+                    name: "Window Pills",
+                    blurb: ("Park a window in the bar; click to peek, right-click to release", "▸ Slack"),
+                    isOn: Binding(get: { pillsEnabled }, set: { pillsEnabled = $0; push() }))
+
                 sectionHeader("Work")
                 ForEach(Self.workWidgets, id: \.name) { item in
                     row(
@@ -202,7 +221,7 @@ struct WidgetsView: View {
         .padding(.vertical, 12)
     }
 
-    private func push() { onChange(modules, integrations) }
+    private func push() { onChange(modules, integrations, todoEnabled, pillsEnabled) }
 }
 
 @MainActor
@@ -212,11 +231,14 @@ final class WidgetsWindowController {
     func show(
         modules: PanewrightConfig.Modules,
         integrations: IntegrationsConfig,
-        onChange: @escaping (PanewrightConfig.Modules, IntegrationsConfig) -> Void
+        todoEnabled: Bool,
+        pillsEnabled: Bool,
+        onChange: @escaping (PanewrightConfig.Modules, IntegrationsConfig, Bool, Bool) -> Void
     ) {
         let hosting = NSHostingController(
             rootView: WidgetsView(
-                modules: modules, integrations: integrations, onChange: onChange))
+                modules: modules, integrations: integrations,
+                todoEnabled: todoEnabled, pillsEnabled: pillsEnabled, onChange: onChange))
         if let window {
             window.contentViewController = hosting
         } else {

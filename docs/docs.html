@@ -402,6 +402,14 @@ accent-color = "#30D158"   <span class="c"># optional; defaults to the focus bor
     <tr><td><code>scratchpad</code></td><td>How many windows are stashed away, so parked windows aren't forgotten</td></tr>
   </table>
 
+  <h3>Companions</h3>
+  <p>The <a href="#todo">to-do list</a> and <a href="#pills">window pills</a> are widgets too — they appear in the same <b>Widgets…</b> picker. They build their own bar items rather than being driver-polled, so toggling one rebuilds the bar (briefly) where the others switch instantly.</p>
+  <table>
+    <tr><th>Widget</th><th>Shows</th></tr>
+    <tr><td><code>[todo] enabled</code></td><td>Tasks as pills with a <b>+</b> button, always grouped together; click a pill to edit or resolve it</td></tr>
+    <tr><td><code>[pills] enabled</code></td><td>Parked windows; click to peek, right-click to give the window back to the tiling tree</td></tr>
+  </table>
+
   <h3>Work trackers</h3>
   <p>GitHub, GitLab, Jira, Confluence, and Microsoft Teams are widgets too — they appear in the same <b>Widgets…</b> picker, and their pills sit on the right of the bar. They carry credentials, so they keep their own config section; see <a href="#workitems">Work items</a>, <a href="#confluence">Confluence</a>, and <a href="#teams">Microsoft Teams</a> for setup.</p>
 

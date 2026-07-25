@@ -316,26 +316,38 @@ final class AppModel {
         let controller = widgetsWindowController ?? WidgetsWindowController()
         widgetsWindowController = controller
         let config = (try? orchestrator.loadConfig()) ?? .default
-        controller.show(modules: modules, integrations: config.integrations) {
-            [weak self] updatedModules, updatedIntegrations in
-            self?.applyModules(updatedModules, integrations: updatedIntegrations)
+        controller.show(
+            modules: modules, integrations: config.integrations,
+            todoEnabled: config.todo.enabled, pillsEnabled: config.pills.enabled
+        ) { [weak self] updatedModules, updatedIntegrations, todo, pills in
+            self?.applyModules(
+                updatedModules, integrations: updatedIntegrations,
+                todoEnabled: todo, pillsEnabled: pills)
         }
     }
 
     /// Persist a whole widget set and repaint — used by the picker and by
     /// right-clicking a widget in the bar.
     func applyModules(
-        _ updated: PanewrightConfig.Modules, integrations: IntegrationsConfig? = nil
+        _ updated: PanewrightConfig.Modules, integrations: IntegrationsConfig? = nil,
+        todoEnabled: Bool? = nil, pillsEnabled: Bool? = nil
     ) {
         do {
             var config = try orchestrator.loadConfig()
-            let integrationsChanged = integrations.map { $0 != config.integrations } ?? false
+            // These three build their own bar items at config time, so they're
+            // the only toggles that still need the bar rebuilt.
+            let rebuildNeeded =
+                (integrations.map { $0 != config.integrations } ?? false)
+                || (todoEnabled.map { $0 != config.todo.enabled } ?? false)
+                || (pillsEnabled.map { $0 != config.pills.enabled } ?? false)
             config.modules = updated
             if let integrations { config.integrations = integrations }
+            if let todoEnabled { config.todo.enabled = todoEnabled }
+            if let pillsEnabled { config.pills.enabled = pillsEnabled }
             try orchestrator.writeConfig(config)
             // Work widgets live in their own bar items created at build time,
             // so toggling one still needs the bar rebuilt; the rest don't.
-            if integrationsChanged {
+            if rebuildNeeded {
                 try orchestrator.applyBar(config)
                 self.integrations.configure(config.integrations)
             } else {
