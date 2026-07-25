@@ -68,9 +68,17 @@ final class ShortcutOverrideTap {
         let mask: CGEventMask = 1 << CGEventType.keyDown.rawValue
         guard
             let tap = CGEvent.tapCreate(
-                tap: .cgSessionEventTap,
-                // Ahead of the system's own handling — the whole point is to
-                // see the chord before macOS claims it.
+                // HID level, not session. A session tap is too late: macOS
+                // resolves its own reserved shortcuts in the window server
+                // before session taps run, so ⌃⌘F full-screened the window
+                // regardless of the tap being armed — measured, not assumed.
+                // The HID tap is the earliest point a CGEventTap can sit, and
+                // is where tools that successfully rebind system chords hook in.
+                //
+                // The trade-off is that an HID tap does not see synthetic
+                // events (CGEventPost injects at session level), so this path
+                // can only be exercised by a real key press.
+                tap: .cghidEventTap,
                 place: .headInsertEventTap,
                 options: .defaultTap,
                 eventsOfInterest: mask,
