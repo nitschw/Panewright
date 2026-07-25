@@ -157,4 +157,32 @@ import Testing
             watcher.stop()
         }
     }
+
+    /// The app watches with a `file:`, which turns on the modification-date
+    /// gate and the polling fallback — neither of which the test above
+    /// touches, since without a file every directory event fires directly.
+    ///
+    /// And it changes the file *twice*. One change was detected correctly even
+    /// when the mechanism was broken, because the bug was a stale cached read:
+    /// the first comparison had nothing cached yet. Only the second edit
+    /// exposed it, which is precisely why the app went months re-applying
+    /// nothing while this suite stayed green.
+    @Test func firesOnEverySuccessiveChangeNotJustTheFirst() async throws {
+        let dir = FileManager.default.temporaryDirectory
+            .appending(path: "panewright-watch-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let file = dir.appending(path: "panewright.toml")
+        try "modifier = \"alt\"\n".write(to: file, atomically: true, encoding: .utf8)
+
+        try await confirmation(expectedCount: 2) { changed in
+            let watcher = ConfigWatcher(directory: dir, file: file) { changed() }
+            try watcher.start()
+            try "modifier = \"cmd\"\n".write(to: file, atomically: true, encoding: .utf8)
+            try await Task.sleep(for: .milliseconds(900))
+            try "modifier = \"ctrl\"\n".write(to: file, atomically: true, encoding: .utf8)
+            try await Task.sleep(for: .milliseconds(900))
+            watcher.stop()
+        }
+    }
 }

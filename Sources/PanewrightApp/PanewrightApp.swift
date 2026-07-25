@@ -866,12 +866,14 @@ final class AppModel {
         let watcher = ConfigWatcher(
             directory: directory, file: orchestrator.paths.panewrightConfigFile
         ) { [weak self] in
+            DragLog.log("watch: config changed on disk — applying")
             Task { @MainActor in
                 self?.apply()
             }
         }
         try watcher.start()
         self.watcher = watcher
+        DragLog.log("watch: watching \(directory.path)")
     }
 
     func reportDropResult(_ message: String) {

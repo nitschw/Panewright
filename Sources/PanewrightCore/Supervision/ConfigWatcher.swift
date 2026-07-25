@@ -70,9 +70,22 @@ public final class ConfigWatcher: @unchecked Sendable {
         poll = timer
     }
 
+    /// Read through FileManager, never `URL.resourceValues`.
+    ///
+    /// A URL caches its resource values. Once a given URL instance has
+    /// reported a modification date it keeps reporting that one, so a
+    /// long-lived watcher sees the file frozen at whatever it was when the
+    /// watcher started — measured: FileManager reported 21:47:00 while the
+    /// same URL still said 21:46:29.
+    ///
+    /// That single stale read disabled both detection paths, since the
+    /// directory-event handler gates on the same comparison, and it survived
+    /// testing because one change with a cold cache is detected correctly.
+    /// Only the second change is wrong, which is exactly what a test that
+    /// makes one edit cannot see.
     private static func modificationDate(of url: URL) -> Date? {
-        try? url.resourceValues(forKeys: [.contentModificationDateKey])
-            .contentModificationDate
+        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate]
+            as? Date
     }
 
     public func stop() {
