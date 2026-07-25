@@ -49,6 +49,115 @@ private func window(
     }
 }
 
+/// A window shoved past the edge of the display overlaps nothing at all, and
+/// is just as broken — half of it can't be seen.
+@Suite struct OffScreenTests {
+    private let screen = CGRect(x: 0, y: 0, width: 1728, height: 1117)
+
+    @Test func aWindowPastTheRightEdgeCounts() {
+        let windows = [
+            window(1, "a", x: 0, width: 900),
+            window(2, "b", x: 908, width: 900),  // runs 80pt off the right
+        ]
+        // Invisible to a pairwise check: these two don't touch each other.
+        #expect(WindowFitting.overlaps(in: windows).isEmpty)
+        #expect(WindowFitting.deficit(in: windows, bounds: screen) == 80)
+    }
+
+    @Test func aWindowPastTheLeftEdgeCounts() {
+        let windows = [
+            window(1, "a", x: -40, width: 600),
+            window(2, "b", x: 700, width: 600),
+        ]
+        #expect(WindowFitting.deficit(in: windows, bounds: screen) == 40)
+    }
+
+    @Test func anOffScreenWindowIsActedOnRatherThanIgnored() {
+        // The bug this closes: overlap-only detection called this layout fine
+        // and never evicted anything, so a window stayed half off the display.
+        let windows = [
+            window(1, "a", x: 0, width: 900, arrived: 100),
+            window(2, "b", x: 908, width: 900, arrived: 200),
+        ]
+        let verdict = WindowFitting.nextStep(
+            for: windows, minimums: [:], bounds: screen, step: 60)
+        #expect(verdict != .fits)
+    }
+
+    @Test func aLayoutInsideTheScreenIsStillFine() {
+        let windows = [
+            window(1, "a", x: 8, width: 850),
+            window(2, "b", x: 868, width: 850),
+        ]
+        #expect(WindowFitting.deficit(in: windows, bounds: screen) == 0)
+        #expect(WindowFitting.nextStep(for: windows, minimums: [:], bounds: screen) == .fits)
+    }
+
+    @Test func withoutKnownBoundsOnlyOverlapCounts() {
+        // Multi-monitor and unknown-display cases must not invent a deficit.
+        let windows = [
+            window(1, "a", x: 0, width: 900),
+            window(2, "b", x: 908, width: 900),
+        ]
+        #expect(WindowFitting.deficit(in: windows, bounds: nil) == 0)
+    }
+}
+
+/// The size of the ask matters as much as the choice of window: overshooting
+/// makes AeroSpace redistribute more than the layout needed, which relocates
+/// the problem instead of fixing it.
+@Suite struct AskSizeTests {
+    @Test func asksForWhatIsMissingRatherThanAFixedStep() {
+        // The real case from a live workspace: an 11pt overlap. Asking for the
+        // configured 60 caused a visible oscillation between three windows.
+        let windows = [
+            window(1, "chrome", x: 0, width: 900),
+            window(2, "iterm", x: 889, width: 500),
+        ]
+        guard
+            case .adjusting(.shrink(_, let by)) = WindowFitting.nextStep(
+                for: windows, minimums: [:], step: 60)
+        else {
+            Issue.record("expected a shrink")
+            return
+        }
+        // 11 needed, plus a little margin for fractional frames — nowhere near 60.
+        #expect(by == 15)
+    }
+
+    @Test func theConfiguredStepIsACeilingNotATarget() {
+        // A big deficit is still capped, so one correction can't yank a window
+        // dramatically smaller than the user expects in a single jump.
+        let windows = [
+            window(1, "chrome", x: 0, width: 900),
+            window(2, "iterm", x: 500, width: 500),
+        ]
+        guard
+            case .adjusting(.shrink(_, let by)) = WindowFitting.nextStep(
+                for: windows, minimums: [:], step: 60)
+        else {
+            Issue.record("expected a shrink")
+            return
+        }
+        #expect(by == 60)
+    }
+
+    @Test func aTinyDeficitStillAsksForSomethingWorthTheRoundTrip() {
+        let windows = [
+            window(1, "chrome", x: 0, width: 900),
+            window(2, "iterm", x: 897, width: 500),
+        ]
+        guard
+            case .adjusting(.shrink(_, let by)) = WindowFitting.nextStep(
+                for: windows, minimums: [:], step: 60)
+        else {
+            Issue.record("expected a shrink")
+            return
+        }
+        #expect(by >= 8)
+    }
+}
+
 @Suite struct WindowFittingPlanTests {
     /// Two windows overlapping by 120pt, neither known to be constrained.
     private var cramped: [WindowFitting.Window] {

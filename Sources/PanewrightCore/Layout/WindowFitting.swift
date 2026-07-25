@@ -81,6 +81,40 @@ public enum WindowFitting {
         return found
     }
 
+    /// How many points of width need to be reclaimed for the layout to work.
+    ///
+    /// Two failure modes, and the second is invisible to `overlaps` alone: a
+    /// window can be pushed past the edge of the display, where it overlaps
+    /// nothing at all and yet is plainly broken — part of it simply cannot be
+    /// seen. Checking only window-against-window declares that layout fine.
+    ///
+    /// Returning the *amount* rather than a yes/no matters just as much. The
+    /// deficit is usually small — eleven points, not sixty — and asking for a
+    /// fixed step overshoots, which makes AeroSpace redistribute space and
+    /// move the problem somewhere else instead of fixing it.
+    public static func deficit(
+        in windows: [Window], bounds: CGRect?, tolerance: CGFloat = 2
+    ) -> CGFloat {
+        var worst: CGFloat = 0
+        for i in windows.indices {
+            for j in windows.indices where j > i {
+                let shared = windows[i].frame.intersection(windows[j].frame)
+                guard !shared.isNull, shared.width > tolerance, shared.height > tolerance
+                else { continue }
+                worst = max(worst, shared.width)
+            }
+        }
+        if let bounds {
+            for window in windows {
+                let past =
+                    max(0, bounds.minX - window.frame.minX)
+                    + max(0, window.frame.maxX - bounds.maxX)
+                if past > tolerance { worst = max(worst, past) }
+            }
+        }
+        return worst
+    }
+
     /// The next single step toward a layout that fits.
     ///
     /// One step at a time on purpose: since AeroSpace redistributes space its
@@ -95,18 +129,27 @@ public enum WindowFitting {
     public static func nextStep(
         for windows: [Window],
         minimums: [String: CGFloat],
+        bounds: CGRect? = nil,
         step: Int = 60,
         overflowEnabled: Bool = true
     ) -> Verdict {
-        guard !overlaps(in: windows).isEmpty else { return .fits }
-        // Widest first: it has the most to give, and moving the biggest lever
-        // reaches a fitting layout in the fewest passes.
+        let need = deficit(in: windows, bounds: bounds)
+        guard need > 0 else { return .fits }
+        // Ask for what's actually missing, not a fixed step. Overshooting
+        // makes AeroSpace redistribute more than the layout needed, which
+        // moves the problem to a different pair of windows instead of solving
+        // it — the oscillation that made this take a dozen visible passes.
+        // Rounded up with a small margin for fractional frames, and floored at
+        // something big enough to be worth a round trip.
+        let ask = min(step, max(8, Int((need + 4).rounded(.up))))
+        // Widest first: it has the most to give, and it's the one whose loss
+        // of a few points is least likely to be noticed.
         let shrinkable =
             windows
-            .filter { hasRoomToShrink($0, minimums: minimums, step: step) }
+            .filter { hasRoomToShrink($0, minimums: minimums, by: ask) }
             .sorted { $0.frame.width > $1.frame.width }
         if let target = shrinkable.first {
-            return .adjusting(.shrink(id: target.id, by: step))
+            return .adjusting(.shrink(id: target.id, by: ask))
         }
         // Everything is on its floor. No arrangement of these windows fits.
         guard overflowEnabled, let newest = windows.max(by: { $0.arrived < $1.arrived }) else {
@@ -116,13 +159,13 @@ public enum WindowFitting {
     }
 
     /// A window is worth asking only if it isn't already at (or under) its
-    /// known floor. The step is included so we never ask for a shrink that
+    /// known floor. The amount is included so we never ask for a shrink that
     /// would land below the minimum and get refused anyway.
     private static func hasRoomToShrink(
-        _ window: Window, minimums: [String: CGFloat], step: Int
+        _ window: Window, minimums: [String: CGFloat], by amount: Int
     ) -> Bool {
         guard let floor = minimums[window.bundleID] else { return true }
-        return window.frame.width - CGFloat(step) >= floor
+        return window.frame.width - CGFloat(amount) >= floor
     }
 
     /// What a shrink attempt taught us.

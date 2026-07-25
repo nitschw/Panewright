@@ -22,33 +22,20 @@ final class WindowFitController {
     /// each pass so this can't grow without bound.
     private var firstSeen: [UInt32: Date] = [:]
 
-    /// A shrink we asked for and haven't measured yet. The measurement is the
-    /// entire point — it's how a minimum gets learned — so it must survive to
-    /// the next pass.
-    private struct PendingShrink {
-        let id: UInt32
-        let bundleID: String
-        let requested: Int
-        let widthBefore: CGFloat
-    }
-    private var pending: PendingShrink?
-
-    /// Overlap must be seen twice running before anything moves. Windows are
-    /// legitimately mid-flight during an animation or a workspace switch, and
-    /// correcting a layout that was about to settle on its own is how a
-    /// tiling manager gets into a fight with itself.
+    /// Overlap must be seen twice running before anything moves.
     private var consecutiveOverlaps = 0
-    /// Passes spent trying to fix the current situation. Bounded so a layout
-    /// we cannot fix becomes a quiet stalemate rather than an endless churn of
-    /// resize commands.
-    private var attempts = 0
-    private var lastAction = Date.distantPast
-    /// Set when we've given up on the present arrangement; cleared as soon as
-    /// the windows change, since that's a genuinely new situation.
-    private var stalemate: Set<UInt32> = []
+    /// True while a convergence burst is in flight, so the timer can't start a
+    /// second one on top of it.
+    private var converging = false
+    /// The layout we've already given up on, as a position-and-size signature.
+    ///
+    /// Keyed on geometry rather than on the set of window ids, which was the
+    /// bug: once stuck, resizing a window by hand changed nothing about *which*
+    /// windows were present, so the corrector stayed given-up and appeared to
+    /// need poking before it would do anything.
+    private var settled: String?
 
     private static let maxAttempts = 8
-    private static let cooldown: TimeInterval = 1.5
 
     init(notify: @escaping (String) -> Void) {
         self.notify = notify
@@ -70,7 +57,8 @@ final class WindowFitController {
     }
 
     private func tick() {
-        guard let cli = AeroSpaceCLI.locate(),
+        guard !converging,
+            let cli = AeroSpaceCLI.locate(),
             let config = try? Orchestrator().loadConfig(), config.fitting.enabled
         else { return }
         let windows = currentWindows(cli: cli)
@@ -79,64 +67,111 @@ final class WindowFitController {
             reset()
             return
         }
-        // Measure the previous nudge before deciding anything new — this is
-        // where minimums come from.
-        settlePendingShrink(windows: windows)
-
-        let verdict = WindowFitting.nextStep(
-            for: windows, minimums: minimums.widths,
-            step: config.fitting.step, overflowEnabled: config.fitting.overflow)
-
-        switch verdict {
-        case .fits:
+        let bounds = displayBounds()
+        guard WindowFitting.deficit(in: windows, bounds: bounds) > 0 else {
             reset()
-        case .cannotFit(let count):
-            // Overflow is off, so this is the user's choice. Say it once, then
-            // stop pestering.
-            if !stalemate.isEmpty { return }
-            stalemate = Set(windows.map(\.id))
-            DragLog.log("fitting: \(count) windows overlap and overflow is off")
-        case .adjusting(let action):
-            guard shouldAct(on: windows) else { return }
-            apply(action, windows: windows, cli: cli)
+            return
         }
-    }
-
-    /// Damping. Every guard here exists to stop the corrector from fighting
-    /// either AeroSpace or itself.
-    private func shouldAct(on windows: [WindowFitting.Window]) -> Bool {
-        if stalemate == Set(windows.map(\.id)) { return false }
+        if signature(of: windows) == settled { return }
+        // Windows are legitimately mid-flight during an animation or a
+        // workspace switch. Correcting a layout that was about to settle on
+        // its own is how this turns into a tug of war with AeroSpace.
         consecutiveOverlaps += 1
-        guard consecutiveOverlaps >= 2 else { return false }
-        guard Date().timeIntervalSince(lastAction) >= Self.cooldown else { return false }
-        guard attempts < Self.maxAttempts else {
-            if stalemate.isEmpty {
-                stalemate = Set(windows.map(\.id))
-                DragLog.log("fitting: giving up after \(attempts) attempts")
-            }
-            return false
-        }
-        return true
+        guard consecutiveOverlaps >= 2 else { return }
+        converge(cli: cli, config: config, bounds: bounds)
     }
 
-    private func apply(
-        _ action: WindowFitting.Action, windows: [WindowFitting.Window], cli: AeroSpaceCLI
+    /// Fix it in one burst rather than one nudge per tick.
+    ///
+    /// Each correction is visible, so spreading eight of them across sixteen
+    /// seconds reads as the window manager glitching once a second. Reading
+    /// frames back costs a CGWindowList call — cheap enough to re-measure
+    /// immediately — so the whole convergence happens in a few hundred
+    /// milliseconds and looks like one reflow.
+    private func converge(
+        cli: AeroSpaceCLI, config: PanewrightConfig, bounds: CGRect?
     ) {
-        lastAction = Date()
-        attempts += 1
-        switch action {
-        case .settle:
-            break
-        case .shrink(let id, let by):
-            guard let target = windows.first(where: { $0.id == id }) else { return }
-            DragLog.log("fitting: asking \(target.bundleID) for \(by)pt")
-            try? cli.run(["resize", "--window-id", "\(id)", "width", "-\(by)"])
-            pending = PendingShrink(
-                id: id, bundleID: target.bundleID, requested: by,
-                widthBefore: target.frame.width)
-        case .evict(let id):
-            evict(id: id, windows: windows, cli: cli)
+        converging = true
+        Task { @MainActor in
+            defer {
+                converging = false
+                consecutiveOverlaps = 0
+            }
+            for attempt in 1...Self.maxAttempts {
+                let windows = currentWindows(cli: cli)
+                guard windows.count > 1 else { return }
+                let verdict = WindowFitting.nextStep(
+                    for: windows, minimums: minimums.widths, bounds: bounds,
+                    step: config.fitting.step, overflowEnabled: config.fitting.overflow)
+                switch verdict {
+                case .fits:
+                    if attempt > 1 { DragLog.log("fitting: settled after \(attempt - 1) steps") }
+                    settled = nil
+                    return
+                case .cannotFit(let count):
+                    // Overflow is off, so this is the user's choice. Record it
+                    // and stop pestering until something actually changes.
+                    DragLog.log("fitting: \(count) windows don't fit and overflow is off")
+                    settled = signature(of: windows)
+                    return
+                case .adjusting(.evict(let id)):
+                    evict(id: id, windows: windows, cli: cli)
+                    return
+                case .adjusting(.shrink(let id, let by)):
+                    guard let target = windows.first(where: { $0.id == id }) else { return }
+                    try? cli.run(["resize", "--window-id", "\(id)", "width", "-\(by)"])
+                    // Let the resize land before reading it back, or we learn
+                    // a minimum from a frame that hadn't updated yet.
+                    try? await Task.sleep(for: .milliseconds(90))
+                    learn(from: target, requested: by, cli: cli)
+                case .adjusting(.settle):
+                    return
+                }
+            }
+            // Bounded so a layout we cannot fix becomes a quiet stalemate
+            // rather than an endless churn of resize commands.
+            let windows = currentWindows(cli: cli)
+            DragLog.log("fitting: giving up after \(Self.maxAttempts) steps")
+            settled = signature(of: windows)
         }
+    }
+
+    /// Compare a window against itself after a resize: what it gave up versus
+    /// what it was asked for is the only signal macOS offers about its floor.
+    private func learn(from target: WindowFitting.Window, requested: Int, cli: AeroSpaceCLI) {
+        guard let now = currentWindows(cli: cli).first(where: { $0.id == target.id }) else {
+            return
+        }
+        guard
+            let learned = WindowFitting.learnedMinimum(
+                bundleID: target.bundleID, requested: requested,
+                before: target.frame.width, after: now.frame.width)
+        else { return }
+        DragLog.log("fitting: learned \(learned.bundleID) won't go below \(Int(learned.minimum))pt")
+        minimums.record(bundleID: learned.bundleID, minimum: learned.minimum)
+        minimums.save()
+    }
+
+    /// The visible bounds of the display the focused workspace is on. A window
+    /// pushed past this edge overlaps nothing and is still plainly broken.
+    private func displayBounds() -> CGRect? {
+        guard let screen = NSScreen.main else { return nil }
+        // CGWindowList is top-left origin; NSScreen is bottom-left. Only the
+        // horizontal extent is compared, so the flip doesn't matter here.
+        return CGRect(
+            x: screen.frame.minX, y: screen.frame.minY,
+            width: screen.frame.width, height: screen.frame.height)
+    }
+
+    /// Identity of a layout: which windows, and roughly where. Rounded so
+    /// sub-point jitter doesn't read as a change, but any real move or resize
+    /// does — including one the user makes by hand, which has to count as a
+    /// new situation worth retrying.
+    private func signature(of windows: [WindowFitting.Window]) -> String {
+        windows
+            .sorted { $0.id < $1.id }
+            .map { "\($0.id):\(Int($0.frame.minX / 4)):\(Int($0.frame.width / 4))" }
+            .joined(separator: ",")
     }
 
     /// Move the newest arrival out, and always say so. A window vanishing from
@@ -144,7 +179,7 @@ final class WindowFitController {
     private func evict(id: UInt32, windows: [WindowFitting.Window], cli: AeroSpaceCLI) {
         guard let destination = firstEmptyWorkspace(cli: cli) else {
             DragLog.log("fitting: nothing fits but there's no empty workspace to use")
-            stalemate = Set(windows.map(\.id))
+            settled = signature(of: windows)
             return
         }
         let name = appName(for: id, windows: windows)
@@ -157,24 +192,8 @@ final class WindowFitController {
             reset()
         } catch {
             DragLog.log("fitting: eviction failed: \(error)")
-            stalemate = Set(windows.map(\.id))
+            settled = signature(of: windows)
         }
-    }
-
-    /// What the last shrink actually achieved, which is the only source of
-    /// minimum-size knowledge we have.
-    private func settlePendingShrink(windows: [WindowFitting.Window]) {
-        guard let shrink = pending else { return }
-        pending = nil
-        guard let now = windows.first(where: { $0.id == shrink.id }) else { return }
-        guard
-            let learned = WindowFitting.learnedMinimum(
-                bundleID: shrink.bundleID, requested: shrink.requested,
-                before: shrink.widthBefore, after: now.frame.width)
-        else { return }
-        DragLog.log("fitting: learned \(learned.bundleID) won't go below \(Int(learned.minimum))pt")
-        minimums.record(bundleID: learned.bundleID, minimum: learned.minimum)
-        minimums.save()
     }
 
     // MARK: Reading the world
@@ -235,19 +254,13 @@ final class WindowFitController {
 
     private func reset() {
         consecutiveOverlaps = 0
-        attempts = 0
-        stalemate = []
-        pending = nil
+        settled = nil
     }
 
-    /// Drop remembered arrival times for windows that are gone, and treat any
-    /// change in the window set as a fresh situation worth trying again.
+    /// Drop remembered arrival times for windows that are gone, so this can't
+    /// grow without bound.
     private func prune(to windows: [WindowFitting.Window]) {
         let live = Set(windows.map(\.id))
         firstSeen = firstSeen.filter { live.contains($0.key) }
-        if !stalemate.isEmpty, stalemate != live {
-            stalemate = []
-            attempts = 0
-        }
     }
 }
