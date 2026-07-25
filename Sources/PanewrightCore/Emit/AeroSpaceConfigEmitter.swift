@@ -218,7 +218,10 @@ public enum AeroSpaceConfigEmitter {
         // the focused monitor rather than yanking focus across the room; on a
         // single monitor it behaves exactly like `workspace`.
         case .workspace(let n): "summon-workspace \(n)"
-        case .moveToWorkspace(let n): "move-node-to-workspace \(n)"
+        // Routed through a script: a fullscreen window can't be moved until it
+        // leaves fullscreen, so the script drops out, moves, and restores.
+        case .moveToWorkspace(let n):
+            "exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/move-window.sh\" workspace \(n)"
         case .focus(let direction): "focus \(direction.rawValue)"
         case .move(let direction): "move \(direction.rawValue)"
         case .layoutTiles: "layout tiles horizontal vertical"
@@ -226,7 +229,8 @@ public enum AeroSpaceConfigEmitter {
         case .fullscreen: "fullscreen"
         case .toggleFloating: "layout floating tiling"
         case .focusMonitor(let target): "focus-monitor \(target.rawValue)"
-        case .moveToMonitor(let target): "move-node-to-monitor \(target.rawValue)"
+        case .moveToMonitor(let target):
+            "exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/move-window.sh\" monitor \(target.rawValue)"
         case .resize(let dimension, let delta):
             "resize \(dimension.rawValue) \(delta >= 0 ? "+\(delta)" : "\(delta)")"
         case .joinWith(let direction): "join-with \(direction.rawValue)"

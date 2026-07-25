@@ -56,7 +56,9 @@ import Testing
     @Test func emitsI3StyleDefaultBindings() {
         let toml = AeroSpaceConfigEmitter.emit(.default)
         #expect(toml.contains("ctrl-cmd-1 = 'summon-workspace 1'"))
-        #expect(toml.contains("ctrl-cmd-shift-1 = 'move-node-to-workspace 1'"))
+        // Routed via move-window.sh so fullscreen windows move too.
+        #expect(toml.contains("ctrl-cmd-shift-1 = 'exec-and-forget /bin/bash"))
+        #expect(toml.contains("move-window.sh\" workspace 1'"))
         #expect(toml.contains("ctrl-cmd-h = 'focus left'"))
         #expect(toml.contains("ctrl-cmd-shift-l = 'move right'"))
         #expect(toml.contains("ctrl-cmd-e = 'layout tiles horizontal vertical'"))
@@ -86,7 +88,7 @@ import Testing
         #expect(toml.contains("ctrl-cmd-f = 'fullscreen'"))
         #expect(toml.contains("ctrl-cmd-shift-space = 'layout floating tiling'"))
         #expect(toml.contains("ctrl-cmd-left = 'focus-monitor left'"))
-        #expect(toml.contains("ctrl-cmd-shift-right = 'move-node-to-monitor right'"))
+        #expect(toml.contains("move-window.sh\" monitor right'"))
         #expect(toml.contains("ctrl-cmd-enter = 'exec-and-forget open -a Terminal'"))
     }
 

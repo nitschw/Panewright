@@ -19,6 +19,19 @@ struct DropExecutor: Sendable {
         guard let target else {
             return "drag-to-tile: canceled"
         }
+        // A fullscreen window can't be tiled or rehomed — it owns its own
+        // space. Drop out of fullscreen for the move, then restore it after.
+        let wasFullscreen = isFullscreen(dragged)
+        if wasFullscreen {
+            DragLog.log("executor: leaving fullscreen to move window \(dragged)")
+            try? cli.run(["fullscreen", "off", "--window-id", "\(dragged)"])
+            usleep(Self.settleMicroseconds)
+        }
+        defer {
+            if wasFullscreen {
+                try? cli.run(["fullscreen", "on", "--window-id", "\(dragged)"])
+            }
+        }
         // Cross-monitor drop: the walk moves by swaps, which never leave a
         // workspace — so first rehome the dragged window into the target's
         // workspace, then treat it like any local drop.
@@ -45,6 +58,23 @@ struct DropExecutor: Sendable {
     }
 
     // MARK: Zone operations
+
+    /// Fullscreen windows own an exclusive space, so tiling operations and
+    /// cross-monitor moves silently do nothing until they leave it.
+    private func isFullscreen(_ windowID: CGWindowID) -> Bool {
+        guard
+            let output = try? cli.run([
+                "list-windows", "--all", "--format", "%{window-id} %{window-is-fullscreen}",
+            ])
+        else { return false }
+        for line in output.split(separator: "\n") {
+            let parts = line.split(separator: " ")
+            if parts.count == 2, CGWindowID(parts[0]) == windowID {
+                return parts[1].trimmingCharacters(in: .whitespaces) == "true"
+            }
+        }
+        return false
+    }
 
     private func workspace(of windowID: CGWindowID) -> String? {
         guard
