@@ -129,15 +129,12 @@ public enum ConfigParser {
             config.pills.dragToBar = pills.dragToBar ?? config.pills.dragToBar
         }
         if let m = raw.modules {
-            config.modules.systemMonitor = m.systemMonitor ?? config.modules.systemMonitor
-            config.modules.network = m.network ?? config.modules.network
-            config.modules.ports = m.ports ?? config.modules.ports
-            config.modules.disk = m.disk ?? config.modules.disk
-            config.modules.battery = m.battery ?? config.modules.battery
-            config.modules.docker = m.docker ?? config.modules.docker
-            config.modules.cloudContext = m.cloudContext ?? config.modules.cloudContext
-            config.modules.layout = m.layout ?? config.modules.layout
-            config.modules.scratchpad = m.scratchpad ?? config.modules.scratchpad
+            // Catalog-driven so a new widget needs no parser change.
+            for entry in PanewrightConfig.Modules.catalog {
+                if let value = m.values[entry.key] {
+                    config.modules[keyPath: entry.path] = value
+                }
+            }
         }
         if let integrations = raw.integrations {
             func service(_ raw: RawConfig.RawService?) -> IntegrationsConfig.Service {
@@ -330,21 +327,19 @@ private struct RawConfig: Codable {
         var enabled: Bool?
     }
 
+    /// Widget toggles arrive as a flat table of booleans; decoding into a
+    /// dictionary means the catalog is the only place a widget is declared.
     struct RawModules: Codable {
-        var systemMonitor: Bool?
-        var network: Bool?
-        var ports: Bool?
-        var disk: Bool?
-        var battery: Bool?
-        var docker: Bool?
-        var cloudContext: Bool?
-        var layout: Bool?
-        var scratchpad: Bool?
+        var values: [String: Bool] = [:]
 
-        enum CodingKeys: String, CodingKey {
-            case network, ports, disk, battery, docker, layout, scratchpad
-            case systemMonitor = "system-monitor"
-            case cloudContext = "cloud-context"
+        init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            values = (try? container.decode([String: Bool].self)) ?? [:]
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(values)
         }
     }
 

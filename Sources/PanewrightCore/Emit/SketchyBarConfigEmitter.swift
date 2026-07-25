@@ -569,6 +569,94 @@ public enum SketchyBarConfigEmitter {
             fi
             """ : "")
 
+            \(m.micMute ? """
+            MIC=$(osascript -e 'input volume of (get volume settings)' 2>/dev/null)
+            if [ "${MIC:-0}" -eq 0 ] 2>/dev/null; then
+              ARGS+=(--set w.mic drawing=on label="🎤⃠" label.color=\(accent))
+            else
+              ARGS+=(--set w.mic drawing=on label="🎤" label.color=\(palette.dim))
+            fi
+            """ : "")
+
+            \(m.volume ? """
+            VOL=$(osascript -e 'output volume of (get volume settings)' 2>/dev/null)
+            MUTED=$(osascript -e 'output muted of (get volume settings)' 2>/dev/null)
+            if [ "$MUTED" = "true" ]; then VSYM="🔇"; else VSYM="🔊"; fi
+            ARGS+=(--set w.vol drawing=on label="$VSYM ${VOL:-0}%")
+            """ : "")
+
+            \(m.brewUpdates ? """
+            # brew outdated is slow, so cache it and refresh at most hourly.
+            BREWC="$HOME/.config/panewright/.brew-outdated"
+            # The app refreshes this cache hourly. Running `brew` here instead
+            # returned 0: SketchyBar's spawn environment makes brew produce
+            # nothing, though the identical command works in a normal shell.
+            BREWN=$(cat "$BREWC" 2>/dev/null | tr -dc '0-9')
+            if [ "${BREWN:-0}" -gt 0 ] 2>/dev/null; then
+              ARGS+=(--set w.brew drawing=on label="⬆ ${BREWN}" label.color=\(accent))
+            else
+              ARGS+=(--set w.brew drawing=off)
+            fi
+            """ : "")
+
+            \(m.vpn ? """
+            # A utun with a peer address means a tunnel is actually carrying
+            # traffic; macOS keeps empty utun interfaces around regardless.
+            if ifconfig 2>/dev/null | awk '/^utun/{i=$1} /inet .*-->/{if(i)print i}' | grep -q .; then
+              ARGS+=(--set w.vpn drawing=on label="VPN" label.color=\(accent))
+            else
+              ARGS+=(--set w.vpn drawing=off)
+            fi
+            """ : "")
+
+            \(m.keyboardLayout ? """
+            KBD=$(defaults read ~/Library/Preferences/com.apple.HIToolbox.plist AppleSelectedInputSources 2>/dev/null \\
+              | awk -F'"' '/KeyboardLayout Name/{print $4; exit}')
+            [ -n "$KBD" ] && ARGS+=(--set w.kbd drawing=on label="$KBD") \\
+                          || ARGS+=(--set w.kbd drawing=off)
+            """ : "")
+
+            \(m.focusMode ? """
+            FOCUS="$HOME/Library/DoNotDisturb/DB/Assertions.json"
+            if [ -s "$FOCUS" ] && /usr/bin/python3 -c \\
+              'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d.get("data",[{}])[0].get("storeAssertionRecords") else 1)' \\
+              "$FOCUS" 2>/dev/null; then
+              ARGS+=(--set w.focus drawing=on label="🌙" label.color=\(accent))
+            else
+              ARGS+=(--set w.focus drawing=off)
+            fi
+            """ : "")
+
+            \(m.nowPlaying ? """
+            NP=""
+            for APP in Spotify Music; do
+              if pgrep -x "$APP" >/dev/null 2>&1; then
+                STATE=$(osascript -e "tell application \\"$APP\\" to player state as string" 2>/dev/null)
+                if [ "$STATE" = "playing" ]; then
+                  NP=$(osascript -e "tell application \\"$APP\\" to (name of current track) & \\" — \\" & (artist of current track)" 2>/dev/null)
+                  break
+                fi
+              fi
+            done
+            if [ -n "$NP" ]; then
+              ARGS+=(--set w.play drawing=on label="♪ $(printf '%.28s' "$NP")")
+            else
+              ARGS+=(--set w.play drawing=off)
+            fi
+            """ : "")
+
+            \(m.weather ? """
+            # One network call an hour, cached; the bar never blocks on it.
+            WC="$HOME/.config/panewright/.weather"
+            if [ ! -f "$WC" ] || [ $(( $(date +%s) - $(stat -f %m "$WC" 2>/dev/null || echo 0) )) -gt 3600 ]; then
+              curl -sf --max-time 5 'https://wttr.in/?format=%c%t' -o "$WC.tmp" 2>/dev/null &&
+                [ -s "$WC.tmp" ] && mv "$WC.tmp" "$WC"
+            fi
+            WX=$(cat "$WC" 2>/dev/null | tr -d '+' | head -c 20)
+            [ -n "$WX" ] && ARGS+=(--set w.weather drawing=on label="$WX") \\
+                         || ARGS+=(--set w.weather drawing=off)
+            """ : "")
+
             [ ${#ARGS[@]} -gt 0 ] && "$BAR" "${ARGS[@]}"
             exit 0
             """
@@ -646,14 +734,23 @@ public enum SketchyBarConfigEmitter {
             --subscribe \(name) mouse.entered mouse.exited
             """
         }
-        func chip(_ name: String, _ tip: String) {
-            lines.append(
-                "$BAR --add item \(name) right --set \(name) label=\"…\" drawing=off"
-                    + " label.font=\"\(palette.font)\" label.padding_left=8 label.padding_right=8"
-                    + " background.corner_radius=6 background.height=20")
+        func chip(_ name: String, _ tip: String, click: String? = nil) {
+            var set = "$BAR --add item \(name) right --set \(name) label=\"…\" drawing=off"
+                + " label.font=\"\(palette.font)\" label.padding_left=8 label.padding_right=8"
+                + " background.corner_radius=6 background.height=20"
+            if let click { set += " click_script=\"\(click)\"" }
+            lines.append(set)
             lines.append(tooltip(name, tip))
         }
         // Rightmost first — SketchyBar stacks `right` items leftward.
+        if modules.weather { chip("w.weather", "Weather · current conditions") }
+        if modules.nowPlaying { chip("w.play", "Now playing · click to play/pause", click: "osascript -e 'tell application \\\"Spotify\\\" to playpause' 2>/dev/null || osascript -e 'tell application \\\"Music\\\" to playpause'") }
+        if modules.focusMode { chip("w.focus", "Focus · Do Not Disturb state") }
+        if modules.keyboardLayout { chip("w.kbd", "Keyboard · input source") }
+        if modules.vpn { chip("w.vpn", "VPN · tunnel status") }
+        if modules.brewUpdates { chip("w.brew", "Homebrew · outdated packages", click: "open -a Terminal") }
+        if modules.volume { chip("w.vol", "Volume · click to mute", click: "osascript -e 'set volume output muted (not (output muted of (get volume settings)))'") }
+        if modules.micMute { chip("w.mic", "Microphone · click to toggle mute", click: "$SCRIPTS_DIR/mic-toggle.sh") }
         if modules.scratchpad { chip("w.scratch", "Scratchpad · stashed windows") }
         if modules.layout { chip("w.layout", "Layout of the focused workspace") }
         if modules.cloudContext { chip("w.cloud", "kubectl context / AWS profile") }

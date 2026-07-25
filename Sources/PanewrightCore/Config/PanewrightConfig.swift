@@ -203,12 +203,30 @@ public struct PanewrightConfig: Equatable, Sendable {
         public var layout: Bool
         /// How many windows are stashed on the scratchpad.
         public var scratchpad: Bool
+        /// Microphone live/muted — click to toggle.
+        public var micMute: Bool
+        /// Output volume — click to mute.
+        public var volume: Bool
+        /// Outdated Homebrew packages waiting to be upgraded.
+        public var brewUpdates: Bool
+        /// Whether a VPN/tunnel interface is up.
+        public var vpn: Bool
+        /// Active keyboard input source.
+        public var keyboardLayout: Bool
+        /// Whether a macOS Focus (Do Not Disturb) is on.
+        public var focusMode: Bool
+        /// Now playing from Music/Spotify.
+        public var nowPlaying: Bool
+        /// Current conditions, refreshed hourly.
+        public var weather: Bool
 
         public init(
             systemMonitor: Bool = false, network: Bool = false, ports: Bool = false,
             disk: Bool = false, battery: Bool = false, docker: Bool = false,
             cloudContext: Bool = false, layout: Bool = false,
-            scratchpad: Bool = false
+            scratchpad: Bool = false, micMute: Bool = false, volume: Bool = false,
+            brewUpdates: Bool = false, vpn: Bool = false, keyboardLayout: Bool = false,
+            focusMode: Bool = false, nowPlaying: Bool = false, weather: Bool = false
         ) {
             self.systemMonitor = systemMonitor
             self.network = network
@@ -219,13 +237,47 @@ public struct PanewrightConfig: Equatable, Sendable {
             self.cloudContext = cloudContext
             self.layout = layout
             self.scratchpad = scratchpad
+            self.micMute = micMute
+            self.volume = volume
+            self.brewUpdates = brewUpdates
+            self.vpn = vpn
+            self.keyboardLayout = keyboardLayout
+            self.focusMode = focusMode
+            self.nowPlaying = nowPlaying
+            self.weather = weather
+        }
+
+        /// Every widget as (config key, human name, keypath) — the single list
+        /// the menu, the parser, and the serializer all work from, so adding a
+        /// widget never means remembering to update three places.
+        public static var catalog: [(key: String, name: String, path: WritableKeyPath<Modules, Bool>)] {
+            [
+            ("system-monitor", "CPU & Memory", \.systemMonitor),
+            ("network", "Network", \.network),
+            ("ports", "Listening Ports", \.ports),
+            ("disk", "Disk", \.disk),
+            ("battery", "Battery", \.battery),
+            ("docker", "Docker", \.docker),
+            ("cloud-context", "Cloud Context", \.cloudContext),
+            ("layout", "Layout", \.layout),
+            ("scratchpad", "Scratchpad", \.scratchpad),
+            ("mic-mute", "Microphone", \.micMute),
+            ("volume", "Volume", \.volume),
+            ("brew-updates", "Homebrew Updates", \.brewUpdates),
+            ("vpn", "VPN", \.vpn),
+            ("keyboard-layout", "Keyboard Layout", \.keyboardLayout),
+            ("focus-mode", "Focus / DND", \.focusMode),
+            ("now-playing", "Now Playing", \.nowPlaying),
+            ("weather", "Weather", \.weather),
+            ]
         }
 
         /// True when any driver-polled widget is on (the system monitor has its
         /// own item and plugin, so it doesn't count here).
         public var anyDriverWidget: Bool {
             network || ports || disk || battery || docker || cloudContext || layout
-                || scratchpad
+                || scratchpad || micMute || volume || brewUpdates || vpn || keyboardLayout
+                || focusMode || nowPlaying || weather
         }
     }
 

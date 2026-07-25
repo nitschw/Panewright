@@ -604,6 +604,28 @@ final class AppModel {
         refreshStatus()
     }
 
+    /// Current widget toggles, read fresh so the menu reflects hand edits to
+    /// panewright.toml as well as menu clicks.
+    var modules: PanewrightConfig.Modules {
+        (try? orchestrator.loadConfig())?.modules ?? .init()
+    }
+
+    /// Flip one widget and re-apply — the menu is the discoverable way in, so
+    /// nobody has to learn the TOML keys to find out what's available.
+    func setWidget(_ path: WritableKeyPath<PanewrightConfig.Modules, Bool>, _ on: Bool, name: String)
+    {
+        do {
+            var config = try orchestrator.loadConfig()
+            config.modules[keyPath: path] = on
+            try orchestrator.writeConfig(config)
+            try orchestrator.applyBar(config)
+            lastMessage = "\(name) widget \(on ? "on" : "off")"
+        } catch {
+            report(error: "\(error)")
+        }
+        refreshStatus()
+    }
+
     func setBarEnabled(_ enabled: Bool) {
         do {
             try orchestrator.setBarEnabled(enabled)
@@ -653,7 +675,43 @@ final class AppModel {
                     try? orchestrator.applyBar(config)
                 }
                 await self?.checkAeroSpaceHealth(orchestrator)
+                Self.refreshBrewOutdatedCache()
             }
+        }
+    }
+
+    /// `brew outdated` from the app, not the bar plugin: SketchyBar's spawn
+    /// environment makes brew return nothing, and the widget would cache that
+    /// empty result. Hourly, and only publishes a value brew actually produced.
+    nonisolated static func refreshBrewOutdatedCache() {
+        let cache = FileManager.default.homeDirectoryForCurrentUser
+            .appending(path: ".config/panewright/.brew-outdated")
+        // Rate-limit on the file's own mtime — no shared state, so this is
+        // safe to call from the detached health-check task.
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: cache.path),
+            let modified = attrs[.modificationDate] as? Date,
+            Date().timeIntervalSince(modified) < 3600
+        {
+            return
+        }
+        for path in ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
+        where FileManager.default.isExecutableFile(atPath: path) {
+            let process = Process()
+            process.executableURL = URL(filePath: path)
+            process.arguments = ["outdated", "--quiet"]
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = Pipe()
+            guard (try? process.run()) != nil else { return }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else { return }
+            let count = String(decoding: data, as: UTF8.self)
+                .split(separator: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                .count
+            DragLog.log("brew: \(count) outdated")
+            try? "\(count)".write(to: cache, atomically: true, encoding: .utf8)
+            return
         }
     }
 
@@ -801,6 +859,16 @@ struct PanewrightMenu: View {
                     get: { model.barEnabled },
                     set: { model.setBarEnabled($0) }
                 ))
+        }
+        Menu("Widgets") {
+            ForEach(PanewrightConfig.Modules.catalog, id: \.key) { entry in
+                Toggle(
+                    entry.name,
+                    isOn: Binding(
+                        get: { model.modules[keyPath: entry.path] },
+                        set: { model.setWidget(entry.path, $0, name: entry.name) }
+                    ))
+            }
         }
         if model.needsDragSetup {
             Button("Finish Drag-to-Tile setup…") {

@@ -53,15 +53,9 @@ public enum PanewrightConfigSerializer {
         lines.append("drag-to-bar = \(config.pills.dragToBar)")
         lines.append("")
         lines.append("[modules]")
-        lines.append("system-monitor = \(config.modules.systemMonitor)")
-        lines.append("network = \(config.modules.network)")
-        lines.append("ports = \(config.modules.ports)")
-        lines.append("disk = \(config.modules.disk)")
-        lines.append("battery = \(config.modules.battery)")
-        lines.append("docker = \(config.modules.docker)")
-        lines.append("cloud-context = \(config.modules.cloudContext)")
-        lines.append("layout = \(config.modules.layout)")
-        lines.append("scratchpad = \(config.modules.scratchpad)")
+        for entry in PanewrightConfig.Modules.catalog {
+            lines.append("\(entry.key) = \(config.modules[keyPath: entry.path])")
+        }
         // Tokens live in the Keychain, never here.
         let services: [(String, IntegrationsConfig.Service)] = [
             ("github", config.integrations.github),
