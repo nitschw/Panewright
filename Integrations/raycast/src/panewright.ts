@@ -73,6 +73,11 @@ export async function focusWorkspace(name: string): Promise<void> {
   // summon-workspace, matching the binding Panewright generates: if the
   // workspace is visible on another monitor it comes to the focused one
   // rather than throwing focus across the desk.
+  //
+  // Note for anyone adding free-text entry here: AeroSpace accepts an unknown
+  // workspace name without erroring — verified — so a typo would look like it
+  // worked. Safe today only because every name offered comes from
+  // `workspaces()`.
   await aerospace(["summon-workspace", name]);
 }
 
