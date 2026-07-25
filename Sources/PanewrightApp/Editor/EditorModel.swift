@@ -47,6 +47,28 @@ final class EditorModel {
         var action: String
     }
 
+    /// A mode and its bindings. Modes were previously editable only by hand in
+    /// the config file, which made the one feature that most needs a GUI — a
+    /// mode full of bare single keys — the one you had to write TOML for.
+    struct ModeRow: Identifiable {
+        let id = UUID()
+        var name: String
+        var bindings: [BindingRow]
+    }
+
+    /// A two-column mapping (workspace → monitor, app → workspace). Both are
+    /// dictionaries in the config, and a dictionary can't be edited in place
+    /// without a stable row identity to type into.
+    struct MappingRow: Identifiable {
+        let id = UUID()
+        var key: String
+        var value: String
+    }
+
+    var modeRows: [ModeRow] = []
+    var workspaceMonitorRows: [MappingRow] = []
+    var appWorkspaceRows: [MappingRow] = []
+
     init(appModel: AppModel) {
         self.appModel = appModel
         let loaded = (try? appModel.orchestrator.loadConfig()) ?? .default
@@ -54,7 +76,30 @@ final class EditorModel {
         self.bindingRows = loaded.bindings.map {
             BindingRow(key: $0.key, action: PanewrightConfigSerializer.chainString($0.actions))
         }
+        loadRows(from: loaded)
         recomputeConflicts()
+    }
+
+    /// Rebuild every row-backed editor from a config. Row ids are regenerated
+    /// here, which is why `reveal` must always run after a load.
+    private func loadRows(from config: PanewrightConfig) {
+        bindingRows = config.bindings.map {
+            BindingRow(key: $0.key, action: PanewrightConfigSerializer.chainString($0.actions))
+        }
+        modeRows = config.modes.map { mode in
+            ModeRow(
+                name: mode.name,
+                bindings: mode.bindings.map {
+                    BindingRow(
+                        key: $0.key, action: PanewrightConfigSerializer.chainString($0.actions))
+                })
+        }
+        // Sorted so the list doesn't reshuffle between openings — dictionary
+        // order is arbitrary and a jumping list is unusable.
+        workspaceMonitorRows = config.workspaceMonitors.sorted { $0.key < $1.key }
+            .map { MappingRow(key: "\($0.key)", value: $0.value) }
+        appWorkspaceRows = config.appWorkspaces.sorted { $0.key < $1.key }
+            .map { MappingRow(key: $0.key, value: "\($0.value)") }
     }
 
     /// Recomputed on every config change so a row goes red the moment its key
@@ -90,6 +135,72 @@ final class EditorModel {
             statusLine = "Fix the highlighted bindings to apply"
             return
         }
+        configChanged()
+    }
+
+    /// Modes are all-or-nothing like bindings: a mode whose keys don't parse
+    /// is never written, so a typo can't silently drop the rest of it.
+    func modeRowsChanged() {
+        var modes: [PanewrightConfig.Mode] = []
+        var errors: [UUID: String] = [:]
+        for mode in modeRows {
+            let name = mode.name.trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty else { continue }
+            var bindings: [PanewrightConfig.Binding] = []
+            for row in mode.bindings {
+                let key = row.key.trimmingCharacters(in: .whitespaces)
+                guard !key.isEmpty else { continue }
+                do {
+                    bindings.append(
+                        PanewrightConfig.Binding(
+                            key: key, actions: try ConfigParser.parseActionChain(row.action)))
+                } catch {
+                    errors[row.id] = "\(error)"
+                }
+            }
+            modes.append(PanewrightConfig.Mode(name: name, bindings: bindings))
+        }
+        bindingErrors = bindingErrors.filter { modeRowIDs.contains($0.key) == false }
+            .merging(errors) { _, new in new }
+        guard errors.isEmpty else {
+            statusLine = "Fix the highlighted mode bindings to apply"
+            return
+        }
+        config.modes = modes
+        configChanged()
+    }
+
+    private var modeRowIDs: Set<UUID> {
+        Set(modeRows.flatMap { $0.bindings.map(\.id) })
+    }
+
+    /// Workspace → monitor. Non-numeric workspaces are skipped rather than
+    /// rejected: the row is probably half-typed.
+    func workspaceMonitorRowsChanged() {
+        var monitors: [Int: String] = [:]
+        for row in workspaceMonitorRows {
+            guard let workspace = Int(row.key.trimmingCharacters(in: .whitespaces)) else {
+                continue
+            }
+            let monitor = row.value.trimmingCharacters(in: .whitespaces)
+            guard !monitor.isEmpty else { continue }
+            monitors[workspace] = monitor
+        }
+        config.workspaceMonitors = monitors
+        configChanged()
+    }
+
+    /// App bundle ID → workspace number.
+    func appWorkspaceRowsChanged() {
+        var assignments: [String: Int] = [:]
+        for row in appWorkspaceRows {
+            let bundleID = row.key.trimmingCharacters(in: .whitespaces)
+            guard !bundleID.isEmpty,
+                let workspace = Int(row.value.trimmingCharacters(in: .whitespaces))
+            else { continue }
+            assignments[bundleID] = workspace
+        }
+        config.appWorkspaces = assignments
         configChanged()
     }
 
@@ -137,9 +248,7 @@ final class EditorModel {
     func reloadFromDisk(quiet: Bool = false) {
         let loaded = (try? appModel.orchestrator.loadConfig()) ?? config
         config = loaded
-        bindingRows = loaded.bindings.map {
-            BindingRow(key: $0.key, action: PanewrightConfigSerializer.chainString($0.actions))
-        }
+        loadRows(from: loaded)
         bindingErrors = [:]
         recomputeConflicts()
         if !quiet { statusLine = "Reloaded from file" }

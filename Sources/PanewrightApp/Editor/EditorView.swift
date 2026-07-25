@@ -4,30 +4,70 @@ import SwiftUI
 
 struct EditorView: View {
     @Bindable var model: EditorModel
+    @State private var tab = Tab.general
+
+    /// Everything the config file can express, grouped by what you'd be
+    /// thinking about when you came looking for it. One long scroll made the
+    /// rarely-touched settings (hooks, workspace pinning) impossible to find,
+    /// which is why they were never added to the GUI at all.
+    enum Tab: String, CaseIterable, Identifiable {
+        case general = "General"
+        case keys = "Keybindings"
+        case layout = "Layout"
+        case appearance = "Appearance"
+        case bar = "Status Bar"
+
+        var id: String { rawValue }
+
+        var icon: String {
+            switch self {
+            case .general: "gearshape"
+            case .keys: "keyboard"
+            case .layout: "square.grid.2x2"
+            case .appearance: "paintpalette"
+            case .bar: "menubar.rectangle"
+            }
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
+            Picker("", selection: $tab) {
+                ForEach(Tab.allCases) { tab in
+                    Label(tab.rawValue, systemImage: tab.icon).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 14)
+            .padding(.top, 12)
+            .padding(.bottom, 10)
+            Divider()
             ScrollViewReader { proxy in
                 ScrollView {
                     sections
                 }
                 // A caller sent the user here to fix one specific thing —
-                // scroll it into view rather than making them find it.
+                // switch to the tab holding it, then scroll it into view.
+                // Scrolling to something on a hidden tab would look like
+                // nothing happened at all.
                 .onChange(of: model.revealed) { _, target in
                     guard let target else { return }
+                    tab = self.tab(for: target)
                     withAnimation(.easeInOut(duration: 0.25)) {
                         proxy.scrollTo(anchor(for: target), anchor: .center)
                     }
                 }
                 .onAppear {
                     guard let target = model.revealed else { return }
+                    tab = self.tab(for: target)
                     proxy.scrollTo(anchor(for: target), anchor: .center)
                 }
             }
             Divider()
             footer
         }
-        .frame(width: 560, height: 640)
+        .frame(width: 620, height: 680)
     }
 
     /// AnyHashable so one ScrollViewReader can address both the named
@@ -39,26 +79,51 @@ struct EditorView: View {
         }
     }
 
+    private func tab(for target: EditorModel.Reveal) -> Tab {
+        switch target {
+        case .modifier: .general
+        case .binding: .keys
+        }
+    }
+
+    @ViewBuilder
     private var sections: some View {
         VStack(alignment: .leading, spacing: 18) {
-            modifierSection
-                .id("modifier")
-            Divider()
-            gapsSection
-            Divider()
-            borderSection
-            Divider()
-            barSection
-            Divider()
-            pillsSection
-            Divider()
-            floatingAppsSection
-            Divider()
-            integrationsSection
-            Divider()
-            bindingsSection
+            switch tab {
+            case .general:
+                modifierSection.id("modifier")
+                Divider()
+                fittingSection
+                Divider()
+                hooksSection
+            case .keys:
+                bindingsSection
+                Divider()
+                modesSection
+            case .layout:
+                gapsSection
+                Divider()
+                floatingAppsSection
+                Divider()
+                workspaceMonitorsSection
+                Divider()
+                appWorkspacesSection
+            case .appearance:
+                borderSection
+                Divider()
+                barAppearanceSection
+            case .bar:
+                barSection
+                Divider()
+                widgetsSection
+                Divider()
+                companionsSection
+                Divider()
+                integrationsSection
+            }
         }
         .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: Sections
@@ -110,13 +175,18 @@ struct EditorView: View {
         }
     }
 
-    private var pillsSection: some View {
+    /// To-dos and window pills: bar features that aren't widgets, because they
+    /// build their own items rather than being polled.
+    private var companionsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Toggle(isOn: bind(\.pills.enabled)) {
-                Text("Window Pills").font(.headline)
-            }
+            Text("Companions").font(.headline)
+            Toggle("To-do List", isOn: bind(\.todo.enabled))
+            Text("Tasks as pills with a + button; click one to edit or resolve it.")
+                .font(.caption).foregroundStyle(.secondary)
+            Toggle("Window Pills", isOn: bind(\.pills.enabled))
             if model.config.pills.enabled {
                 Toggle("Drag a window onto the bar to park it", isOn: bind(\.pills.dragToBar))
+                    .padding(.leading, 18)
                 Text(
                     "$mod+P parks the focused window. Click its pill to peek, "
                         + "right-click to return it to tiling."
@@ -132,15 +202,283 @@ struct EditorView: View {
             Toggle(isOn: bind(\.statusBar.enabled)) {
                 Text("Status Bar").font(.headline)
             }
-            if model.config.statusBar.enabled {
-                Picker("Theme", selection: bind(\.statusBar.theme)) {
-                    Text("Native (vibrancy, SF Pro)").tag(PanewrightConfig.StatusBar.Theme.native)
-                    Text("Technical (square, monospace)")
-                        .tag(PanewrightConfig.StatusBar.Theme.technical)
-                }
-                .pickerStyle(.segmented)
+            Text("Appearance lives in the Appearance tab.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    /// Bar theme and accent. `bar.accent-color` was supported by the config
+    /// and the emitter but reachable from nothing — you had to hand-write it.
+    private var barAppearanceSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Status Bar").font(.headline)
+            Picker("Theme", selection: bind(\.statusBar.theme)) {
+                Text("Native (vibrancy, SF Pro)").tag(PanewrightConfig.StatusBar.Theme.native)
+                Text("Technical (square, monospace)")
+                    .tag(PanewrightConfig.StatusBar.Theme.technical)
+            }
+            .pickerStyle(.segmented)
+            Toggle(
+                "Use a separate accent color for the bar",
+                isOn: Binding(
+                    get: { model.config.statusBar.accentColor != nil },
+                    set: { on in
+                        // Defaults to the focus border's color, which is the
+                        // behavior when this is unset — so switching it on
+                        // changes nothing until you pick something.
+                        model.config.statusBar.accentColor =
+                            on ? model.config.focusBorder.activeColor : nil
+                        model.configChanged()
+                    }))
+            if model.config.statusBar.accentColor != nil {
+                colorRow(
+                    "Accent",
+                    hex: Binding(
+                        get: { model.config.statusBar.accentColor ?? "" },
+                        set: {
+                            model.config.statusBar.accentColor = $0
+                            model.configChanged()
+                        }))
+            } else {
+                Text("Follows the focus border color — one accent for the whole system.")
+                    .font(.caption).foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// Widget toggles and their left-to-right order, driven by the catalog so
+    /// a new widget needs no change here.
+    private var widgetsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Widgets").font(.headline)
+            Text("Drag to reorder — the top of the list is the leftmost widget.")
+                .font(.caption).foregroundStyle(.secondary)
+            ForEach(model.config.modules.resolvedOrder, id: \.self) { key in
+                if let entry = PanewrightConfig.Modules.catalog.first(where: { $0.key == key }) {
+                    HStack(spacing: 8) {
+                        Image(systemName: "line.3.horizontal")
+                            .foregroundStyle(.tertiary).font(.system(size: 10))
+                        Toggle(
+                            entry.name,
+                            isOn: Binding(
+                                get: { model.config.modules[keyPath: entry.path] },
+                                set: {
+                                    model.config.modules[keyPath: entry.path] = $0
+                                    model.configChanged()
+                                }))
+                        Spacer()
+                        moveButtons(for: key)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Arrows rather than drag: this list lives inside a ScrollView, where a
+    /// nested List with .onMove either can't size itself or steals the scroll.
+    private func moveButtons(for key: String) -> some View {
+        HStack(spacing: 2) {
+            Button {
+                move(key, by: -1)
+            } label: {
+                Image(systemName: "chevron.up")
+            }
+            Button {
+                move(key, by: 1)
+            } label: {
+                Image(systemName: "chevron.down")
+            }
+        }
+        .buttonStyle(.borderless)
+        .font(.system(size: 10))
+        .foregroundStyle(.secondary)
+    }
+
+    private func move(_ key: String, by offset: Int) {
+        var order = model.config.modules.resolvedOrder
+        guard let index = order.firstIndex(of: key) else { return }
+        let destination = index + offset
+        guard order.indices.contains(destination) else { return }
+        order.swapAt(index, destination)
+        model.config.modules.order = order
+        model.configChanged()
+    }
+
+    /// Shell commands run on workspace and focus changes. Supported by the
+    /// config since the beginning and never exposed.
+    private var hooksSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Hooks").font(.headline)
+            Text("Shell commands run on layout events. Leave blank for none.")
+                .font(.caption).foregroundStyle(.secondary)
+            hookField(
+                "On workspace change", note: "WORKSPACE and PREV_WORKSPACE are set.",
+                value: Binding(
+                    get: { model.config.workspaceChangedHook ?? "" },
+                    set: {
+                        model.config.workspaceChangedHook = $0.isEmpty ? nil : $0
+                        model.configChanged()
+                    }))
+            hookField(
+                "On focus change",
+                note: "FOCUSED_APP, FOCUSED_WINDOW_ID, WORKSPACE. Fires often — keep it light.",
+                value: Binding(
+                    get: { model.config.focusChangedHook ?? "" },
+                    set: {
+                        model.config.focusChangedHook = $0.isEmpty ? nil : $0
+                        model.configChanged()
+                    }))
+        }
+    }
+
+    private func hookField(_ label: String, note: String, value: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label).font(.callout.weight(.medium))
+            TextField("python3 ~/hooks/ws.py", text: value)
+                .textFieldStyle(.roundedBorder)
+            Text(note).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    /// What to do when windows overlap because an app won't shrink further.
+    private var fittingSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(isOn: bind(\.fitting.enabled)) {
+                Text("Auto-Fit Windows").font(.headline)
+            }
+            Text(
+                "Some apps refuse to shrink past a minimum size and end up drawing over "
+                    + "their neighbor. This shrinks the others to make room."
+            )
+            .font(.caption).foregroundStyle(.secondary)
+            if model.config.fitting.enabled {
+                Toggle(
+                    "Move a window to another workspace when nothing fits",
+                    isOn: bind(\.fitting.overflow))
+                Text(
+                    model.config.fitting.overflow
+                        ? "The newest window moves out, and you get a notification saying so."
+                        : "Windows will be left overlapping when no arrangement fits."
+                )
+                .font(.caption).foregroundStyle(.secondary)
+                intSlider("Step", value: bind(\.fitting.step), range: 20...160)
+                Text("How much width to reclaim per attempt.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private var workspaceMonitorsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Workspace Monitors").font(.headline)
+            Text("Pin a workspace to a monitor: main, secondary, a number, or a name pattern.")
+                .font(.caption).foregroundStyle(.secondary)
+            ForEach($model.workspaceMonitorRows) { $row in
+                HStack {
+                    TextField("1", text: $row.key)
+                        .textFieldStyle(.roundedBorder).frame(width: 60)
+                        .onSubmit { model.workspaceMonitorRowsChanged() }
+                    Image(systemName: "arrow.right").foregroundStyle(.tertiary)
+                    TextField("main", text: $row.value)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit { model.workspaceMonitorRowsChanged() }
+                    removeButton {
+                        model.workspaceMonitorRows.removeAll { $0.id == row.id }
+                        model.workspaceMonitorRowsChanged()
+                    }
+                }
+            }
+            Button("Add Assignment") { model.workspaceMonitorRows.append(.init(key: "", value: "")) }
+            Text("Press Return in a field to apply.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private var appWorkspacesSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("App Workspaces").font(.headline)
+            Text("Apps that always open on a given workspace.")
+                .font(.caption).foregroundStyle(.secondary)
+            ForEach($model.appWorkspaceRows) { $row in
+                HStack {
+                    TextField("com.example.app", text: $row.key)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit { model.appWorkspaceRowsChanged() }
+                    Image(systemName: "arrow.right").foregroundStyle(.tertiary)
+                    TextField("3", text: $row.value)
+                        .textFieldStyle(.roundedBorder).frame(width: 60)
+                        .onSubmit { model.appWorkspaceRowsChanged() }
+                    removeButton {
+                        model.appWorkspaceRows.removeAll { $0.id == row.id }
+                        model.appWorkspaceRowsChanged()
+                    }
+                }
+            }
+            Button("Add Assignment") { model.appWorkspaceRows.append(.init(key: "", value: "")) }
+            Text("Press Return in a field to apply.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    /// Modes and their bindings — the one part of the config that most wants a
+    /// GUI (bare single keys, no modifiers) and was hand-editing only.
+    private var modesSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Modes").font(.headline)
+            Text(
+                "A mode captures the keyboard until Esc. Keys inside it are bare — "
+                    + "no modifier to hold."
+            )
+            .font(.caption).foregroundStyle(.secondary)
+            ForEach($model.modeRows) { $mode in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        TextField("mode name", text: $mode.name)
+                            .textFieldStyle(.roundedBorder).frame(width: 150)
+                            .onSubmit { model.modeRowsChanged() }
+                        Spacer()
+                        removeButton {
+                            model.modeRows.removeAll { $0.id == mode.id }
+                            model.modeRowsChanged()
+                        }
+                    }
+                    ForEach($mode.bindings) { $row in
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack {
+                                TextField("key", text: $row.key)
+                                    .textFieldStyle(.roundedBorder).frame(width: 90)
+                                    .onSubmit { model.modeRowsChanged() }
+                                TextField("action", text: $row.action)
+                                    .textFieldStyle(.roundedBorder)
+                                    .onSubmit { model.modeRowsChanged() }
+                                removeButton {
+                                    mode.bindings.removeAll { $0.id == row.id }
+                                    model.modeRowsChanged()
+                                }
+                            }
+                            if let error = model.bindingErrors[row.id] {
+                                Text(error).font(.caption).foregroundStyle(.red)
+                            }
+                        }
+                    }
+                    Button("Add Key") { mode.bindings.append(.init(key: "", action: "")) }
+                        .controlSize(.small)
+                }
+                .padding(10)
+                .background(
+                    RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.07)))
+            }
+            Button("Add Mode") { model.modeRows.append(.init(name: "", bindings: [])) }
+            Text("Press Return in a field to apply.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func removeButton(_ action: @escaping () -> Void) -> some View {
+        Button(role: .destructive, action: action) {
+            Image(systemName: "minus.circle")
+        }
+        .buttonStyle(.borderless)
     }
 
     private var floatingAppsSection: some View {
@@ -207,6 +545,12 @@ struct EditorView: View {
                 hostPlaceholder: "bitbucket.org",
                 userLabel: "Username",
                 note: "Settings are saved; the provider ships in a later release.")
+            IntegrationRow(
+                name: "Microsoft Teams", service: "teams",
+                service_: bind(\.integrations.teams),
+                hostPlaceholder: "(blank = commercial cloud)",
+                userLabel: nil,
+                note: "Your next meeting, with a click-to-join link.")
             IntegrationRow(
                 name: "Confluence", service: "confluence",
                 service_: bind(\.integrations.confluence),
