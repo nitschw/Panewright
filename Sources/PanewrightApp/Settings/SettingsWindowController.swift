@@ -2,16 +2,16 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class EditorWindowController {
+final class SettingsWindowController {
     private var window: NSWindow?
-    private var model: EditorModel?
+    private var model: SettingsModel?
 
-    func show(appModel: AppModel, reveal: EditorModel.Target? = nil) {
-        let model = self.model ?? EditorModel(appModel: appModel)
+    func show(appModel: AppModel, reveal: SettingsModel.Target? = nil) {
+        let model = self.model ?? SettingsModel(appModel: appModel)
         if self.model == nil {
-            let hosting = NSHostingController(rootView: EditorView(model: model))
+            let hosting = NSHostingController(rootView: SettingsView(model: model))
             let window = NSWindow(contentViewController: hosting)
-            window.title = "Panewright Editor"
+            window.title = "Settings"
             window.styleMask = [.titled, .closable, .resizable]
             window.isReleasedWhenClosed = false
             self.window = window

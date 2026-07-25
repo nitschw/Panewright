@@ -69,11 +69,11 @@ final class ConflictsModel {
             NSWorkspace.shared.open(appModel.orchestrator.paths.panewrightConfigFile)
             return
         }
-        appModel.openEditor(reveal: .binding(key: key))
+        appModel.openSettings(reveal: .binding(key: key))
     }
 
     func changeModKey() {
-        appModel.openEditor(reveal: .modifier)
+        appModel.openSettings(reveal: .modifier)
     }
 }
 

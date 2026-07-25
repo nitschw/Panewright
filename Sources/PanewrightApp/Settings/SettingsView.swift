@@ -2,8 +2,8 @@ import AppKit
 import PanewrightCore
 import SwiftUI
 
-struct EditorView: View {
-    @Bindable var model: EditorModel
+struct SettingsView: View {
+    @Bindable var model: SettingsModel
     @State private var tab = Tab.general
 
     /// Everything the config file can express, grouped by what you'd be
@@ -72,7 +72,7 @@ struct EditorView: View {
 
     /// AnyHashable so one ScrollViewReader can address both the named
     /// sections and the binding rows' UUIDs.
-    private func anchor(for target: EditorModel.Reveal) -> AnyHashable {
+    private func anchor(for target: SettingsModel.Reveal) -> AnyHashable {
         switch target {
         case .modifier: AnyHashable("modifier")
         case .binding(let id): AnyHashable(id)
@@ -80,7 +80,7 @@ struct EditorView: View {
         }
     }
 
-    private func tab(for target: EditorModel.Reveal) -> Tab {
+    private func tab(for target: SettingsModel.Reveal) -> Tab {
         switch target {
         case .modifier: .general
         case .binding: .keys

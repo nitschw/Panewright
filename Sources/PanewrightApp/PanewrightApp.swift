@@ -52,7 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     {
                         AppDelegate.model?.disableWidget(key: key)
                     } else {
-                        AppDelegate.model?.openEditor(reveal: .widgets)
+                        AppDelegate.model?.openSettings(reveal: .widgets)
                     }
                 default:
                     break
@@ -253,7 +253,7 @@ final class AppModel {
     private var setupWindowController: OnboardingWindowController?
     private var aboutWindowController: AboutWindowController?
     private var cheatSheetWindowController: CheatSheetWindowController?
-    private var editorWindowController: EditorWindowController?
+    private var settingsWindowController: SettingsWindowController?
     private var conflictsWindowController: ConflictsWindowController?
     private var windowFitController: WindowFitController?
     private var todoWindowController: TodoEditorWindowController?
@@ -395,9 +395,9 @@ final class AppModel {
         }
     }
 
-    func openEditor(reveal: EditorModel.Target? = nil) {
-        let controller = editorWindowController ?? EditorWindowController()
-        editorWindowController = controller
+    func openSettings(reveal: SettingsModel.Target? = nil) {
+        let controller = settingsWindowController ?? SettingsWindowController()
+        settingsWindowController = controller
         controller.show(appModel: self, reveal: reveal)
     }
 
@@ -902,9 +902,11 @@ struct PanewrightMenu: View {
                 model.openConfluence()
             }
         }
-        Button("Open Editor…") {
-            model.openEditor()
+        Button("Settings…") {
+            model.openSettings()
         }
+        // ⌘, is where every Mac user reaches for this without looking.
+        .keyboardShortcut(",")
         if model.conflictCount > 0 {
             Button("⚠ Keybinding Conflicts (\(model.conflictCount))…") {
                 model.openConflicts()

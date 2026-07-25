@@ -6,7 +6,7 @@ import SwiftUI
 /// into a serialize → write → live-apply cycle. The file, the GUI, and the
 /// running layout can never disagree.
 @MainActor @Observable
-final class EditorModel {
+final class SettingsModel {
     private let appModel: AppModel
     var config: PanewrightConfig
     var bindingRows: [BindingRow]
