@@ -206,6 +206,18 @@ final class AppModel {
     /// Purge everything, then bring the environment up fresh — so a crash,
     /// a kill, or a half-finished previous session can't leave stragglers.
     func bootstrapEnvironment() {
+        // Refuse to bring up a second window manager on top of someone else's.
+        // Both engines would watch the same windows and undo each other, and
+        // the fitting loop would read their placement as a broken layout and
+        // "correct" it forever. Failing to start, loudly, is kinder than that.
+        competingTools = Self.detectCompetingTools()
+        if !competingTools.isEmpty, !startedDespiteCompetition {
+            let explanation = CompetingWindowManagers.explanation(for: competingTools)
+            lastMessage = explanation
+            DragLog.log("startup: held back — \(competingTools.map(\.name).joined(separator: ", "))")
+            notify(explanation)
+            return
+        }
         let orchestrator = orchestrator
         isBootstrapping = true
         lastMessage = "Starting environment…"
@@ -223,6 +235,35 @@ final class AppModel {
             orchestrator.bootstrap()
             await finished()
         }
+    }
+
+    /// GUI apps are matched on bundle ID; command-line daemons like yabai
+    /// have none, so those are matched on process name.
+    private static func detectCompetingTools() -> [CompetingWindowManagers.Tool] {
+        let bundleIDs = Set(
+            NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+        var processNames: Set<String> = []
+        for tool in CompetingWindowManagers.known {
+            guard let process = tool.processName else { continue }
+            let pgrep = Process()
+            pgrep.executableURL = URL(filePath: "/usr/bin/pgrep")
+            pgrep.arguments = ["-x", process]
+            pgrep.standardOutput = Pipe()
+            pgrep.standardError = Pipe()
+            guard (try? pgrep.run()) != nil else { continue }
+            pgrep.waitUntilExit()
+            if pgrep.terminationStatus == 0 { processNames.insert(process) }
+        }
+        return CompetingWindowManagers.running(
+            bundleIDs: bundleIDs, processNames: processNames)
+    }
+
+    /// Proceed knowing the layout will be contested. Not persisted — the next
+    /// launch checks again, so this can't be dismissed permanently by accident.
+    func startAnywayDespiteCompetition() {
+        startedDespiteCompetition = true
+        competingTools = []
+        bootstrapEnvironment()
     }
 
     /// Nudge, don't interrupt: a notification and a marked menu item, never
@@ -261,6 +302,12 @@ final class AppModel {
     /// be off after a restart, so quitting Panewright is a guaranteed way out
     /// of a keyboard that's misbehaving.
     var overridingShortcuts = false
+    /// Window managers found running at launch. Non-empty means the
+    /// environment was held back rather than started.
+    var competingTools: [CompetingWindowManagers.Tool] = []
+    /// Set when the user chooses to start anyway. Session only: a fresh launch
+    /// re-checks, so the gate can't be permanently dismissed by accident.
+    var startedDespiteCompetition = false
     private var todoWindowController: TodoEditorWindowController?
     private var integrationsWindowController: IntegrationsWindowController?
     private var confluenceWindowController: ConfluenceWindowController?
@@ -890,6 +937,14 @@ struct PanewrightMenu: View {
     let model: AppModel
 
     var body: some View {
+        if !model.competingTools.isEmpty {
+            Text("⚠ Another window manager is running")
+            ForEach(model.competingTools) { tool in
+                Text("  \(tool.name) — \(tool.note)")
+            }
+            Button("Start Anyway") { model.startAnywayDespiteCompetition() }
+            Divider()
+        }
         if model.awaitingPermissions {
             Text("Waiting for permissions…")
             Button("Grant Permissions…") {
