@@ -6,7 +6,10 @@
   "icon": "icon.png",
   "author": "nitschw",
   "license": "MIT",
-  "categories": ["Productivity", "System"],
+  "categories": [
+    "Productivity",
+    "System"
+  ],
   "commands": [
     {
       "name": "switch-workspace",
@@ -49,8 +52,8 @@
     "@raycast/api": "^1.70.0"
   },
   "devDependencies": {
-    "@types/node": "^20.8.10",
-    "@types/react": "^18.2.27",
+    "@types/node": "22.19.17",
+    "@types/react": "19.0.10",
     "typescript": "^5.2.2"
   },
   "scripts": {

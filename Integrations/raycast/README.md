@@ -43,8 +43,14 @@ for submission to the Raycast store.
 
 ## Status
 
-**Not yet run.** This was written without Node available on the development
-machine, so it has never been typechecked, built, or executed — only the
-underlying commands it issues were verified by hand against a live AeroSpace,
-and the `panewright://settings/<tab>` deep links were confirmed to open the
-right tab. Expect to fix small things on first `npm run dev`.
+Typechecks and builds cleanly (`npx tsc --noEmit`, `ray build`). The AeroSpace
+commands it issues were verified by hand against a live install, and the
+`panewright://settings/<tab>` deep links were confirmed to open the right tab.
+
+**Not yet run inside Raycast** — `npm run dev` is interactive and hasn't been
+exercised, so the UI itself is unproven even though it compiles.
+
+**Before publishing to the Raycast store**, set `author` in `package.json` to
+your Raycast account handle. It's currently `nitschw`, a GitHub username, and
+`ray lint` rejects it with a 404 against Raycast's user API. Local development
+doesn't care.
