@@ -151,7 +151,8 @@ public enum ConfigParser {
                 gitlab: service(integrations.gitlab),
                 bitbucket: service(integrations.bitbucket),
                 jira: service(integrations.jira),
-                confluence: service(integrations.confluence))
+                confluence: service(integrations.confluence),
+                teams: service(integrations.teams))
         }
         if let hooks = raw.hooks {
             config.workspaceChangedHook = hooks.workspaceChanged
@@ -369,6 +370,7 @@ private struct RawConfig: Codable {
         var bitbucket: RawService?
         var jira: RawService?
         var confluence: RawService?
+        var teams: RawService?
     }
 
     struct RawHooks: Codable {

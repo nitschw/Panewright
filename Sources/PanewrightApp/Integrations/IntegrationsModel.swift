@@ -61,6 +61,13 @@ final class IntegrationsModel {
         if config.jira.enabled {
             result.append(JiraProvider(host: config.jira.host, email: config.jira.user))
         }
+        if config.teams.enabled {
+            // host = tenant, user = Azure app client ID (both public).
+            result.append(
+                TeamsProvider(
+                    clientID: config.teams.user,
+                    tenant: config.teams.host.isEmpty ? "common" : config.teams.host))
+        }
         // Bitbucket and Confluence conform to the same protocol and plug in
         // here when their providers land.
         return result

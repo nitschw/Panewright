@@ -115,23 +115,30 @@ public struct IntegrationsConfig: Equatable, Sendable {
     public var bitbucket: Service
     public var jira: Service
     public var confluence: Service
+    /// Microsoft 365 / Teams. `host` carries the Azure tenant (`common` for
+    /// any account); `user` carries the Azure app registration's client ID,
+    /// which is public by design — the secret is the PKCE verifier, generated
+    /// per sign-in and never stored.
+    public var teams: Service
 
     public init(
         github: Service = Service(),
         gitlab: Service = Service(),
         bitbucket: Service = Service(),
         jira: Service = Service(),
-        confluence: Service = Service()
+        confluence: Service = Service(),
+        teams: Service = Service()
     ) {
         self.github = github
         self.gitlab = gitlab
         self.bitbucket = bitbucket
         self.jira = jira
         self.confluence = confluence
+        self.teams = teams
     }
 
     public var anyEnabled: Bool {
-        [github, gitlab, bitbucket, jira, confluence].contains { $0.enabled }
+        [github, gitlab, bitbucket, jira, confluence, teams].contains { $0.enabled }
     }
 
     /// Slugs of enabled services, in bar order.
@@ -142,6 +149,7 @@ public struct IntegrationsConfig: Equatable, Sendable {
         if bitbucket.enabled { ids.append("bitbucket") }
         if jira.enabled { ids.append("jira") }
         if confluence.enabled { ids.append("confluence") }
+        if teams.enabled { ids.append("teams") }
         return ids
     }
 }

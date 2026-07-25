@@ -125,6 +125,7 @@
       <a href="#todo">To-do list</a>
       <a href="#pills">Window pills</a>
       <a href="#workitems">Work items</a>
+      <a href="#teams">Microsoft Teams</a>
       <a href="#confluence">Confluence</a>
     </div>
     <div class="toc-group">
@@ -434,6 +435,23 @@ user = "you@example.com"</pre>
   <p>Search across titles and statuses, sort by updated, priority, status, or title, and filter to one status. Status pills are color-coded — blue in progress, purple in review, red blocked, green done — using the same vocabulary across every service.</p>
   <h3>Jira hierarchy</h3>
   <p>The tree toggle in the panel header shows your issues in context: parents and epics above, subtasks below, your own work bolded with a <b>you</b> badge. Double-click any node to open it.</p>
+
+  <h2 id="teams">Microsoft Teams</h2>
+  <p>Your next meeting in the bar, and <b>one click to join it</b> — without Teams or Outlook installed. Sign in through the browser with your Microsoft account; Panewright reads your Microsoft 365 calendar over Microsoft Graph.</p>
+  <pre>[integrations.teams]
+enabled = true
+host = "common"        <span class="c"># or your Azure tenant ID to lock sign-in to one org</span>
+user = "&lt;client-id&gt;"    <span class="c"># Azure app registration ID — public, not a secret</span></pre>
+  <p><b>Real SSO.</b> Sign-in opens your system browser, so an existing Microsoft session logs you straight in, and MFA, passkeys, and conditional-access policies all work normally. Panewright never sees your password. The flow is OAuth <b>authorization code with PKCE</b> as a public client, so <b>no client secret</b> ships in the app or sits in your config — tokens land in your login Keychain and refresh themselves.</p>
+  <h3>Setting up the app registration</h3>
+  <p>Microsoft Graph requires an Azure app registration, which takes a minute in the <a href="https://portal.azure.com">Azure portal</a> (Microsoft Entra ID → App registrations → New registration):</p>
+  <ul>
+    <li>Supported account types: <b>Accounts in any organizational directory and personal Microsoft accounts</b> (or single-tenant if you prefer)</li>
+    <li>Redirect URI: platform <b>Mobile and desktop applications</b>, value <code>panewright://msauth</code></li>
+    <li>API permissions (delegated): <code>User.Read</code>, <code>Calendars.Read</code>, <code>offline_access</code></li>
+    <li>Copy the <b>Application (client) ID</b> into <code>user</code> above</li>
+  </ul>
+  <div class="note">Some corporate tenants require an admin to approve third-party apps before they can be used. If sign-in reports that admin consent is needed, your IT team has to approve the registration (or register it for you) — that gate is Microsoft's, not Panewright's.</div>
 
   <h2 id="confluence">Confluence</h2>
   <p>A reader, not a list. The <b>WIKI</b> pill opens a split-view window.</p>
