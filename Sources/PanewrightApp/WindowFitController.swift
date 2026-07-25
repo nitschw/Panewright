@@ -77,8 +77,11 @@ final class WindowFitController {
         }
         let bounds = displayBounds()
         let separation = CGFloat(config.gaps.inner)
-        guard WindowFitting.deficit(in: windows, bounds: bounds, separation: separation) > 0
-        else {
+        let broken = WindowFitting.Axis.allCases.contains {
+            WindowFitting.deficit(
+                in: windows, bounds: bounds, separation: separation, axis: $0) > 0
+        }
+        guard broken else {
             reset()
             return
         }
@@ -111,8 +114,9 @@ final class WindowFitController {
                 let windows = currentWindows(cli: cli)
                 guard windows.count > 1 else { return }
                 let verdict = WindowFitting.nextStep(
-                    for: windows, minimums: minimums.widths, bounds: bounds,
-                    separation: separation, step: config.fitting.step, overflowEnabled: config.fitting.overflow)
+                    for: windows, minimums: minimums.minimums, bounds: bounds,
+                    separation: separation, step: config.fitting.step,
+                    overflowEnabled: config.fitting.overflow)
                 switch verdict {
                 case .fits:
                     if attempt > 1 { DragLog.log("fitting: settled after \(attempt - 1) steps") }
@@ -127,18 +131,15 @@ final class WindowFitController {
                 case .adjusting(.evict(let id)):
                     evict(id: id, windows: windows, cli: cli)
                     return
-                case .adjusting(.grow(let id, let by)):
-                    // Widening the offender's slot takes the space from its
-                    // siblings, which is where it was needed all along.
-                    try? cli.run(["resize", "--window-id", "\(id)", "width", "+\(by)"])
-                    try? await Task.sleep(for: .milliseconds(90))
-                case .adjusting(.shrink(let id, let by)):
+                case .adjusting(.shrink(let id, let by, let axis)):
                     guard let target = windows.first(where: { $0.id == id }) else { return }
-                    try? cli.run(["resize", "--window-id", "\(id)", "width", "-\(by)"])
+                    try? cli.run([
+                        "resize", "--window-id", "\(id)", axis.resizeDimension, "-\(by)",
+                    ])
                     // Let the resize land before reading it back, or we learn
                     // a minimum from a frame that hadn't updated yet.
                     try? await Task.sleep(for: .milliseconds(90))
-                    learn(from: target, requested: by, cli: cli)
+                    learn(from: target, requested: by, axis: axis, cli: cli)
                 case .adjusting(.settle):
                     return
                 }
@@ -153,17 +154,24 @@ final class WindowFitController {
 
     /// Compare a window against itself after a resize: what it gave up versus
     /// what it was asked for is the only signal macOS offers about its floor.
-    private func learn(from target: WindowFitting.Window, requested: Int, cli: AeroSpaceCLI) {
+    private func learn(
+        from target: WindowFitting.Window, requested: Int, axis: WindowFitting.Axis,
+        cli: AeroSpaceCLI
+    ) {
         guard let now = currentWindows(cli: cli).first(where: { $0.id == target.id }) else {
             return
         }
+        // An app's width floor and its height floor are unrelated numbers, so
+        // each is measured along the axis it was actually asked about.
         guard
             let learned = WindowFitting.learnedMinimum(
                 bundleID: target.bundleID, requested: requested,
-                before: target.frame.width, after: now.frame.width)
+                before: axis.extent(target.frame), after: axis.extent(now.frame))
         else { return }
-        DragLog.log("fitting: learned \(learned.bundleID) won't go below \(Int(learned.minimum))pt")
-        minimums.record(bundleID: learned.bundleID, minimum: learned.minimum)
+        DragLog.log(
+            "fitting: learned \(learned.bundleID) won't go below "
+                + "\(Int(learned.minimum))pt \(axis.rawValue)")
+        minimums.record(bundleID: learned.bundleID, axis: axis, minimum: learned.minimum)
         minimums.save()
     }
 
@@ -185,7 +193,10 @@ final class WindowFitController {
     private func signature(of windows: [WindowFitting.Window]) -> String {
         windows
             .sorted { $0.id < $1.id }
-            .map { "\($0.id):\(Int($0.frame.minX / 4)):\(Int($0.frame.width / 4))" }
+            .map {
+                "\($0.id):\(Int($0.frame.minX / 4)):\(Int($0.frame.minY / 4))"
+                    + ":\(Int($0.frame.width / 4)):\(Int($0.frame.height / 4))"
+            }
             .joined(separator: ",")
     }
 

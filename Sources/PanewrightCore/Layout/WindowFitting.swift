@@ -21,7 +21,39 @@ import Foundation
 ///
 /// The second fact is also the gift: ask a window to shrink by 80, watch it
 /// shrink by 30, and you've learned its minimum without probing for it.
+///
+/// Everything below is written against an ``Axis`` rather than against width.
+/// A column of stacked windows fails exactly the way a row does — an app with
+/// a minimum height draws over the window beneath it — so the two directions
+/// are the same algorithm with the coordinates swapped, not two algorithms
+/// that have to be kept in agreement.
 public enum WindowFitting {
+    /// Which direction windows are competing for space in.
+    ///
+    /// The projections below are the *only* place either direction is spelled
+    /// out. Every rule — deficit, slack, the choice of who gives up space —
+    /// reads geometry through these, so neither axis can drift from the other.
+    public enum Axis: String, CaseIterable, Equatable, Sendable {
+        case horizontal
+        case vertical
+
+        /// The axis windows are laid out along when they compete on this one.
+        /// Two windows only contest width if they share rows, and only contest
+        /// height if they share columns.
+        var cross: Axis { self == .horizontal ? .vertical : .horizontal }
+
+        func start(_ rect: CGRect) -> CGFloat { self == .horizontal ? rect.minX : rect.minY }
+        func end(_ rect: CGRect) -> CGFloat { self == .horizontal ? rect.maxX : rect.maxY }
+        /// Public because callers measuring a resize's effect have to measure
+        /// along the same axis they asked about.
+        public func extent(_ rect: CGRect) -> CGFloat {
+            self == .horizontal ? rect.width : rect.height
+        }
+
+        /// The dimension keyword AeroSpace's `resize` expects.
+        public var resizeDimension: String { self == .horizontal ? "width" : "height" }
+    }
+
     /// A tiled window as actually rendered, not as intended.
     public struct Window: Equatable, Sendable, Identifiable {
         public let id: UInt32
@@ -45,20 +77,9 @@ public enum WindowFitting {
     public enum Action: Equatable, Sendable {
         /// The layout is fine, or nothing can be done about it.
         case settle
-        /// Widen this window's slot, taking the space from its siblings.
-        ///
-        /// This is the primary repair, and the non-obvious one. A window
-        /// overlaps its neighbour because its *slot* is narrower than the
-        /// window will go — the app refused to shrink and drew over the top.
-        /// Shrinking some other window and hoping AeroSpace's redistribution
-        /// happens to reach the right place is indirect and usually doesn't;
-        /// growing the offender's slot to match the space it already occupies
-        /// takes the width from its siblings exactly where it's needed.
-        case grow(id: UInt32, by: Int)
-        /// Ask this window to give up width. Whatever it actually gives up
-        /// teaches us its floor. Used when the row is too wide for the
-        /// display, where growing anything would only make it worse.
-        case shrink(id: UInt32, by: Int)
+        /// Ask this window to give up space along an axis. Whatever it
+        /// actually gives up teaches us its floor in that direction.
+        case shrink(id: UInt32, by: Int, axis: Axis)
         /// Every window is already at its minimum and they still don't fit.
         case evict(id: UInt32)
     }
@@ -73,67 +94,83 @@ public enum WindowFitting {
         case cannotFit(count: Int)
     }
 
-    /// Pairs of windows overlapping by more than `tolerance` points.
-    ///
-    /// The tolerance is not fussiness: window frames land on fractional points
-    /// after gap division, and a shared one-point edge is not a broken layout.
-    public static func overlaps(
-        in windows: [Window], tolerance: CGFloat = 2
-    ) -> [(UInt32, UInt32)] {
-        var found: [(UInt32, UInt32)] = []
-        for i in windows.indices {
-            for j in windows.indices where j > i {
-                let shared = windows[i].frame.intersection(windows[j].frame)
-                guard !shared.isNull, shared.width > tolerance, shared.height > tolerance
-                else { continue }
-                found.append((windows[i].id, windows[j].id))
-            }
+    /// Learned floors, per axis. Absent means "not known to be constrained".
+    public struct Minimums: Equatable, Sendable {
+        public var byAxis: [Axis: [String: CGFloat]]
+
+        public init(byAxis: [Axis: [String: CGFloat]] = [:]) {
+            self.byAxis = byAxis
         }
-        return found
+
+        public init(widths: [String: CGFloat], heights: [String: CGFloat] = [:]) {
+            byAxis = [.horizontal: widths, .vertical: heights]
+        }
+
+        public func floor(_ bundleID: String, _ axis: Axis) -> CGFloat? {
+            byAxis[axis]?[bundleID]
+        }
+
+        public mutating func record(_ bundleID: String, _ axis: Axis, _ value: CGFloat) {
+            byAxis[axis, default: [:]][bundleID] = value
+        }
     }
 
-    /// How many points of width need to be reclaimed for the layout to work.
+    /// How much space needs to be reclaimed along `axis` for the layout to work.
     ///
-    /// Two failure modes, and the second is invisible to `overlaps` alone: a
+    /// Two failure modes, and the second is invisible to a pairwise check: a
     /// window can be pushed past the edge of the display, where it overlaps
     /// nothing at all and yet is plainly broken — part of it simply cannot be
-    /// seen. Checking only window-against-window declares that layout fine.
+    /// seen.
     ///
     /// Returning the *amount* rather than a yes/no matters just as much. The
     /// deficit is usually small — eleven points, not sixty — and asking for a
     /// fixed step overshoots, which makes AeroSpace redistribute space and
     /// move the problem somewhere else instead of fixing it.
+    ///
     /// - Parameter separation: the gap neighbours are supposed to have between
     ///   them (the config's inner gap). Aiming merely for "not overlapping"
     ///   leaves windows touching, which still looks broken — more so than it
     ///   sounds, because the focus border is drawn *outside* the frame, so a
-    ///   two-point window overlap shows up as a couple of dozen points of
-    ///   overlapping border.
+    ///   two-point overlap shows up as a couple of dozen points of overlapping
+    ///   border.
     public static func deficit(
         in windows: [Window], bounds: CGRect?, separation: CGFloat = 0,
-        tolerance: CGFloat = 1
+        axis: Axis = .horizontal, tolerance: CGFloat = 1
     ) -> CGFloat {
         var worst: CGFloat = 0
         for i in windows.indices {
             for j in windows.indices where j > i {
                 let a = windows[i].frame
                 let b = windows[j].frame
-                // Only side-by-side windows compete for width. Stacked ones
-                // share a column and their horizontal spacing is irrelevant.
-                let sharedRows = min(a.maxY, b.maxY) - max(a.minY, b.minY)
-                guard sharedRows > tolerance else { continue }
-                let left = a.minX <= b.minX ? a : b
-                let right = a.minX <= b.minX ? b : a
-                let gap = right.minX - left.maxX
-                let missing = separation - gap
-                if missing > tolerance { worst = max(worst, missing) }
+                // Each pair is neighbours along exactly one axis, and it's the
+                // one where they're closest to being properly separated.
+                //
+                // Measuring the axes independently would double-count every
+                // collision: two windows side by side overlapping by eleven
+                // points also overlap by their entire shared height, which
+                // reads as a thousand-point vertical deficit and sends the
+                // corrector off resizing in the wrong direction. Taking the
+                // smaller of the two is what identifies which way they're
+                // meant to be laid out.
+                let missingAlong = Axis.allCases.map { candidate -> (Axis, CGFloat) in
+                    let leadingIsA = candidate.start(a) <= candidate.start(b)
+                    let leading = leadingIsA ? a : b
+                    let trailing = leadingIsA ? b : a
+                    return (
+                        candidate,
+                        separation - (candidate.start(trailing) - candidate.end(leading))
+                    )
+                }
+                guard let neighbouring = missingAlong.min(by: { $0.1 < $1.1 }) else { continue }
+                guard neighbouring.0 == axis, neighbouring.1 > tolerance else { continue }
+                worst = max(worst, neighbouring.1)
             }
         }
         if let bounds {
             for window in windows {
                 let past =
-                    max(0, bounds.minX - window.frame.minX)
-                    + max(0, window.frame.maxX - bounds.maxX)
+                    max(0, axis.start(bounds) - axis.start(window.frame))
+                    + max(0, axis.end(window.frame) - axis.end(bounds))
                 if past > tolerance { worst = max(worst, past) }
             }
         }
@@ -146,40 +183,53 @@ public enum WindowFitting {
     /// own way, a batch of resizes computed against the current frames would
     /// be stale by the second command. Apply one, look again.
     ///
-    /// - Parameters:
-    ///   - minimums: learned floors by bundle ID, in points. Absent means
-    ///     "not known to be constrained" — worth asking.
-    ///   - step: how much width to ask for per attempt.
-    ///   - overflowEnabled: whether evicting to another workspace is allowed.
+    /// Both axes are measured every pass and the worse one is addressed first,
+    /// so a workspace that's broken horizontally *and* vertically converges on
+    /// whichever is further out rather than favouring a direction.
     public static func nextStep(
         for windows: [Window],
-        minimums: [String: CGFloat],
+        minimums: Minimums,
         bounds: CGRect? = nil,
         separation: CGFloat = 0,
         step: Int = 60,
         overflowEnabled: Bool = true
     ) -> Verdict {
-        // A row wider than the display can't be repaired by moving width
-        // around, so that's checked first — growing anything here would only
-        // push more of it off the edge.
-        if let past = pastBounds(windows, bounds), past > 0 {
-            let ask = clamp(past, step: step)
-            let shrinkable =
-                windows
-                .filter { hasRoomToShrink($0, minimums: minimums, by: ask) }
-                .sorted { $0.frame.width > $1.frame.width }
-            if let target = shrinkable.first {
-                return .adjusting(.shrink(id: target.id, by: ask))
-            }
-            guard overflowEnabled, let newest = windows.max(by: { $0.arrived < $1.arrived })
-            else { return .cannotFit(count: windows.count) }
-            return .adjusting(.evict(id: newest.id))
+        let worst = Axis.allCases
+            .map { (axis: $0, need: deficit(
+                in: windows, bounds: bounds, separation: separation, axis: $0)) }
+            .max { $0.need < $1.need }
+        guard let worst, worst.need > 0 else { return .fits }
+        let ask = clamp(worst.need, step: step)
+
+        // Take the space from whichever window has the most *slack* — room
+        // above the floor its app will actually honor, in this direction.
+        //
+        // Neither of the more obvious rules works. Shrinking the largest
+        // window picks one that's often already at its minimum, so it simply
+        // refuses. Growing the window that's overflowing looks right, but
+        // AeroSpace takes the space from all of its siblings proportionally,
+        // and a sibling sitting on its own floor can't give any — so the
+        // overlap relocates instead of closing.
+        //
+        // Slack is the metric that makes progress monotone: a window with room
+        // above its floor is one we know can comply, and every point it yields
+        // is redistributed to the windows that are cramped.
+        //
+        // It also makes the failure case exact. Slots always sum to the
+        // display, so if no window has slack, the minimums genuinely exceed
+        // the screen and no arrangement exists. That — and only that — is when
+        // something has to leave.
+        let candidates =
+            windows
+            .map { (window: $0, slack: slack(of: $0, minimums: minimums, axis: worst.axis)) }
+            .filter { $0.slack >= CGFloat(ask) }
+            .sorted { $0.slack > $1.slack }
+        if let target = candidates.first {
+            return .adjusting(.shrink(id: target.window.id, by: ask, axis: worst.axis))
         }
-        // Otherwise the row fits on screen and the problem is local: some
-        // window is drawn over its neighbour because its slot is too small.
-        guard let (offender, missing) = worstCollision(in: windows, separation: separation)
-        else { return .fits }
-        return .adjusting(.grow(id: offender, by: clamp(missing, step: step)))
+        guard overflowEnabled, let newest = windows.max(by: { $0.arrived < $1.arrived })
+        else { return .cannotFit(count: windows.count) }
+        return .adjusting(.evict(id: newest.id))
     }
 
     /// Ask for what's missing, not a fixed step. Overshooting makes AeroSpace
@@ -190,62 +240,24 @@ public enum WindowFitting {
         min(step, max(8, Int((need + 4).rounded(.up))))
     }
 
-    /// The window whose slot is too narrow, and by how much.
-    ///
-    /// In an overlapping pair the *left* window is the one overflowing: its
-    /// drawn right edge has run past where its neighbour's slot begins.
-    private static func worstCollision(
-        in windows: [Window], separation: CGFloat, tolerance: CGFloat = 1
-    ) -> (id: UInt32, missing: CGFloat)? {
-        var worst: (id: UInt32, missing: CGFloat)?
-        for i in windows.indices {
-            for j in windows.indices where j > i {
-                let a = windows[i].frame
-                let b = windows[j].frame
-                guard min(a.maxY, b.maxY) - max(a.minY, b.minY) > tolerance else { continue }
-                let leftIsA = a.minX <= b.minX
-                let left = leftIsA ? a : b
-                let right = leftIsA ? b : a
-                let missing = separation - (right.minX - left.maxX)
-                guard missing > tolerance else { continue }
-                if worst == nil || missing > worst!.missing {
-                    worst = (leftIsA ? windows[i].id : windows[j].id, missing)
-                }
-            }
+    /// Room above the floor this app will honor along `axis`. An unknown floor
+    /// counts as all of it: we've never made this app refuse, so it's the most
+    /// promising thing to ask — and if it does refuse, that refusal is what
+    /// teaches us its minimum.
+    private static func slack(
+        of window: Window, minimums: Minimums, axis: Axis
+    ) -> CGFloat {
+        guard let floor = minimums.floor(window.bundleID, axis) else {
+            return axis.extent(window.frame)
         }
-        return worst
-    }
-
-    /// How far the row spills past the display, if at all.
-    private static func pastBounds(
-        _ windows: [Window], _ bounds: CGRect?, tolerance: CGFloat = 1
-    ) -> CGFloat? {
-        guard let bounds else { return nil }
-        var worst: CGFloat = 0
-        for window in windows {
-            let past =
-                max(0, bounds.minX - window.frame.minX)
-                + max(0, window.frame.maxX - bounds.maxX)
-            if past > tolerance { worst = max(worst, past) }
-        }
-        return worst
-    }
-
-    /// A window is worth asking only if it isn't already at (or under) its
-    /// known floor. The amount is included so we never ask for a shrink that
-    /// would land below the minimum and get refused anyway.
-    private static func hasRoomToShrink(
-        _ window: Window, minimums: [String: CGFloat], by amount: Int
-    ) -> Bool {
-        guard let floor = minimums[window.bundleID] else { return true }
-        return window.frame.width - CGFloat(amount) >= floor
+        return max(0, axis.extent(window.frame) - floor)
     }
 
     /// What a shrink attempt taught us.
     ///
     /// Asked for 80 and got 80: it had the room, we've learned nothing. Asked
     /// for 80 and got 30 (or nothing): it hit its floor, and that floor is the
-    /// width it's sitting at now.
+    /// size it's sitting at now.
     public static func learnedMinimum(
         bundleID: String, requested: Int, before: CGFloat, after: CGFloat
     ) -> (bundleID: String, minimum: CGFloat)? {

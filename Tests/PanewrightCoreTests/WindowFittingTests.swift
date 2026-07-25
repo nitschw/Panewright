@@ -21,7 +21,7 @@ private func window(
             window(2, "b", x: 608, width: 500),
             window(3, "c", x: 1116, width: 570),
         ]
-        #expect(WindowFitting.overlaps(in: windows).isEmpty)
+        #expect(WindowFitting.deficit(in: windows, bounds: nil) == 0)
     }
 
     @Test func aWindowRenderingOverItsNeighborIs() {
@@ -32,10 +32,8 @@ private func window(
             window(2, "iterm", x: 608, width: 520),
             window(3, "safari", x: 1008, width: 570),
         ]
-        let overlaps = WindowFitting.overlaps(in: windows)
-        #expect(overlaps.count == 1)
-        #expect(overlaps.first?.0 == 2)
-        #expect(overlaps.first?.1 == 3)
+        // iTerm runs 120pt into Safari's slot.
+        #expect(WindowFitting.deficit(in: windows, bounds: nil) == 120)
     }
 
     @Test func aSharedEdgeIsNotOverlap() {
@@ -45,7 +43,7 @@ private func window(
             window(1, "a", x: 0, width: 600),
             window(2, "b", x: 599, width: 500),
         ]
-        #expect(WindowFitting.overlaps(in: windows).isEmpty)
+        #expect(WindowFitting.deficit(in: windows, bounds: nil) == 0)
     }
 }
 
@@ -60,7 +58,7 @@ private func window(
             window(2, "b", x: 908, width: 900),  // runs 80pt off the right
         ]
         // Invisible to a pairwise check: these two don't touch each other.
-        #expect(WindowFitting.overlaps(in: windows).isEmpty)
+        #expect(WindowFitting.deficit(in: windows, bounds: nil) == 0)
         #expect(WindowFitting.deficit(in: windows, bounds: screen) == 80)
     }
 
@@ -80,7 +78,7 @@ private func window(
             window(2, "b", x: 908, width: 900, arrived: 200),
         ]
         let verdict = WindowFitting.nextStep(
-            for: windows, minimums: [:], bounds: screen, step: 60)
+            for: windows, minimums: WindowFitting.Minimums(), bounds: screen, step: 60)
         #expect(verdict != .fits)
     }
 
@@ -90,7 +88,7 @@ private func window(
             window(2, "b", x: 868, width: 850),
         ]
         #expect(WindowFitting.deficit(in: windows, bounds: screen) == 0)
-        #expect(WindowFitting.nextStep(for: windows, minimums: [:], bounds: screen) == .fits)
+        #expect(WindowFitting.nextStep(for: windows, minimums: WindowFitting.Minimums(), bounds: screen) == .fits)
     }
 
     @Test func withoutKnownBoundsOnlyOverlapCounts() {
@@ -115,10 +113,10 @@ private func window(
             window(2, "iterm", x: 889, width: 500),
         ]
         guard
-            case .adjusting(.grow(_, let by)) = WindowFitting.nextStep(
-                for: windows, minimums: [:], step: 60)
+            case .adjusting(.shrink(_, let by, _)) = WindowFitting.nextStep(
+                for: windows, minimums: WindowFitting.Minimums(), step: 60)
         else {
-            Issue.record("expected a grow")
+            Issue.record("expected a shrink")
             return
         }
         // 11 needed, plus a little margin for fractional frames — nowhere near 60.
@@ -133,10 +131,10 @@ private func window(
             window(2, "iterm", x: 500, width: 500),
         ]
         guard
-            case .adjusting(.grow(_, let by)) = WindowFitting.nextStep(
-                for: windows, minimums: [:], step: 60)
+            case .adjusting(.shrink(_, let by, _)) = WindowFitting.nextStep(
+                for: windows, minimums: WindowFitting.Minimums(), step: 60)
         else {
-            Issue.record("expected a grow")
+            Issue.record("expected a shrink")
             return
         }
         #expect(by == 60)
@@ -148,10 +146,10 @@ private func window(
             window(2, "iterm", x: 897, width: 500),
         ]
         guard
-            case .adjusting(.grow(_, let by)) = WindowFitting.nextStep(
-                for: windows, minimums: [:], step: 60)
+            case .adjusting(.shrink(_, let by, _)) = WindowFitting.nextStep(
+                for: windows, minimums: WindowFitting.Minimums(), step: 60)
         else {
-            Issue.record("expected a grow")
+            Issue.record("expected a shrink")
             return
         }
         #expect(by >= 8)
@@ -184,44 +182,86 @@ private func window(
             window(1, "chrome", x: 0, width: 600),
             window(2, "iterm", x: 700, width: 500),
         ]
-        #expect(WindowFitting.nextStep(for: roomy, minimums: [:]) == .fits)
+        #expect(WindowFitting.nextStep(for: roomy, minimums: WindowFitting.Minimums()) == .fits)
     }
 
-    @Test func theOverflowingWindowHasItsSlotWidened() {
-        // This is the case that failed live: Claude sat at its 600pt floor with
-        // a slot narrower than that, drawing 45pt over iTerm. Shrinking the
-        // widest window (Safari, at the far right) did nothing for the
-        // collision on the left, and it gave up after eight wasted steps.
-        // The left window of the pair is the one overflowing, so it grows.
+    @Test func theWindowWithTheMostSlackGivesUpTheWidth() {
+        // Nothing is known to be constrained yet, so the wider window is the
+        // most promising thing to ask — and whatever it does teaches us.
         guard
-            case .adjusting(.grow(let id, _)) = WindowFitting.nextStep(
-                for: overlapping, minimums: [:], step: 60)
+            case .adjusting(.shrink(let id, _, _)) = WindowFitting.nextStep(
+                for: overlapping, minimums: WindowFitting.Minimums(), step: 60)
         else {
-            Issue.record("expected the offender's slot to grow")
+            Issue.record("expected a shrink")
             return
         }
         #expect(id == 1)
     }
 
-    @Test func aWindowAtItsFloorIsStillTheOneGrown() {
-        // Knowing it can't shrink is exactly why growing its slot is right —
-        // its minimum is the constraint the layout has to accommodate.
+    @Test func aWindowOnItsFloorIsNeverTheOneAsked() {
+        // The live failure that forced this rule. Chrome is the widest window
+        // *and* the one overlapping, but it sits exactly on its floor, so it
+        // can't give up a point — asking it burns a step and changes nothing.
+        // iTerm has slack, so iTerm pays, and AeroSpace hands the freed width
+        // to the window that was cramped.
         guard
-            case .adjusting(.grow(let id, _)) = WindowFitting.nextStep(
-                for: overlapping, minimums: ["chrome": 900], step: 60)
+            case .adjusting(.shrink(let id, _, _)) = WindowFitting.nextStep(
+                for: overlapping, minimums: WindowFitting.Minimums(widths: ["chrome": 900]), step: 60)
         else {
-            Issue.record("expected a grow")
+            Issue.record("expected a shrink")
             return
         }
-        #expect(id == 1)
+        #expect(id == 2)
+    }
+
+    @Test func theLiveThreeWindowFailureResolves() {
+        // Verbatim from the workspace that beat two earlier strategies:
+        // Claude and Safari both pinned on their floors with a 19pt overlap,
+        // on a 1728pt display. A valid layout exists (600 + 574 + 538 + gaps
+        // = 1728), and both earlier rules failed to find it — "widest" kept
+        // picking a window on its floor, and growing the offender took space
+        // from a sibling that had none to give.
+        let screen = CGRect(x: 0, y: 0, width: 1728, height: 1117)
+        let windows = [
+            window(28087, "claude", x: 54, width: 600, arrived: 100),
+            window(72236, "iterm", x: 635, width: 514, arrived: 200),
+            window(93045, "safari", x: 1154, width: 574, arrived: 300),
+        ]
+        let minimums = WindowFitting.Minimums(widths: ["claude": 600, "safari": 574])
+        // iTerm is the only one with anywhere to go, so it's the only sane ask.
+        guard
+            case .adjusting(.shrink(let id, _, _)) = WindowFitting.nextStep(
+                for: windows, minimums: minimums, bounds: screen, separation: 5, step: 60)
+        else {
+            Issue.record("expected a shrink, not a stalemate")
+            return
+        }
+        #expect(id == 72236)
+    }
+
+    @Test func nothingIsEvictedWhileAnyWindowStillHasSlack() {
+        // Eviction is a last resort, and "last" has to mean it. Slots always
+        // sum to the display, so as long as one window has room above its
+        // floor, a fitting arrangement is still reachable by resizing.
+        let screen = CGRect(x: 0, y: 0, width: 1728, height: 1117)
+        let windows = [
+            window(1, "claude", x: 54, width: 600, arrived: 100),
+            window(2, "iterm", x: 635, width: 514, arrived: 200),
+            window(3, "safari", x: 1154, width: 574, arrived: 300),
+        ]
+        let verdict = WindowFitting.nextStep(
+            for: windows, minimums: WindowFitting.Minimums(widths: ["claude": 600, "safari": 574]), bounds: screen,
+            separation: 5, step: 60)
+        #expect(verdict != .adjusting(.evict(id: 3)))
+        #expect(verdict != .cannotFit(count: 3))
     }
 
     @Test func aRowTooWideForTheDisplayShrinksInstead() {
         // Growing anything here would push more of the row off the edge, so
         // this is the one case where width genuinely has to come out.
         guard
-            case .adjusting(.shrink(let id, _)) = WindowFitting.nextStep(
-                for: tooWideForTheScreen, minimums: [:], bounds: smallScreen, step: 60)
+            case .adjusting(.shrink(let id, _, _)) = WindowFitting.nextStep(
+                for: tooWideForTheScreen, minimums: WindowFitting.Minimums(), bounds: smallScreen, step: 60)
         else {
             Issue.record("expected a shrink")
             return
@@ -234,7 +274,7 @@ private func window(
         // Both on their floor, and the row still doesn't fit the display: no
         // arrangement of these two works. iTerm arrived last, so iTerm leaves.
         let verdict = WindowFitting.nextStep(
-            for: tooWideForTheScreen, minimums: ["chrome": 900, "iterm": 900],
+            for: tooWideForTheScreen, minimums: WindowFitting.Minimums(widths: ["chrome": 900, "iterm": 900]),
             bounds: smallScreen, step: 60)
         #expect(verdict == .adjusting(.evict(id: 2)))
     }
@@ -243,7 +283,7 @@ private func window(
         // Someone who disabled overflow is choosing to live with it; the
         // verdict still reports the problem rather than claiming it fits.
         let verdict = WindowFitting.nextStep(
-            for: tooWideForTheScreen, minimums: ["chrome": 900, "iterm": 900],
+            for: tooWideForTheScreen, minimums: WindowFitting.Minimums(widths: ["chrome": 900, "iterm": 900]),
             bounds: smallScreen, step: 60, overflowEnabled: false)
         #expect(verdict == .cannotFit(count: 2))
     }
@@ -252,8 +292,8 @@ private func window(
         // chrome could give 20pt before hitting 880, but the ask is 60, so it
         // isn't a candidate — the request would just be refused.
         guard
-            case .adjusting(.shrink(let id, _)) = WindowFitting.nextStep(
-                for: tooWideForTheScreen, minimums: ["chrome": 880], bounds: smallScreen,
+            case .adjusting(.shrink(let id, _, _)) = WindowFitting.nextStep(
+                for: tooWideForTheScreen, minimums: WindowFitting.Minimums(widths: ["chrome": 880]), bounds: smallScreen,
                 step: 60)
         else {
             Issue.record("expected a shrink")
@@ -292,5 +332,135 @@ private func window(
         let learned = WindowFitting.learnedMinimum(
             bundleID: "chrome", requested: 80, before: 900, after: 820.4)
         #expect(learned == nil)
+    }
+}
+
+/// Vertical stacks must behave exactly as horizontal rows do — same rules,
+/// same thresholds, same choice of victim — because they run the same code
+/// with the coordinates swapped.
+///
+/// These tests assert that by *transposing*: mirror a layout across the
+/// diagonal (swap x with y, width with height) and every answer must mirror
+/// with it. A rule that only got implemented for one direction fails here.
+@Suite struct AxisParityTests {
+    /// Reflect a window across the diagonal.
+    private func transposed(_ w: WindowFitting.Window) -> WindowFitting.Window {
+        WindowFitting.Window(
+            id: w.id, bundleID: w.bundleID,
+            frame: CGRect(
+                x: w.frame.minY, y: w.frame.minX,
+                width: w.frame.height, height: w.frame.width),
+            arrived: w.arrived)
+    }
+
+    private func transposed(_ r: CGRect) -> CGRect {
+        CGRect(x: r.minY, y: r.minX, width: r.height, height: r.width)
+    }
+
+    /// A row: three side-by-side windows, the middle one overlapping the last.
+    private var row: [WindowFitting.Window] {
+        [
+            window(1, "a", x: 0, width: 600, arrived: 100),
+            window(2, "b", x: 608, width: 520, arrived: 200),
+            window(3, "c", x: 1108, width: 570, arrived: 300),
+        ]
+    }
+    private let screen = CGRect(x: 0, y: 0, width: 1728, height: 1117)
+
+    @Test func theDeficitIsTheSameInEitherDirection() {
+        let across = WindowFitting.deficit(
+            in: row, bounds: screen, separation: 5, axis: .horizontal)
+        let down = WindowFitting.deficit(
+            in: row.map(transposed), bounds: transposed(screen), separation: 5,
+            axis: .vertical)
+        #expect(across > 0)
+        #expect(across == down)
+    }
+
+    @Test func theSameWindowIsAskedInEitherDirection() {
+        let across = WindowFitting.nextStep(
+            for: row, minimums: WindowFitting.Minimums(widths: ["a": 600]),
+            bounds: screen, separation: 5, step: 60)
+        let down = WindowFitting.nextStep(
+            for: row.map(transposed),
+            // The mirrored layout's floors are heights, not widths.
+            minimums: WindowFitting.Minimums(widths: [:], heights: ["a": 600]),
+            bounds: transposed(screen), separation: 5, step: 60)
+
+        guard case .adjusting(.shrink(let idAcross, let byAcross, let axisAcross)) = across,
+            case .adjusting(.shrink(let idDown, let byDown, let axisDown)) = down
+        else {
+            Issue.record("both directions should ask a window to shrink")
+            return
+        }
+        #expect(idAcross == idDown)
+        #expect(byAcross == byDown)
+        // Same decision, opposite direction — and the action names the axis so
+        // the caller resizes width or height accordingly.
+        #expect(axisAcross == .horizontal)
+        #expect(axisDown == .vertical)
+    }
+
+    @Test func aWindowOnItsHeightFloorIsSkippedJustAsOnItsWidth() {
+        // The slack rule has to consult the floor for the axis being fixed. A
+        // stack where the tall window can't get shorter must pick the other.
+        let stack = row.map(transposed)
+        let minimums = WindowFitting.Minimums(widths: [:], heights: ["b": 520, "c": 570])
+        guard
+            case .adjusting(.shrink(let id, _, let axis)) = WindowFitting.nextStep(
+                for: stack, minimums: minimums, bounds: transposed(screen),
+                separation: 5, step: 60)
+        else {
+            Issue.record("expected a shrink")
+            return
+        }
+        #expect(axis == .vertical)
+        // b and c are both on their height floors, so a is the only one left.
+        #expect(id == 1)
+    }
+
+    @Test func evictionIsReachedIdenticallyInAStack() {
+        let stack = row.map(transposed)
+        let minimums = WindowFitting.Minimums(
+            widths: [:], heights: ["a": 600, "b": 520, "c": 570])
+        let verdict = WindowFitting.nextStep(
+            for: stack, minimums: minimums, bounds: transposed(screen),
+            separation: 5, step: 60)
+        // Nothing can get shorter, so the newest arrival leaves — exactly as
+        // it would in a row that can't get narrower.
+        #expect(verdict == .adjusting(.evict(id: 3)))
+    }
+
+    @Test func aStackedPairIsNotJudgedOnItsHorizontalSpan() {
+        // Two windows in one column share their entire width. That is not a
+        // horizontal collision, and counting it as one would have the fitter
+        // resizing in the direction the windows aren't even competing in.
+        let a = WindowFitting.Window(
+            id: 1, bundleID: "a", frame: CGRect(x: 0, y: 0, width: 800, height: 500),
+            arrived: Date())
+        let b = WindowFitting.Window(
+            id: 2, bundleID: "b", frame: CGRect(x: 0, y: 505, width: 800, height: 500),
+            arrived: Date())
+        #expect(
+            WindowFitting.deficit(in: [a, b], bounds: nil, separation: 5, axis: .horizontal)
+                == 0)
+        #expect(
+            WindowFitting.deficit(in: [a, b], bounds: nil, separation: 5, axis: .vertical)
+                == 0)
+    }
+
+    @Test func aStackedPairOverlappingVerticallyIsCaught() {
+        // The whole point of the exercise: an app with a minimum height drawing
+        // over the window beneath it.
+        let a = WindowFitting.Window(
+            id: 1, bundleID: "a", frame: CGRect(x: 0, y: 0, width: 800, height: 520),
+            arrived: Date())
+        let b = WindowFitting.Window(
+            id: 2, bundleID: "b", frame: CGRect(x: 0, y: 505, width: 800, height: 500),
+            arrived: Date())
+        // 15pt of overlap, plus the 5pt gap it should have had.
+        #expect(
+            WindowFitting.deficit(in: [a, b], bounds: nil, separation: 5, axis: .vertical)
+                == 20)
     }
 }
