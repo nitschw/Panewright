@@ -105,3 +105,30 @@ import Testing
         #expect(try ConfigParser.parse(toml: toml).fitting.floatOnTop)
     }
 }
+
+/// A floor near the size of the display is the signature of a resize that did
+/// nothing, not of an app with an enormous minimum — and keeping one makes the
+/// fitter believe the layout is impossible.
+@Suite struct ImplausibleMinimumTests {
+    @Test func floorsNearTheDisplaySizeAreDiscarded() {
+        var store = MinimumSizeStore(
+            file: FileManager.default.temporaryDirectory.appending(path: "t.json"),
+            widths: ["real": 600, "phantom": 1671],
+            heights: ["phantom": 1045])
+        store.discardImplausible(displayWidth: 1728, displayHeight: 1117)
+        // 1671 is 97% of the display; 1045 is 94% of its height.
+        #expect(store.minimum(for: "phantom", axis: .horizontal) == nil)
+        #expect(store.minimum(for: "phantom", axis: .vertical) == nil)
+        // A genuine measurement is untouched.
+        #expect(store.minimum(for: "real") == 600)
+    }
+
+    @Test func aLargeButBelievableFloorSurvives() {
+        var store = MinimumSizeStore(
+            file: FileManager.default.temporaryDirectory.appending(path: "t.json"),
+            widths: ["chunky": 1200])
+        store.discardImplausible(displayWidth: 1728, displayHeight: 1117)
+        // 69% of the display — big, but apps like that genuinely exist.
+        #expect(store.minimum(for: "chunky") == 1200)
+    }
+}

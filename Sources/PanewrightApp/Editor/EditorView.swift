@@ -76,6 +76,7 @@ struct EditorView: View {
         switch target {
         case .modifier: AnyHashable("modifier")
         case .binding(let id): AnyHashable(id)
+        case .widgets: AnyHashable("widgets")
         }
     }
 
@@ -83,6 +84,7 @@ struct EditorView: View {
         switch target {
         case .modifier: .general
         case .binding: .keys
+        case .widgets: .bar
         }
     }
 
@@ -115,7 +117,7 @@ struct EditorView: View {
             case .bar:
                 barSection
                 Divider()
-                widgetsSection
+                widgetsSection.id("widgets")
                 Divider()
                 companionsSection
                 Divider()

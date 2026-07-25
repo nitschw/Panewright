@@ -47,6 +47,12 @@ final class WindowFitController {
     init(notify: @escaping (String) -> Void) {
         self.notify = notify
         minimums.load()
+        // Heal a cache poisoned by an earlier build before trusting any of it.
+        if let screen = NSScreen.main {
+            minimums.discardImplausible(
+                displayWidth: screen.frame.width, displayHeight: screen.frame.height)
+            minimums.save()
+        }
     }
 
     func start() {

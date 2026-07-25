@@ -33,12 +33,16 @@ final class EditorModel {
     enum Target: Equatable {
         case modifier
         case binding(key: String)
+        /// The Status Bar tab, which absorbed the old standalone Widgets
+        /// window rather than duplicating every toggle in two places.
+        case widgets
     }
 
     /// The resolved destination, in terms this editor's views can anchor to.
     enum Reveal: Equatable, Hashable {
         case modifier
         case binding(UUID)
+        case widgets
     }
 
     struct BindingRow: Identifiable {
@@ -80,12 +84,45 @@ final class EditorModel {
         recomputeConflicts()
     }
 
+    /// Bindings in the order they're easiest to find in.
+    ///
+    /// Config order is authoring order — whatever the importer or the defaults
+    /// happened to emit — which makes scanning fifty rows for one key a hunt.
+    /// Sorted, a key is where you'd look for it.
+    ///
+    /// Digits before letters, and numbers compared as numbers so 10 follows 9
+    /// rather than sitting between 1 and 2. A modifier prefix sorts with the
+    /// key it modifies (shift-h next to h) rather than collecting every
+    /// shift- binding into one block, since what you're looking for is the
+    /// key, not the modifier.
+    static func sortKey(_ key: String) -> (Int, String, Int, String) {
+        let lowered = key.lowercased()
+        let separator = lowered.lastIndex(of: "-")
+        let modifier = separator.map { String(lowered[lowered.startIndex..<$0]) } ?? ""
+        let base = separator.map { String(lowered[lowered.index(after: $0)...]) } ?? lowered
+        let digits = Int(base)
+        // Digits first, then by numeric value or by name, then the bare key
+        // ahead of its modified variants.
+        return (digits == nil ? 1 : 0, digits == nil ? base : "", digits ?? 0, modifier)
+    }
+
+    private static func sorted(_ rows: [BindingRow]) -> [BindingRow] {
+        rows.sorted { sortKey($0.key) < sortKey($1.key) }
+    }
+
+    /// Re-sort in place — used after an edit changes a key, so a renamed
+    /// binding moves to where it now belongs.
+    func sortBindingRows() {
+        bindingRows = Self.sorted(bindingRows)
+    }
+
     /// Rebuild every row-backed editor from a config. Row ids are regenerated
     /// here, which is why `reveal` must always run after a load.
     private func loadRows(from config: PanewrightConfig) {
-        bindingRows = config.bindings.map {
-            BindingRow(key: $0.key, action: PanewrightConfigSerializer.chainString($0.actions))
-        }
+        bindingRows = Self.sorted(
+            config.bindings.map {
+                BindingRow(key: $0.key, action: PanewrightConfigSerializer.chainString($0.actions))
+            })
         modeRows = config.modes.map { mode in
             ModeRow(
                 name: mode.name,
@@ -258,6 +295,8 @@ final class EditorModel {
     /// regenerated on load, so a target resolved earlier would be stale.
     func reveal(_ target: Target) {
         switch target {
+        case .widgets:
+            revealed = .widgets
         case .modifier:
             revealed = .modifier
         case .binding(let key):

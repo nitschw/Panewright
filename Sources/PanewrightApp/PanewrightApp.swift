@@ -52,7 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     {
                         AppDelegate.model?.disableWidget(key: key)
                     } else {
-                        AppDelegate.model?.openWidgets()
+                        AppDelegate.model?.openEditor(reveal: .widgets)
                     }
                 default:
                     break
@@ -253,7 +253,6 @@ final class AppModel {
     private var setupWindowController: OnboardingWindowController?
     private var aboutWindowController: AboutWindowController?
     private var cheatSheetWindowController: CheatSheetWindowController?
-    private var widgetsWindowController: WidgetsWindowController?
     private var editorWindowController: EditorWindowController?
     private var conflictsWindowController: ConflictsWindowController?
     private var windowFitController: WindowFitController?
@@ -317,20 +316,6 @@ final class AppModel {
     }
 
     // MARK: Setup window
-
-    func openWidgets() {
-        let controller = widgetsWindowController ?? WidgetsWindowController()
-        widgetsWindowController = controller
-        let config = (try? orchestrator.loadConfig()) ?? .default
-        controller.show(
-            modules: modules, integrations: config.integrations,
-            todoEnabled: config.todo.enabled, pillsEnabled: config.pills.enabled
-        ) { [weak self] updatedModules, updatedIntegrations, todo, pills in
-            self?.applyModules(
-                updatedModules, integrations: updatedIntegrations,
-                todoEnabled: todo, pillsEnabled: pills)
-        }
-    }
 
     /// Persist a whole widget set and repaint — used by the picker and by
     /// right-clicking a widget in the bar.
@@ -962,9 +947,6 @@ struct PanewrightMenu: View {
                     get: { model.barEnabled },
                     set: { model.setBarEnabled($0) }
                 ))
-        }
-        Button("Widgets…") {
-            model.openWidgets()
         }
         if model.needsDragSetup {
             Button("Finish Drag-to-Tile setup…") {

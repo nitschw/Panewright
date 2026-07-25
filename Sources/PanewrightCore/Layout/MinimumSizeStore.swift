@@ -58,6 +58,29 @@ public struct MinimumSizeStore: Sendable {
     /// learned floors meaningless.
     public mutating func reset() { minimums = WindowFitting.Minimums() }
 
+    /// Discard floors too close to the size of the display itself.
+    ///
+    /// No real app has a minimum width of nearly the whole screen. A number
+    /// that large is the signature of a resize that did nothing — a window
+    /// with no sibling to trade with can't change size, and that no-op is
+    /// indistinguishable from an app refusing at its floor. Such a value is
+    /// worse than having none: the app reads as permanently unshrinkable, so
+    /// the fitter skips it and concludes the layout is impossible, which sends
+    /// it looking for something to evict.
+    ///
+    /// Applied on load as well as on write, so a file already poisoned by an
+    /// earlier build heals itself instead of needing to be deleted by hand.
+    public mutating func discardImplausible(displayWidth: CGFloat, displayHeight: CGFloat) {
+        let limits: [WindowFitting.Axis: CGFloat] = [
+            .horizontal: displayWidth * 0.8, .vertical: displayHeight * 0.8,
+        ]
+        for (axis, limit) in limits {
+            guard var floors = minimums.byAxis[axis] else { continue }
+            floors = floors.filter { $0.value <= limit }
+            minimums.byAxis[axis] = floors
+        }
+    }
+
     // MARK: Persistence
 
     /// On disk as `{"widths": {...}, "heights": {...}}`.
