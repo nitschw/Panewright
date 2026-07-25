@@ -125,5 +125,13 @@
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
       <enclosure url="https://github.com/nitschw/Panewright/releases/download/v0.3.2/Panewright-0.3.2.zip" type="application/octet-stream" sparkle:edSignature="sO43tFIEybpyiG+Ul49g8yVr+sY/S8MIeBI5x95ws1r1rV7q1sDc2MAV/JA+B/TMxu4SW5XyuHUbZCp5NIYhDg==" length="6010121" />
     </item>
+    <item>
+      <title>0.3.3</title>
+      <pubDate>Sat, 25 Jul 2026 14:35:43 -0700</pubDate>
+      <sparkle:version>202607251434</sparkle:version>
+      <sparkle:shortVersionString>0.3.3</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure url="https://github.com/nitschw/Panewright/releases/download/v0.3.3/Panewright-0.3.3.zip" type="application/octet-stream" sparkle:edSignature="mMKcVylXKTfew0A+myFsoW3yAfAtnmW6hCKgFv1J70ay85GstJaymOYnNRr35ija1u5Dg6qmVH8GXF2WlpBXDA==" length="6023197" />
+    </item>
   </channel>
 </rss>
