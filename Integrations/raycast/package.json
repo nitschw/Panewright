@@ -1,0 +1,61 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "panewright",
+  "title": "Panewright",
+  "description": "Drive Panewright's tiling window manager from Raycast.",
+  "icon": "icon.png",
+  "author": "nitschw",
+  "license": "MIT",
+  "categories": ["Productivity", "System"],
+  "commands": [
+    {
+      "name": "switch-workspace",
+      "title": "Switch Workspace",
+      "subtitle": "Panewright",
+      "description": "Jump to a workspace, showing what's on each one.",
+      "mode": "view"
+    },
+    {
+      "name": "move-window",
+      "title": "Move Window to Workspace",
+      "subtitle": "Panewright",
+      "description": "Send the focused window to another workspace.",
+      "mode": "view"
+    },
+    {
+      "name": "layout",
+      "title": "Layout Command",
+      "subtitle": "Panewright",
+      "description": "Run a layout action on the focused window.",
+      "mode": "view"
+    },
+    {
+      "name": "open-settings",
+      "title": "Open Panewright Settings",
+      "subtitle": "Panewright",
+      "description": "Open Panewright's settings, optionally on a specific tab.",
+      "mode": "no-view",
+      "arguments": [
+        {
+          "name": "tab",
+          "placeholder": "general | keys | layout | appearance | bar",
+          "type": "text",
+          "required": false
+        }
+      ]
+    }
+  ],
+  "dependencies": {
+    "@raycast/api": "^1.70.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.8.10",
+    "@types/react": "^18.2.27",
+    "typescript": "^5.2.2"
+  },
+  "scripts": {
+    "build": "ray build -e dist",
+    "dev": "ray develop",
+    "lint": "ray lint"
+  }
+}

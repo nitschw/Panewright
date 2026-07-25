@@ -36,6 +36,27 @@ final class SettingsModel {
         /// The Status Bar tab, which absorbed the old standalone Widgets
         /// window rather than duplicating every toggle in two places.
         case widgets
+        case layout
+        case appearance
+        /// The Keybindings tab itself, with no particular binding to find.
+        /// Distinct from `.binding`, which hunts for a key and complains when
+        /// there isn't one — a deep link to the tab shouldn't report a
+        /// failure to locate a binding nobody asked for.
+        case keybindings
+
+        /// Resolve a deep-link path segment. An unknown or missing segment
+        /// opens Settings without jumping anywhere, which is friendlier than
+        /// refusing to open at all.
+        init?(tab: String?) {
+            switch tab {
+            case "keys", "keybindings": self = .keybindings
+            case "layout": self = .layout
+            case "appearance": self = .appearance
+            case "bar", "widgets", "status-bar": self = .widgets
+            case "general": self = .modifier
+            default: return nil
+            }
+        }
     }
 
     /// The resolved destination, in terms this editor's views can anchor to.
@@ -43,6 +64,13 @@ final class SettingsModel {
         case modifier
         case binding(UUID)
         case widgets
+        case layout
+        case appearance
+        /// The Keybindings tab itself, with no particular binding to find.
+        /// Distinct from `.binding`, which hunts for a key and complains when
+        /// there isn't one — a deep link to the tab shouldn't report a
+        /// failure to locate a binding nobody asked for.
+        case keybindings
     }
 
     struct BindingRow: Identifiable {
@@ -297,6 +325,12 @@ final class SettingsModel {
         switch target {
         case .widgets:
             revealed = .widgets
+        case .layout:
+            revealed = .layout
+        case .appearance:
+            revealed = .appearance
+        case .keybindings:
+            revealed = .keybindings
         case .modifier:
             revealed = .modifier
         case .binding(let key):

@@ -77,6 +77,9 @@ struct SettingsView: View {
         case .modifier: AnyHashable("modifier")
         case .binding(let id): AnyHashable(id)
         case .widgets: AnyHashable("widgets")
+        case .layout: AnyHashable("layout")
+        case .appearance: AnyHashable("appearance")
+        case .keybindings: AnyHashable("keybindings")
         }
     }
 
@@ -85,6 +88,9 @@ struct SettingsView: View {
         case .modifier: .general
         case .binding: .keys
         case .widgets: .bar
+        case .layout: .layout
+        case .appearance: .appearance
+        case .keybindings: .keys
         }
     }
 
@@ -99,11 +105,11 @@ struct SettingsView: View {
                 Divider()
                 hooksSection
             case .keys:
-                bindingsSection
+                bindingsSection.id("keybindings")
                 Divider()
                 modesSection
             case .layout:
-                gapsSection
+                gapsSection.id("layout")
                 Divider()
                 floatingAppsSection
                 Divider()
@@ -111,7 +117,7 @@ struct SettingsView: View {
                 Divider()
                 appWorkspacesSection
             case .appearance:
-                borderSection
+                borderSection.id("appearance")
                 Divider()
                 barAppearanceSection
             case .bar:

@@ -46,6 +46,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     AppDelegate.model?.openCheatSheet()
                 case "conflicts":
                     AppDelegate.model?.openConflicts()
+                case "settings":
+                    // panewright://settings[/keys|/layout|/appearance|/bar]
+                    // — the deep link external tools (and the Raycast
+                    // extension) use to land on a specific tab.
+                    AppDelegate.model?.openSettings(
+                        reveal: SettingsModel.Target(tab: parts.dropFirst().first))
                 case "widgets":
                     if parts.dropFirst().first == "disable",
                         let key = parts.dropFirst(2).first
