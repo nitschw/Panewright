@@ -44,6 +44,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     AppDelegate.model?.openConfluence(pageID: pageID)
                 case "help":
                     AppDelegate.model?.openCheatSheet()
+                case "conflicts":
+                    AppDelegate.model?.openConflicts()
                 case "widgets":
                     if parts.dropFirst().first == "disable",
                         let key = parts.dropFirst(2).first
@@ -252,6 +254,7 @@ final class AppModel {
     private var cheatSheetWindowController: CheatSheetWindowController?
     private var widgetsWindowController: WidgetsWindowController?
     private var editorWindowController: EditorWindowController?
+    private var conflictsWindowController: ConflictsWindowController?
     private var todoWindowController: TodoEditorWindowController?
     private var integrationsWindowController: IntegrationsWindowController?
     private var confluenceWindowController: ConfluenceWindowController?
@@ -292,6 +295,7 @@ final class AppModel {
                     dragToBar: config?.pills.dragToBar ?? true)
                 self.integrations.configure(config?.integrations ?? IntegrationsConfig())
                 self.confluenceEnabled = config?.integrations.confluence.enabled ?? false
+                self.conflictCount = config.map { BindingConflicts.rows(in: $0).count } ?? 0
                 if self.isBundled {
                     self.launchAtLogin = SMAppService.mainApp.status == .enabled
                 }
@@ -404,11 +408,24 @@ final class AppModel {
         }
     }
 
-    func openEditor() {
+    func openEditor(reveal: EditorModel.Target? = nil) {
         let controller = editorWindowController ?? EditorWindowController()
         editorWindowController = controller
+        controller.show(appModel: self, reveal: reveal)
+    }
+
+    /// panewright://conflicts — the bar's ⚠ chip, and the menu item.
+    func openConflicts() {
+        let controller = conflictsWindowController ?? ConflictsWindowController()
+        conflictsWindowController = controller
         controller.show(appModel: self)
     }
+
+    /// How many bindings currently can't do what they say — drives the menu
+    /// item, so the menu tells the same story as the bar's ⚠ chip. Refreshed
+    /// with the rest of the status (off-main; the menu body must not parse
+    /// the config on every redraw).
+    var conflictCount = 0
 
     func checkForUpdates() {
         updaterController?.checkForUpdates(nil)
@@ -888,6 +905,11 @@ struct PanewrightMenu: View {
         }
         Button("Open Editor…") {
             model.openEditor()
+        }
+        if model.conflictCount > 0 {
+            Button("⚠ Keybinding Conflicts (\(model.conflictCount))…") {
+                model.openConflicts()
+            }
         }
         Button("Edit Config File…") {
             model.openConfig()

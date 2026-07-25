@@ -7,30 +7,58 @@ struct EditorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    modifierSection
-                    Divider()
-                    gapsSection
-                    Divider()
-                    borderSection
-                    Divider()
-                    barSection
-                    Divider()
-                    pillsSection
-                    Divider()
-                    floatingAppsSection
-                    Divider()
-                    integrationsSection
-                    Divider()
-                    bindingsSection
+            ScrollViewReader { proxy in
+                ScrollView {
+                    sections
                 }
-                .padding(20)
+                // A caller sent the user here to fix one specific thing —
+                // scroll it into view rather than making them find it.
+                .onChange(of: model.revealed) { _, target in
+                    guard let target else { return }
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        proxy.scrollTo(anchor(for: target), anchor: .center)
+                    }
+                }
+                .onAppear {
+                    guard let target = model.revealed else { return }
+                    proxy.scrollTo(anchor(for: target), anchor: .center)
+                }
             }
             Divider()
             footer
         }
         .frame(width: 560, height: 640)
+    }
+
+    /// AnyHashable so one ScrollViewReader can address both the named
+    /// sections and the binding rows' UUIDs.
+    private func anchor(for target: EditorModel.Reveal) -> AnyHashable {
+        switch target {
+        case .modifier: AnyHashable("modifier")
+        case .binding(let id): AnyHashable(id)
+        }
+    }
+
+    private var sections: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            modifierSection
+                .id("modifier")
+            Divider()
+            gapsSection
+            Divider()
+            borderSection
+            Divider()
+            barSection
+            Divider()
+            pillsSection
+            Divider()
+            floatingAppsSection
+            Divider()
+            integrationsSection
+            Divider()
+            bindingsSection
+        }
+        .padding(20)
     }
 
     // MARK: Sections
@@ -195,12 +223,16 @@ struct EditorView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             ForEach($model.bindingRows) { $row in
+                let conflicts = model.conflicts(for: row.key)
                 VStack(alignment: .leading, spacing: 2) {
                     HStack {
                         TextField("key", text: $row.key)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 110)
                             .onSubmit { model.bindingRowsChanged() }
+                        if !conflicts.isEmpty {
+                            ConflictBadge(conflicts: conflicts)
+                        }
                         TextField("action", text: $row.action)
                             .textFieldStyle(.roundedBorder)
                             .onSubmit { model.bindingRowsChanged() }
@@ -218,6 +250,17 @@ struct EditorView: View {
                             .foregroundStyle(.red)
                     }
                 }
+                .id(row.id)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(model.revealed == .binding(row.id)
+                            ? Color.accentColor.opacity(0.18) : .clear))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.red.opacity(conflicts.isEmpty ? 0 : 0.75), lineWidth: 1))
+                .animation(.easeInOut(duration: 0.25), value: model.revealed)
             }
             Button("Add Binding") {
                 model.bindingRows.append(.init(key: "", action: ""))
@@ -287,6 +330,48 @@ struct EditorView: View {
                 .font(.caption.monospaced())
                 .foregroundStyle(.secondary)
         }
+    }
+}
+
+/// The red flag on a binding that can't do what it says. Hovering explains
+/// what it's up against — after a beat, so that sweeping the pointer across
+/// the list doesn't strobe popovers at you.
+///
+/// `.help()` would be the one-liner here, but its delay is the system's
+/// (around a second) and not adjustable, and this wants half that.
+private struct ConflictBadge: View {
+    let conflicts: [BindingConflicts.Conflict]
+    @State private var hovering = false
+    @State private var showing = false
+
+    var body: some View {
+        Image(systemName: "exclamationmark.triangle.fill")
+            .font(.system(size: 12))
+            .foregroundStyle(.red)
+            .onHover { inside in
+                hovering = inside
+                guard inside else {
+                    showing = false
+                    return
+                }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    // Still there half a second later, or it was just passing.
+                    guard hovering else { return }
+                    showing = true
+                }
+            }
+            .popover(isPresented: $showing, arrowEdge: .bottom) {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(conflicts) { conflict in
+                        Text(conflict.summary)
+                            .font(.system(size: 12))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(10)
+                .frame(width: 300)
+            }
     }
 }
 
