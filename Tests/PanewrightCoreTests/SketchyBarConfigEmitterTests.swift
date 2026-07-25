@@ -161,6 +161,22 @@ import Testing
         #expect(on.widgetsPlugin.contains(#""$BAR" "${ARGS[@]}""#))
     }
 
+    @Test func widgetsNameThemselvesOnHoverHold() throws {
+        var config = PanewrightConfig.default
+        config.modules.network = true
+        config.modules.ports = true
+        let files = try SketchyBarConfigEmitter.emit(config)
+        // Each widget subscribes to hover and carries a name row in its popup.
+        #expect(files.sketchybarrc.contains("--subscribe w.net mouse.entered mouse.exited"))
+        #expect(files.sketchybarrc.contains(#"--set w.net.tip label="Network"#))
+        // Ports already has a detail popup, so its title row doubles as the tip.
+        #expect(files.sketchybarrc.contains(#"--set w.ports.tip label="Listening ports""#))
+        // The reveal is delayed and cancelable, so sweeping past never flashes.
+        #expect(files.tooltipPlugin.contains("HOLD=3"))
+        #expect(files.tooltipPlugin.contains("mouse.exited"))
+        #expect(files.tooltipPlugin.contains(#"[ "$(cat "$STATE" 2>/dev/null)" = "$TOKEN" ]"#))
+    }
+
     @Test func modePluginUppercasesAndClears() throws {
         let files = try SketchyBarConfigEmitter.emit(.default)
         #expect(files.modePlugin.contains(#"[ "$MODE" = "main" ]"#))
