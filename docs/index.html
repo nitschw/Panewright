@@ -245,6 +245,7 @@
     <a class="wordmark" href="#"><img src="logo.png" alt="">Panewright</a>
     <div class="nav-links">
       <a href="#why">Why</a>
+      <a href="#widgets">Widgets</a>
       <a href="#compare">Compare</a>
       <a href="docs.html">Docs</a>
       <a class="dl" href="https://github.com/nitschw/Panewright">GitHub</a>
@@ -495,6 +496,40 @@
         </ul>
       </div>
     </div>
+  </section>
+
+  <section id="widgets">
+    <div class="kicker">Make it yours</div>
+    <h2>A bar you actually configure</h2>
+    <p class="sub">Seventeen opt-in widgets, all off by default so the bar stays pure window manager until you want more. Pick them from a window, drag to reorder, right-click one in the bar to turn it off. No sudo, no SIP, and never a config file unless you want one.</p>
+    <img src="img/bar-full.png" alt="The Panewright bar with every widget enabled" style="width:100%;border-radius:10px;border:1px solid var(--line);margin-top:28px">
+    <div class="inv" style="margin-top:36px">
+      <div>
+        <h4>System</h4>
+        <ul>
+          <li><b>CPU &amp; memory</b> with live sparklines — click for a mini-htop panel of load, uptime, and top processes</li>
+          <li><b>Network</b> throughput, <b>disk</b> usage</li>
+          <li><b>Battery</b> with the time remaining the menu bar hides</li>
+        </ul>
+      </div>
+      <div>
+        <h4>Developer</h4>
+        <ul>
+          <li><b>Listening ports</b> — click for what owns each one</li>
+          <li><b>Docker</b> containers, <b>Homebrew</b> updates, <b>VPN</b> status</li>
+          <li><b>Cloud context</b> — kubectl and AWS profile, flagged red when it looks like production</li>
+        </ul>
+      </div>
+      <div>
+        <h4>Everything else</h4>
+        <ul>
+          <li><b>Microphone</b> — click to mute, the widget every meeting needs</li>
+          <li><b>Volume</b>, <b>now playing</b>, <b>keyboard layout</b>, <b>Focus</b>, <b>weather</b></li>
+          <li><b>Work trackers</b> — GitHub, GitLab, Jira, Confluence, and Teams pills, in the same picker</li>
+        </ul>
+      </div>
+    </div>
+    <p class="compare-note">Hover a widget for three seconds and it names itself. One batched driver refreshes them all — one process per cycle, not one per widget.</p>
   </section>
 
   <section id="compare">

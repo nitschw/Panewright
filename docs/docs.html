@@ -358,34 +358,77 @@ accent-color = "#30D158"   <span class="c"># optional; defaults to the focus bor
   <p>Each monitor's bar leads with its <b>M1/M2/M3 badge</b>, then that monitor's workspace numbers (clickable, drag targets, accent highlight on the active one), a <b>mode badge</b> while resize/join is active, and the frontmost app. Disabling the bar returns everything to the native macOS menu bar. Quick toggles for the bar and borders live in the menu bar icon's dropdown.</p>
 
   <h2 id="modules">Bar widgets</h2>
-  <p>Optional modules beyond the window manager — <b>every one is off by default</b>, so the bar stays pure WM unless you opt in. They're refreshed by a <b>single batched driver</b> (never one process per widget), and none needs sudo or SIP disabled.</p>
-  <pre>[modules]
-system-monitor = true   <span class="c"># CPU/memory chip + perf panel</span>
-network = true          <span class="c"># ↓/↑ throughput</span>
-ports = true            <span class="c"># listening ports, click to list</span>
-disk = true             <span class="c"># boot volume usage</span>
-battery = true          <span class="c"># charge + time remaining</span>
-docker = true           <span class="c"># running containers</span>
-cloud-context = true    <span class="c"># kubectl context / AWS profile</span>
-layout = true           <span class="c"># tiles / accordion / floating / fullscreen</span>
-scratchpad = true       <span class="c"># how many windows are stashed</span></pre>
+  <p>Optional modules beyond the window manager. <b>Every one is off by default</b>, so the bar stays pure WM until you opt in. Open <b>Widgets…</b> from the menu bar icon to browse them all with a live example of each, toggle them (changes apply instantly — no bar reload), and drag to set their order. <b>Right-click any widget in the bar to turn it off.</b></p>
+  <img src="img/bar-full.png" alt="The Panewright bar with every widget enabled" style="width:100%;border-radius:8px;border:1px solid var(--line);margin:14px 0">
+  <p style="font-size:13px;color:var(--ink-faint);margin-top:-6px">Everything at once: workspaces and monitor badge on the left; work trackers, to-dos, and system widgets on the right.</p>
+
+  <h3>System</h3>
+  <img src="img/bar-system.png" alt="System widgets in the bar" style="width:100%;border-radius:8px;border:1px solid var(--line);margin:10px 0">
   <table>
     <tr><th>Widget</th><th>Shows</th><th>Source</th></tr>
-    <tr><td><code>network</code></td><td><code>↓1.2M ↑340K</code> for the default interface</td><td><code>netstat -ib</code> deltas</td></tr>
-    <tr><td><code>ports</code></td><td>Count of listening ports; <b>click</b> for the list with owning processes</td><td><code>lsof -iTCP -sTCP:LISTEN</code></td></tr>
+    <tr><td><code>system-monitor</code></td><td>CPU and memory percentages; <b>click</b> to unfurl a mini-htop panel with load averages, uptime, memory breakdown, and the top five processes by CPU and by memory</td><td><code>top</code>, <code>vm_stat</code>, <code>ps</code></td></tr>
+    <tr><td><code>system-graphs</code></td><td>Live sparklines beside the CPU/memory readout, so you can see a spike building rather than just its current value. Travels with the chip; turn it off to keep the numbers without the graphics</td><td>same</td></tr>
+    <tr><td><code>network</code></td><td><code>↓1.2M ↑340K</code> throughput on the active interface</td><td><code>netstat -ib</code> deltas</td></tr>
     <tr><td><code>disk</code></td><td>Boot-volume percent used and free space</td><td><code>df</code></td></tr>
-    <tr><td><code>battery</code></td><td>Charge, <b>time remaining</b>, and a ⚡ while charging — the parts the menu bar hides</td><td><code>pmset -g batt</code></td></tr>
-    <tr><td><code>docker</code></td><td>Running container count (hidden when Docker isn't installed)</td><td><code>docker ps</code></td></tr>
-    <tr><td><code>cloud-context</code></td><td>kubectl context and/or <code>AWS_PROFILE</code>, <b>tinted with your accent when it looks like production</b> — a guard against running things against the wrong cluster</td><td><code>kubectl</code>, env</td></tr>
-    <tr><td><code>layout</code></td><td>A glyph for the focused workspace's layout</td><td>AeroSpace</td></tr>
-    <tr><td><code>scratchpad</code></td><td>Stashed window count, so parked windows aren't forgotten</td><td>AeroSpace</td></tr>
+    <tr><td><code>battery</code></td><td>Charge, <b>time remaining</b>, and ⚡ while charging — the parts the menu bar icon hides</td><td><code>pmset -g batt</code></td></tr>
   </table>
-  <div class="note"><b>Hover any widget for three seconds</b> and it names itself — the chips are terse by design, so the tooltip is how you learn what <code>⇄ 8</code> means. Sweeping the cursor past a widget never flashes a tooltip; the reveal is canceled the moment you leave. Widgets that have nothing to report (no Docker, no cloud context, an empty scratchpad) hide themselves rather than showing zeros.</div>
 
-  <h3>System monitor</h3>
+  <h3>Developer</h3>
+  <img src="img/bar-dev.png" alt="Developer widgets in the bar" style="width:100%;border-radius:8px;border:1px solid var(--line);margin:10px 0">
+  <table>
+    <tr><th>Widget</th><th>Shows</th><th>Source</th></tr>
+    <tr><td><code>ports</code></td><td>How many ports are listening; <b>click</b> for the list with the process owning each one</td><td><code>lsof -iTCP -sTCP:LISTEN</code></td></tr>
+    <tr><td><code>docker</code></td><td>Running container count (hides itself when Docker isn't installed)</td><td><code>docker ps</code></td></tr>
+    <tr><td><code>cloud-context</code></td><td>kubectl context and/or <code>AWS_PROFILE</code>, <b>tinted with your accent when the name looks like production</b> — a guard against running something against the wrong cluster</td><td><code>kubectl</code>, environment</td></tr>
+    <tr><td><code>brew-updates</code></td><td>Outdated Homebrew packages waiting to be upgraded</td><td><code>brew outdated</code>, hourly</td></tr>
+    <tr><td><code>vpn</code></td><td>Appears when a VPN tunnel is actually carrying traffic</td><td><code>ifconfig</code></td></tr>
+  </table>
+
+  <h3>Media &amp; input</h3>
+  <img src="img/bar-media.png" alt="Media and input widgets in the bar" style="width:100%;border-radius:8px;border:1px solid var(--line);margin:10px 0">
+  <table>
+    <tr><th>Widget</th><th>Shows</th><th>Click does</th></tr>
+    <tr><td><code>mic-mute</code></td><td>Microphone live or muted</td><td><b>Toggles mute</b>, restoring your previous input level</td></tr>
+    <tr><td><code>volume</code></td><td>Output volume</td><td>Mutes / unmutes</td></tr>
+    <tr><td><code>now-playing</code></td><td>Current track from Spotify or Music</td><td>Play / pause</td></tr>
+    <tr><td><code>keyboard-layout</code></td><td>Active input source</td><td>—</td></tr>
+    <tr><td><code>focus-mode</code></td><td>Shows when a macOS Focus is silencing notifications — answers "why am I not getting notifications?"</td><td>—</td></tr>
+    <tr><td><code>weather</code></td><td>Current conditions, refreshed hourly</td><td>—</td></tr>
+  </table>
+
+  <h3>Window manager</h3>
+  <table>
+    <tr><th>Widget</th><th>Shows</th></tr>
+    <tr><td><code>scratchpad</code></td><td>How many windows are stashed away, so parked windows aren't forgotten</td></tr>
+  </table>
+
+  <h3>Work trackers</h3>
+  <p>GitHub, GitLab, Jira, Confluence, and Microsoft Teams are widgets too — they appear in the same <b>Widgets…</b> picker, and their pills sit on the right of the bar. They carry credentials, so they keep their own config section; see <a href="#workitems">Work items</a>, <a href="#confluence">Confluence</a>, and <a href="#teams">Microsoft Teams</a> for setup.</p>
+
+  <h3>Configuration</h3>
+  <p>The picker writes these for you, but the config file is the source of truth:</p>
   <pre>[modules]
-system-monitor = true   <span class="c"># default false</span></pre>
-  <p>A compact <b>CPU / memory chip</b> with two live sparkline graphs on the right of the bar. <b>Click it</b> and a mini-htop panel unfurls: load averages and uptime, memory used vs. total, and the <b>top five processes by CPU and by memory</b>, plus a shortcut to Activity Monitor. Everything is polled with plain <code>top</code>, <code>vm_stat</code>, and <code>ps</code> — <b>no sudo, no SIP</b>. The panel only computes its body while it's open, so the idle cost is just the two graphs. It's additive to the native menu bar (which still owns clock/wifi/battery), never a duplicate.</p>
+system-monitor = true
+system-graphs = true
+network = true
+disk = true
+battery = true
+ports = true
+docker = false
+cloud-context = false
+brew-updates = true
+vpn = false
+mic-mute = true
+volume = true
+now-playing = false
+keyboard-layout = false
+focus-mode = false
+weather = true
+scratchpad = true
+<span class="c"># Left-to-right bar order. Anything omitted follows in the default order,</span>
+<span class="c"># so a widget added in a later release still shows up.</span>
+order = ["weather", "battery", "disk", "network"]</pre>
+  <div class="note"><b>Hover any widget for three seconds</b> and it names itself. All widgets are refreshed by a <b>single batched driver</b> — one process per cycle, not one per widget — and none needs sudo or SIP disabled. Widgets with nothing to report (no Docker, no cloud context, an empty scratchpad, no VPN) hide themselves rather than showing zeros.</div>
 
   <h2 id="todo">To-do list</h2>
   <p>Tasks live as pills on the right of the bar, newest last, with a <b>+</b> button at the end.</p>
