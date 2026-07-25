@@ -45,8 +45,19 @@ public enum WindowFitting {
     public enum Action: Equatable, Sendable {
         /// The layout is fine, or nothing can be done about it.
         case settle
+        /// Widen this window's slot, taking the space from its siblings.
+        ///
+        /// This is the primary repair, and the non-obvious one. A window
+        /// overlaps its neighbour because its *slot* is narrower than the
+        /// window will go — the app refused to shrink and drew over the top.
+        /// Shrinking some other window and hoping AeroSpace's redistribution
+        /// happens to reach the right place is indirect and usually doesn't;
+        /// growing the offender's slot to match the space it already occupies
+        /// takes the width from its siblings exactly where it's needed.
+        case grow(id: UInt32, by: Int)
         /// Ask this window to give up width. Whatever it actually gives up
-        /// teaches us its floor.
+        /// teaches us its floor. Used when the row is too wide for the
+        /// display, where growing anything would only make it worse.
         case shrink(id: UInt32, by: Int)
         /// Every window is already at its minimum and they still don't fit.
         case evict(id: UInt32)
@@ -148,29 +159,76 @@ public enum WindowFitting {
         step: Int = 60,
         overflowEnabled: Bool = true
     ) -> Verdict {
-        let need = deficit(in: windows, bounds: bounds, separation: separation)
-        guard need > 0 else { return .fits }
-        // Ask for what's actually missing, not a fixed step. Overshooting
-        // makes AeroSpace redistribute more than the layout needed, which
-        // moves the problem to a different pair of windows instead of solving
-        // it — the oscillation that made this take a dozen visible passes.
-        // Rounded up with a small margin for fractional frames, and floored at
-        // something big enough to be worth a round trip.
-        let ask = min(step, max(8, Int((need + 4).rounded(.up))))
-        // Widest first: it has the most to give, and it's the one whose loss
-        // of a few points is least likely to be noticed.
-        let shrinkable =
-            windows
-            .filter { hasRoomToShrink($0, minimums: minimums, by: ask) }
-            .sorted { $0.frame.width > $1.frame.width }
-        if let target = shrinkable.first {
-            return .adjusting(.shrink(id: target.id, by: ask))
+        // A row wider than the display can't be repaired by moving width
+        // around, so that's checked first — growing anything here would only
+        // push more of it off the edge.
+        if let past = pastBounds(windows, bounds), past > 0 {
+            let ask = clamp(past, step: step)
+            let shrinkable =
+                windows
+                .filter { hasRoomToShrink($0, minimums: minimums, by: ask) }
+                .sorted { $0.frame.width > $1.frame.width }
+            if let target = shrinkable.first {
+                return .adjusting(.shrink(id: target.id, by: ask))
+            }
+            guard overflowEnabled, let newest = windows.max(by: { $0.arrived < $1.arrived })
+            else { return .cannotFit(count: windows.count) }
+            return .adjusting(.evict(id: newest.id))
         }
-        // Everything is on its floor. No arrangement of these windows fits.
-        guard overflowEnabled, let newest = windows.max(by: { $0.arrived < $1.arrived }) else {
-            return .cannotFit(count: windows.count)
+        // Otherwise the row fits on screen and the problem is local: some
+        // window is drawn over its neighbour because its slot is too small.
+        guard let (offender, missing) = worstCollision(in: windows, separation: separation)
+        else { return .fits }
+        return .adjusting(.grow(id: offender, by: clamp(missing, step: step)))
+    }
+
+    /// Ask for what's missing, not a fixed step. Overshooting makes AeroSpace
+    /// redistribute more than the layout needed, which relocates the problem
+    /// instead of solving it. Rounded up with a small margin for fractional
+    /// frames, floored at something worth a round trip, capped by the step.
+    private static func clamp(_ need: CGFloat, step: Int) -> Int {
+        min(step, max(8, Int((need + 4).rounded(.up))))
+    }
+
+    /// The window whose slot is too narrow, and by how much.
+    ///
+    /// In an overlapping pair the *left* window is the one overflowing: its
+    /// drawn right edge has run past where its neighbour's slot begins.
+    private static func worstCollision(
+        in windows: [Window], separation: CGFloat, tolerance: CGFloat = 1
+    ) -> (id: UInt32, missing: CGFloat)? {
+        var worst: (id: UInt32, missing: CGFloat)?
+        for i in windows.indices {
+            for j in windows.indices where j > i {
+                let a = windows[i].frame
+                let b = windows[j].frame
+                guard min(a.maxY, b.maxY) - max(a.minY, b.minY) > tolerance else { continue }
+                let leftIsA = a.minX <= b.minX
+                let left = leftIsA ? a : b
+                let right = leftIsA ? b : a
+                let missing = separation - (right.minX - left.maxX)
+                guard missing > tolerance else { continue }
+                if worst == nil || missing > worst!.missing {
+                    worst = (leftIsA ? windows[i].id : windows[j].id, missing)
+                }
+            }
         }
-        return .adjusting(.evict(id: newest.id))
+        return worst
+    }
+
+    /// How far the row spills past the display, if at all.
+    private static func pastBounds(
+        _ windows: [Window], _ bounds: CGRect?, tolerance: CGFloat = 1
+    ) -> CGFloat? {
+        guard let bounds else { return nil }
+        var worst: CGFloat = 0
+        for window in windows {
+            let past =
+                max(0, bounds.minX - window.frame.minX)
+                + max(0, window.frame.maxX - bounds.maxX)
+            if past > tolerance { worst = max(worst, past) }
+        }
+        return worst
     }
 
     /// A window is worth asking only if it isn't already at (or under) its

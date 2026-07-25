@@ -37,6 +37,12 @@ final class WindowFitController {
 
     private static let maxAttempts = 8
 
+    /// Cached workspace membership, refreshed only when the on-screen window
+    /// set changes — see currentWindows.
+    private var cachedBundleIDs: [UInt32: String] = [:]
+    private var cachedWindowIDs: Set<UInt32> = []
+    private var cachedAt = Date.distantPast
+
     init(notify: @escaping (String) -> Void) {
         self.notify = notify
         minimums.load()
@@ -44,9 +50,11 @@ final class WindowFitController {
 
     func start() {
         stop()
-        // Two seconds matches the bar's spaces driver. CGWindowList is cheap,
-        // and nothing here runs unless windows actually overlap.
-        timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+        // Fast enough that a broken layout is corrected before it registers as
+        // wrong. Affordable because the per-tick cost is one CGWindowList
+        // call: the `aerospace` process is only spawned when the geometry has
+        // actually moved (see currentWindows).
+        timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
     }
@@ -119,6 +127,11 @@ final class WindowFitController {
                 case .adjusting(.evict(let id)):
                     evict(id: id, windows: windows, cli: cli)
                     return
+                case .adjusting(.grow(let id, let by)):
+                    // Widening the offender's slot takes the space from its
+                    // siblings, which is where it was needed all along.
+                    try? cli.run(["resize", "--window-id", "\(id)", "width", "+\(by)"])
+                    try? await Task.sleep(for: .milliseconds(90))
                 case .adjusting(.shrink(let id, let by)):
                     guard let target = windows.first(where: { $0.id == id }) else { return }
                     try? cli.run(["resize", "--window-id", "\(id)", "width", "-\(by)"])
@@ -205,12 +218,43 @@ final class WindowFitController {
     /// AeroSpace has no geometry and CGWindowList has no workspace, so neither
     /// is sufficient alone. The window id is the same number in both.
     private func currentWindows(cli: AeroSpaceCLI) -> [WindowFitting.Window] {
+        let onScreen = WindowSnapshot.capture(allLayers: true)
+        let live = Set(onScreen.map(\.id))
+        // Which windows are tiled here changes far more slowly than where they
+        // are, so the answer is cached and only re-fetched when the set of
+        // on-screen windows changes (or the cache ages out). That keeps the
+        // polling loop down to one CGWindowList call, which is what makes a
+        // sub-second cadence affordable.
+        if live != cachedWindowIDs || Date().timeIntervalSince(cachedAt) > 2 {
+            cachedBundleIDs = fetchBundleIDs(cli: cli)
+            cachedWindowIDs = live
+            cachedAt = Date()
+        }
+        guard !cachedBundleIDs.isEmpty else { return [] }
+        let now = Date()
+        var windows: [WindowFitting.Window] = []
+        for window in onScreen {
+            guard let bundleID = cachedBundleIDs[window.id] else { continue }
+            let arrived = firstSeen[window.id] ?? now
+            firstSeen[window.id] = arrived
+            windows.append(
+                WindowFitting.Window(
+                    id: window.id, bundleID: bundleID, frame: window.frame, arrived: arrived))
+        }
+        return windows
+    }
+
+    /// Join AeroSpace's idea of the workspace (which windows are tiled, and
+    /// what app they belong to) with the frames from CGWindowList. AeroSpace
+    /// has no geometry and CGWindowList has no workspace, so neither is
+    /// sufficient alone. The window id is the same number in both.
+    private func fetchBundleIDs(cli: AeroSpaceCLI) -> [UInt32: String] {
         guard
             let listing = try? cli.run([
                 "list-windows", "--workspace", "focused",
                 "--format", "%{window-id}|%{app-bundle-id}",
             ])
-        else { return [] }
+        else { return [:] }
         var bundleIDs: [UInt32: String] = [:]
         for line in listing.split(separator: "\n") {
             let parts = line.split(separator: "|", maxSplits: 1).map {
@@ -219,19 +263,7 @@ final class WindowFitController {
             guard parts.count == 2, let id = UInt32(parts[0]) else { continue }
             bundleIDs[id] = parts[1]
         }
-        guard !bundleIDs.isEmpty else { return [] }
-        let now = Date()
-        var windows: [WindowFitting.Window] = []
-        for onScreen in WindowSnapshot.capture(allLayers: true) {
-            guard let bundleID = bundleIDs[onScreen.id] else { continue }
-            let arrived = firstSeen[onScreen.id] ?? now
-            firstSeen[onScreen.id] = arrived
-            windows.append(
-                WindowFitting.Window(
-                    id: onScreen.id, bundleID: bundleID, frame: onScreen.frame,
-                    arrived: arrived))
-        }
-        return windows
+        return bundleIDs
     }
 
     private func firstEmptyWorkspace(cli: AeroSpaceCLI) -> String? {

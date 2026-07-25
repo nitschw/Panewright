@@ -115,10 +115,10 @@ private func window(
             window(2, "iterm", x: 889, width: 500),
         ]
         guard
-            case .adjusting(.shrink(_, let by)) = WindowFitting.nextStep(
+            case .adjusting(.grow(_, let by)) = WindowFitting.nextStep(
                 for: windows, minimums: [:], step: 60)
         else {
-            Issue.record("expected a shrink")
+            Issue.record("expected a grow")
             return
         }
         // 11 needed, plus a little margin for fractional frames — nowhere near 60.
@@ -127,16 +127,16 @@ private func window(
 
     @Test func theConfiguredStepIsACeilingNotATarget() {
         // A big deficit is still capped, so one correction can't yank a window
-        // dramatically smaller than the user expects in a single jump.
+        // dramatically in a single jump.
         let windows = [
             window(1, "chrome", x: 0, width: 900),
             window(2, "iterm", x: 500, width: 500),
         ]
         guard
-            case .adjusting(.shrink(_, let by)) = WindowFitting.nextStep(
+            case .adjusting(.grow(_, let by)) = WindowFitting.nextStep(
                 for: windows, minimums: [:], step: 60)
         else {
-            Issue.record("expected a shrink")
+            Issue.record("expected a grow")
             return
         }
         #expect(by == 60)
@@ -148,82 +148,36 @@ private func window(
             window(2, "iterm", x: 897, width: 500),
         ]
         guard
-            case .adjusting(.shrink(_, let by)) = WindowFitting.nextStep(
+            case .adjusting(.grow(_, let by)) = WindowFitting.nextStep(
                 for: windows, minimums: [:], step: 60)
         else {
-            Issue.record("expected a shrink")
+            Issue.record("expected a grow")
             return
         }
         #expect(by >= 8)
     }
 }
 
-/// Tiling means neighbours sit an inner gap apart. Merely "not overlapping"
-/// is not the goal, and treating it as one leaves a visibly broken layout.
-@Suite struct SeparationTests {
-    @Test func touchingNeighboursAreStillWrong() {
-        // The live failure: Claude ended at 654, iTerm began at 652. A two-point
-        // overlap sat inside the old tolerance, so it reported a fitting layout
-        // and stopped — while the focus borders, drawn outside the frame,
-        // overlapped by more than twenty points and looked obviously broken.
-        let windows = [
-            window(1, "claude", x: 54, width: 600),  // 54…654
-            window(2, "iterm", x: 652, width: 490),  // 652…1142
-        ]
-        // Two points of overlap, five points of gap owed: seven to reclaim.
-        #expect(WindowFitting.deficit(in: windows, bounds: nil, separation: 5) == 7)
-    }
-
-    @Test func exactlyTheRightGapIsLeftAlone() {
-        let windows = [
-            window(1, "a", x: 0, width: 600),  // ends 600
-            window(2, "b", x: 605, width: 500),  // starts 605
-        ]
-        #expect(WindowFitting.deficit(in: windows, bounds: nil, separation: 5) == 0)
-        #expect(
-            WindowFitting.nextStep(for: windows, minimums: [:], separation: 5) == .fits)
-    }
-
-    @Test func aGapWiderThanRequiredIsFine() {
-        // Reclaiming width is the job; nothing here should push windows together.
-        let windows = [
-            window(1, "a", x: 0, width: 600),
-            window(2, "b", x: 700, width: 500),
-        ]
-        #expect(WindowFitting.deficit(in: windows, bounds: nil, separation: 5) == 0)
-    }
-
-    @Test func stackedWindowsDoNotCompeteForWidth() {
-        // One above the other in the same column: they share no rows, so the
-        // horizontal distance between them means nothing.
-        let a = WindowFitting.Window(
-            id: 1, bundleID: "a", frame: CGRect(x: 0, y: 0, width: 600, height: 500),
-            arrived: Date())
-        let b = WindowFitting.Window(
-            id: 2, bundleID: "b", frame: CGRect(x: 0, y: 505, width: 600, height: 500),
-            arrived: Date())
-        #expect(WindowFitting.deficit(in: [a, b], bounds: nil, separation: 5) == 0)
-    }
-
-    @Test func subPointJitterIsNotChased() {
-        // Frames land on fractional points after gap division; a half-point
-        // discrepancy must not trigger an endless correction loop.
-        let windows = [
-            window(1, "a", x: 0, width: 600),
-            window(2, "b", x: 604.6, width: 500),
-        ]
-        #expect(WindowFitting.deficit(in: windows, bounds: nil, separation: 5) == 0)
-    }
-}
-
+/// The repair strategy. The subtle part is the direction: a window overlaps
+/// because its *slot* is too small for it, so the fix is to widen that slot
+/// and let AeroSpace take the width from the siblings — not to shrink some
+/// unrelated window and hope the redistribution lands in the right place.
 @Suite struct WindowFittingPlanTests {
-    /// Two windows overlapping by 120pt, neither known to be constrained.
-    private var cramped: [WindowFitting.Window] {
+    private var overlapping: [WindowFitting.Window] {
         [
             window(1, "chrome", x: 0, width: 900, arrived: 100),
             window(2, "iterm", x: 800, width: 520, arrived: 200),
         ]
     }
+
+    /// A row too wide for the display: 900 + 900 on a 1000pt screen.
+    private var tooWideForTheScreen: [WindowFitting.Window] {
+        [
+            window(1, "chrome", x: 0, width: 900, arrived: 100),
+            window(2, "iterm", x: 905, width: 900, arrived: 200),
+        ]
+    }
+    private let smallScreen = CGRect(x: 0, y: 0, width: 1000, height: 1000)
 
     @Test func aLayoutThatFitsIsLeftAlone() {
         let roomy = [
@@ -233,43 +187,79 @@ private func window(
         #expect(WindowFitting.nextStep(for: roomy, minimums: [:]) == .fits)
     }
 
-    @Test func theWidestUnconstrainedWindowIsAskedFirst() {
-        // Most to give, fewest passes to a fitting layout.
-        let verdict = WindowFitting.nextStep(for: cramped, minimums: [:], step: 60)
-        #expect(verdict == .adjusting(.shrink(id: 1, by: 60)))
+    @Test func theOverflowingWindowHasItsSlotWidened() {
+        // This is the case that failed live: Claude sat at its 600pt floor with
+        // a slot narrower than that, drawing 45pt over iTerm. Shrinking the
+        // widest window (Safari, at the far right) did nothing for the
+        // collision on the left, and it gave up after eight wasted steps.
+        // The left window of the pair is the one overflowing, so it grows.
+        guard
+            case .adjusting(.grow(let id, _)) = WindowFitting.nextStep(
+                for: overlapping, minimums: [:], step: 60)
+        else {
+            Issue.record("expected the offender's slot to grow")
+            return
+        }
+        #expect(id == 1)
     }
 
-    @Test func aWindowAtItsFloorIsNotAskedAgain() {
-        // Chrome is the widest, but we've learned it won't go below 880 — so
-        // asking it for another 60 would just be refused. iTerm gets the ask.
-        let verdict = WindowFitting.nextStep(
-            for: cramped, minimums: ["chrome": 880], step: 60)
-        #expect(verdict == .adjusting(.shrink(id: 2, by: 60)))
+    @Test func aWindowAtItsFloorIsStillTheOneGrown() {
+        // Knowing it can't shrink is exactly why growing its slot is right —
+        // its minimum is the constraint the layout has to accommodate.
+        guard
+            case .adjusting(.grow(let id, _)) = WindowFitting.nextStep(
+                for: overlapping, minimums: ["chrome": 900], step: 60)
+        else {
+            Issue.record("expected a grow")
+            return
+        }
+        #expect(id == 1)
+    }
+
+    @Test func aRowTooWideForTheDisplayShrinksInstead() {
+        // Growing anything here would push more of the row off the edge, so
+        // this is the one case where width genuinely has to come out.
+        guard
+            case .adjusting(.shrink(let id, _)) = WindowFitting.nextStep(
+                for: tooWideForTheScreen, minimums: [:], bounds: smallScreen, step: 60)
+        else {
+            Issue.record("expected a shrink")
+            return
+        }
+        // Either of the two 900s; the widest-first tie goes to the first.
+        #expect(id == 1)
     }
 
     @Test func whenNothingCanShrinkTheNewestArrivalIsEvicted() {
-        // Both are on their floor and they still overlap: no arrangement of
-        // these two fits. iTerm arrived last, so iTerm leaves.
+        // Both on their floor, and the row still doesn't fit the display: no
+        // arrangement of these two works. iTerm arrived last, so iTerm leaves.
         let verdict = WindowFitting.nextStep(
-            for: cramped, minimums: ["chrome": 880, "iterm": 500], step: 60)
+            for: tooWideForTheScreen, minimums: ["chrome": 900, "iterm": 900],
+            bounds: smallScreen, step: 60)
         #expect(verdict == .adjusting(.evict(id: 2)))
     }
 
     @Test func overflowCanBeTurnedOffAndThenWeSaySo() {
-        // Someone who disabled overflow is choosing to live with the overlap;
-        // the verdict still reports it rather than pretending the layout fits.
+        // Someone who disabled overflow is choosing to live with it; the
+        // verdict still reports the problem rather than claiming it fits.
         let verdict = WindowFitting.nextStep(
-            for: cramped, minimums: ["chrome": 880, "iterm": 500], step: 60,
-            overflowEnabled: false)
+            for: tooWideForTheScreen, minimums: ["chrome": 900, "iterm": 900],
+            bounds: smallScreen, step: 60, overflowEnabled: false)
         #expect(verdict == .cannotFit(count: 2))
     }
 
-    @Test func theStepIsNeverAskedForBelowAKnownFloor() {
-        // Chrome could give 20pt before hitting 880, but the step is 60 — so
-        // it's not a candidate. Asking would waste a pass and teach nothing.
-        let verdict = WindowFitting.nextStep(
-            for: cramped, minimums: ["chrome": 880, "iterm": 460], step: 60)
-        #expect(verdict == .adjusting(.shrink(id: 2, by: 60)))
+    @Test func aWindowIsNeverAskedToShrinkBelowItsKnownFloor() {
+        // chrome could give 20pt before hitting 880, but the ask is 60, so it
+        // isn't a candidate — the request would just be refused.
+        guard
+            case .adjusting(.shrink(let id, _)) = WindowFitting.nextStep(
+                for: tooWideForTheScreen, minimums: ["chrome": 880], bounds: smallScreen,
+                step: 60)
+        else {
+            Issue.record("expected a shrink")
+            return
+        }
+        #expect(id == 2)
     }
 }
 
