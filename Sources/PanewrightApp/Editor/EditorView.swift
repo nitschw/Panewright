@@ -383,7 +383,8 @@ struct EditorView: View {
                         .textFieldStyle(.roundedBorder)
                         .onSubmit { model.workspaceMonitorRowsChanged() }
                     removeButton {
-                        model.workspaceMonitorRows.removeAll { $0.id == row.id }
+                        let id = row.id
+                        model.workspaceMonitorRows.removeAll { $0.id == id }
                         model.workspaceMonitorRowsChanged()
                     }
                 }
@@ -409,7 +410,8 @@ struct EditorView: View {
                         .textFieldStyle(.roundedBorder).frame(width: 60)
                         .onSubmit { model.appWorkspaceRowsChanged() }
                     removeButton {
-                        model.appWorkspaceRows.removeAll { $0.id == row.id }
+                        let id = row.id
+                        model.appWorkspaceRows.removeAll { $0.id == id }
                         model.appWorkspaceRowsChanged()
                     }
                 }
@@ -438,7 +440,8 @@ struct EditorView: View {
                             .onSubmit { model.modeRowsChanged() }
                         Spacer()
                         removeButton {
-                            model.modeRows.removeAll { $0.id == mode.id }
+                            let id = mode.id
+                            model.modeRows.removeAll { $0.id == id }
                             model.modeRowsChanged()
                         }
                     }
@@ -452,7 +455,8 @@ struct EditorView: View {
                                     .textFieldStyle(.roundedBorder)
                                     .onSubmit { model.modeRowsChanged() }
                                 removeButton {
-                                    mode.bindings.removeAll { $0.id == row.id }
+                                    let id = row.id
+                                    mode.bindings.removeAll { $0.id == id }
                                     model.modeRowsChanged()
                                 }
                             }
@@ -487,13 +491,21 @@ struct EditorView: View {
             Text("Bundle IDs of apps that float instead of tiling.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            // Indexed rows have to be bounds-checked on both sides of a delete:
+            // SwiftUI re-evaluates the surviving rows' getters before it
+            // rebuilds the ForEach, so the last row briefly reads an index that
+            // no longer exists — which is a crash, not a stale value.
             ForEach(model.config.floatingApps.indices, id: \.self) { index in
                 HStack {
                     TextField(
                         "com.example.app",
                         text: Binding(
-                            get: { model.config.floatingApps[index] },
+                            get: {
+                                index < model.config.floatingApps.count
+                                    ? model.config.floatingApps[index] : ""
+                            },
                             set: {
+                                guard index < model.config.floatingApps.count else { return }
                                 model.config.floatingApps[index] = $0
                                 model.configChanged()
                             }
@@ -501,6 +513,7 @@ struct EditorView: View {
                     )
                     .textFieldStyle(.roundedBorder)
                     Button(role: .destructive) {
+                        guard index < model.config.floatingApps.count else { return }
                         model.config.floatingApps.remove(at: index)
                         model.configChanged()
                     } label: {
@@ -581,7 +594,8 @@ struct EditorView: View {
                             .textFieldStyle(.roundedBorder)
                             .onSubmit { model.bindingRowsChanged() }
                         Button(role: .destructive) {
-                            model.bindingRows.removeAll { $0.id == row.id }
+                            let id = row.id
+                            model.bindingRows.removeAll { $0.id == id }
                             model.bindingRowsChanged()
                         } label: {
                             Image(systemName: "minus.circle")
