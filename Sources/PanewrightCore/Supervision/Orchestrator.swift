@@ -542,10 +542,38 @@ public struct Orchestrator: Sendable {
     }
 
     /// Like borders: a missing binary is fine, bad config is not.
+    /// The widget on/off list the bar driver reads at runtime. Kept as a flat
+    /// file so flipping a widget is a write plus a trigger — no bar reload.
+    public func writeEnabledWidgets(_ config: PanewrightConfig) throws {
+        let file = paths.panewrightConfigFile.deletingLastPathComponent()
+            .appending(path: ".widgets-enabled")
+        let keys = PanewrightConfig.Modules.catalog
+            .filter { config.modules[keyPath: $0.path] }
+            .map(\.key)
+        try FileManager.default.createDirectory(
+            at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try (keys.joined(separator: "\n") + "\n").write(to: file, atomically: true, encoding: .utf8)
+    }
+
+    /// Flip widgets without rebuilding the bar: rewrite the runtime list and
+    /// nudge the driver to repaint. Instant and flicker-free.
+    public func refreshWidgets(_ config: PanewrightConfig) throws {
+        try writeEnabledWidgets(config)
+        guard let bar = SketchyBarSupervisor.locate(), bar.isRunning() else { return }
+        let process = Process()
+        process.executableURL = bar.executableURL
+        process.arguments = ["--trigger", "panewright_widgets"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try? process.run()
+        process.waitUntilExit()
+    }
+
     public func applyBar(_ config: PanewrightConfig) throws {
         guard let bar = SketchyBarSupervisor.locate() else { return }
         if config.statusBar.enabled {
             try writeSketchyBarConfig(config)
+            try writeEnabledWidgets(config)
             if bar.isRunning() {
                 try bar.reload()
             } else {

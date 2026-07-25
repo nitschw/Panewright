@@ -70,9 +70,10 @@ import Testing
     }
 
     @Test func omitsSystemStatusItems() throws {
-        // The native menu bar owns clock/wifi/battery; our bar is pure WM.
+        // The native menu bar owns the clock and wifi; our bar never adds them.
+        // (Battery is different: it's an opt-in widget, and it shows the time
+        // remaining that the menu bar icon hides.)
         let files = try SketchyBarConfigEmitter.emit(.default)
-        #expect(!files.sketchybarrc.contains("battery"))
         #expect(!files.sketchybarrc.contains("wifi"))
         #expect(!files.sketchybarrc.contains("clock"))
         #expect(files.sketchybarrc.contains("front_app"))
@@ -137,28 +138,25 @@ import Testing
         #expect(on.systemPlugin.contains("vm_stat"))
     }
 
-    @Test func widgetsAreOptInAndShareOneDriver() throws {
-        // All off by default — the bar stays pure WM.
-        let off = try SketchyBarConfigEmitter.emit(.default)
-        #expect(!off.sketchybarrc.contains("widgets_driver"))
-
+    @Test func widgetsToggleAtRuntimeWithoutRebuildingTheBar() throws {
         var config = PanewrightConfig.default
         config.modules.network = true
         config.modules.ports = true
-        let on = try SketchyBarConfigEmitter.emit(config)
-        // Enabled widgets get items; disabled ones don't.
-        #expect(on.sketchybarrc.contains("--add item w.net"))
-        #expect(on.sketchybarrc.contains("--add item w.ports"))
-        #expect(!on.sketchybarrc.contains("--add item w.docker"))
-        // ONE driver refreshes them all — never a poller per widget.
-        #expect(on.sketchybarrc.contains("--add item widgets_driver"))
-        #expect(on.sketchybarrc.components(separatedBy: "panewright_widgets.sh").count == 2)
-        // The plugin only contains the enabled widgets' logic.
-        #expect(on.widgetsPlugin.contains("netstat -ib"))
-        #expect(on.widgetsPlugin.contains("lsof -iTCP"))
-        #expect(!on.widgetsPlugin.contains("docker ps"))
-        // And batches every update into a single sketchybar call.
-        #expect(on.widgetsPlugin.contains(#""$BAR" "${ARGS[@]}""#))
+        let files = try SketchyBarConfigEmitter.emit(config)
+        // Items exist regardless of what's enabled, so flipping a widget is a
+        // repaint rather than a bar reload (which visibly tore the bar down).
+        #expect(files.sketchybarrc.contains("--add item w.net"))
+        #expect(files.sketchybarrc.contains("--add item w.docker"))
+        // Enabled state is read at runtime from the generated list.
+        #expect(files.widgetsPlugin.contains(#"on() { grep -qx "$1" "$ENABLED" 2>/dev/null; }"#))
+        #expect(files.widgetsPlugin.contains("if on network; then"))
+        #expect(files.widgetsPlugin.contains("if on docker; then"))
+        // A disabled widget is actively hidden, so stale labels can't linger.
+        #expect(files.widgetsPlugin.contains("--set w.docker drawing=off"))
+        // ONE driver refreshes them all, and a trigger repaints on demand.
+        #expect(files.sketchybarrc.contains("--subscribe widgets_driver panewright_widgets"))
+        #expect(files.sketchybarrc.components(separatedBy: "panewright_widgets.sh").count == 2)
+        #expect(files.widgetsPlugin.contains(#""$BAR" "${ARGS[@]}""#))
     }
 
     @Test func widgetsNameThemselvesOnHoverHold() throws {

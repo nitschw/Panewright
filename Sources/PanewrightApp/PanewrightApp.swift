@@ -44,6 +44,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     AppDelegate.model?.openConfluence(pageID: pageID)
                 case "help":
                     AppDelegate.model?.openCheatSheet()
+                case "widgets":
+                    if parts.dropFirst().first == "disable",
+                        let key = parts.dropFirst(2).first
+                    {
+                        AppDelegate.model?.disableWidget(key: key)
+                    } else {
+                        AppDelegate.model?.openWidgets()
+                    }
                 default:
                     break
                 }
@@ -242,6 +250,7 @@ final class AppModel {
     private var setupWindowController: OnboardingWindowController?
     private var aboutWindowController: AboutWindowController?
     private var cheatSheetWindowController: CheatSheetWindowController?
+    private var widgetsWindowController: WidgetsWindowController?
     private var editorWindowController: EditorWindowController?
     private var todoWindowController: TodoEditorWindowController?
     private var integrationsWindowController: IntegrationsWindowController?
@@ -302,6 +311,37 @@ final class AppModel {
     }
 
     // MARK: Setup window
+
+    func openWidgets() {
+        let controller = widgetsWindowController ?? WidgetsWindowController()
+        widgetsWindowController = controller
+        controller.show(modules: modules) { [weak self] updated in
+            self?.applyModules(updated)
+        }
+    }
+
+    /// Persist a whole widget set and repaint — used by the picker and by
+    /// right-clicking a widget in the bar.
+    func applyModules(_ updated: PanewrightConfig.Modules) {
+        do {
+            var config = try orchestrator.loadConfig()
+            config.modules = updated
+            try orchestrator.writeConfig(config)
+            try orchestrator.refreshWidgets(config)
+        } catch {
+            report(error: "\(error)")
+        }
+    }
+
+    /// panewright://widgets/disable/<key> — the bar's right-click action.
+    func disableWidget(key: String) {
+        guard let entry = PanewrightConfig.Modules.catalog.first(where: { $0.key == key })
+        else { return }
+        var updated = modules
+        updated[keyPath: entry.path] = false
+        applyModules(updated)
+        lastMessage = "\(entry.name) widget off"
+    }
 
     func openCheatSheet() {
         let config = (try? orchestrator.loadConfig()) ?? .default
@@ -618,7 +658,9 @@ final class AppModel {
             var config = try orchestrator.loadConfig()
             config.modules[keyPath: path] = on
             try orchestrator.writeConfig(config)
-            try orchestrator.applyBar(config)
+            // Runtime toggle, not a bar rebuild — reloading tore the bar down
+            // and rebuilt it, which read as the whole bar glitching.
+            try orchestrator.refreshWidgets(config)
             lastMessage = "\(name) widget \(on ? "on" : "off")"
         } catch {
             report(error: "\(error)")
@@ -860,15 +902,8 @@ struct PanewrightMenu: View {
                     set: { model.setBarEnabled($0) }
                 ))
         }
-        Menu("Widgets") {
-            ForEach(PanewrightConfig.Modules.catalog, id: \.key) { entry in
-                Toggle(
-                    entry.name,
-                    isOn: Binding(
-                        get: { model.modules[keyPath: entry.path] },
-                        set: { model.setWidget(entry.path, $0, name: entry.name) }
-                    ))
-            }
+        Button("Widgets…") {
+            model.openWidgets()
         }
         if model.needsDragSetup {
             Button("Finish Drag-to-Tile setup…") {

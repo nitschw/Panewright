@@ -94,6 +94,7 @@ public enum SketchyBarConfigEmitter {
             $BAR --add event panewright_todo
             $BAR --add event panewright_integrations
             $BAR --add event panewright_pills
+            $BAR --add event panewright_widgets
 
             \(config.pills.enabled ? """
             $BAR --add item pills left \\
@@ -144,7 +145,7 @@ public enum SketchyBarConfigEmitter {
               --subscribe front_app front_app_switched
 
             \(config.modules.systemMonitor ? systemItem(accent: accent, palette: palette) : "")
-            \(config.modules.anyDriverWidget ? widgetItems(config.modules, accent: accent, palette: palette) : "")
+            \(widgetItems(config.modules, accent: accent, palette: palette))
             \(config.integrations.anyEnabled ? integrationsItem(accent: accent) : "")
             \(config.todo.enabled ? todoItem(accent: accent) : "")
             # Pin the order explicitly: without this, items can shuffle when
@@ -476,9 +477,14 @@ public enum SketchyBarConfigEmitter {
             BAR="$(command -v sketchybar)"
             A=/opt/homebrew/bin/aerospace
             STATE="$HOME/.config/panewright/.widget-state"
+            # Which widgets are on is read at RUNTIME from this file, not baked
+            # into the script — so toggling one is a config write plus a
+            # trigger, never a bar reload (which visibly tore the bar down).
+            ENABLED="$HOME/.config/panewright/.widgets-enabled"
+            on() { grep -qx "$1" "$ENABLED" 2>/dev/null; }
             ARGS=()
 
-            \(m.network ? """
+            if on network; then
             # Throughput from interface byte counters vs. the last cycle.
             IFACE=$(route -n get default 2>/dev/null | awk '/interface:/{print $2}')
             read -r RX TX <<<"$(netstat -ib 2>/dev/null | awk -v i="$IFACE" '$1==i && $7 ~ /^[0-9]+$/ {print $7, $10; exit}')"
@@ -490,9 +496,11 @@ public enum SketchyBarConfigEmitter {
             DOWN=$(human $(( (${RX:-0} - ${PRX:-0}) / DT )))
             UP=$(human $(( (${TX:-0} - ${PTX:-0}) / DT )))
             ARGS+=(--set w.net drawing=on label="↓$DOWN ↑$UP")
-            """ : "")
+            else
+              ARGS+=(--set w.net drawing=off)
+            fi
 
-            \(m.ports ? """
+            if on ports; then
             PORTS=$(lsof -iTCP -sTCP:LISTEN -P -n 2>/dev/null | awk 'NR>1{split($9,a,":"); print a[length(a)], $1}' | sort -un | head -8)
             COUNT=$(printf '%s\\n' "$PORTS" | grep -c . )
             ARGS+=(--set w.ports drawing=on label="⇄ $COUNT")
@@ -503,31 +511,40 @@ public enum SketchyBarConfigEmitter {
               i=$((i+1)); [ "$i" -gt 8 ] && break
             done <<< "$PORTS"
             while [ "$i" -le 8 ]; do ARGS+=(--set w.ports.$i drawing=off); i=$((i+1)); done
-            """ : "")
+            else
+              ARGS+=(--set w.ports drawing=off)
+              for i in $(seq 1 8); do ARGS+=(--set w.ports.$i drawing=off); done
+            fi
 
-            \(m.disk ? """
+            if on disk; then
             read -r DPCT DFREE <<<"$(df -k / | awk 'NR==2{printf "%d %.0f", $5, $4/1048576}')"
             ARGS+=(--set w.disk drawing=on label="SSD ${DPCT}% · ${DFREE}G free")
-            """ : "")
+            else
+              ARGS+=(--set w.disk drawing=off)
+            fi
 
-            \(m.battery ? """
+            if on battery; then
             BINFO=$(pmset -g batt 2>/dev/null | tail -1)
             BPCT=$(printf '%s' "$BINFO" | grep -oE '[0-9]+%' | head -1)
             BREM=$(printf '%s' "$BINFO" | grep -oE '[0-9]+:[0-9]+' | head -1)
             case "$BINFO" in *charging*) BSYM="⚡";; *) BSYM="";; esac
             ARGS+=(--set w.batt drawing=on label="${BSYM}${BPCT:-?}${BREM:+ · $BREM}")
-            """ : "")
+            else
+              ARGS+=(--set w.batt drawing=off)
+            fi
 
-            \(m.docker ? """
+            if on docker; then
             if command -v docker >/dev/null 2>&1; then
               DC=$(docker ps -q 2>/dev/null | grep -c .)
               ARGS+=(--set w.docker drawing=on label="⬢ $DC")
             else
               ARGS+=(--set w.docker drawing=off)
             fi
-            """ : "")
+            else
+              ARGS+=(--set w.docker drawing=off)
+            fi
 
-            \(m.cloudContext ? """
+            if on cloud-context; then
             # Highlight anything that looks like production — this widget's
             # whole point is catching "wait, which cluster am I on?".
             CTX=""
@@ -539,36 +556,44 @@ public enum SketchyBarConfigEmitter {
             else
               ARGS+=(--set w.cloud drawing=off)
             fi
-            """ : "")
+            else
+              ARGS+=(--set w.cloud drawing=off)
+            fi
 
 
 
-            \(m.scratchpad ? """
+            if on scratchpad; then
             SC=$("$A" list-windows --workspace S --format '%{window-id}' 2>/dev/null | grep -c .)
             if [ "${SC:-0}" -gt 0 ]; then
               ARGS+=(--set w.scratch drawing=on label="⇩ $SC")
             else
               ARGS+=(--set w.scratch drawing=off)
             fi
-            """ : "")
+            else
+              ARGS+=(--set w.scratch drawing=off)
+            fi
 
-            \(m.micMute ? """
+            if on mic-mute; then
             MIC=$(osascript -e 'input volume of (get volume settings)' 2>/dev/null)
             if [ "${MIC:-0}" -eq 0 ] 2>/dev/null; then
               ARGS+=(--set w.mic drawing=on label="🎤⃠" label.color=\(accent))
             else
               ARGS+=(--set w.mic drawing=on label="🎤" label.color=\(palette.dim))
             fi
-            """ : "")
+            else
+              ARGS+=(--set w.mic drawing=off)
+            fi
 
-            \(m.volume ? """
+            if on volume; then
             VOL=$(osascript -e 'output volume of (get volume settings)' 2>/dev/null)
             MUTED=$(osascript -e 'output muted of (get volume settings)' 2>/dev/null)
             if [ "$MUTED" = "true" ]; then VSYM="🔇"; else VSYM="🔊"; fi
             ARGS+=(--set w.vol drawing=on label="$VSYM ${VOL:-0}%")
-            """ : "")
+            else
+              ARGS+=(--set w.vol drawing=off)
+            fi
 
-            \(m.brewUpdates ? """
+            if on brew-updates; then
             # brew outdated is slow, so cache it and refresh at most hourly.
             BREWC="$HOME/.config/panewright/.brew-outdated"
             # The app refreshes this cache hourly. Running `brew` here instead
@@ -580,9 +605,11 @@ public enum SketchyBarConfigEmitter {
             else
               ARGS+=(--set w.brew drawing=off)
             fi
-            """ : "")
+            else
+              ARGS+=(--set w.brew drawing=off)
+            fi
 
-            \(m.vpn ? """
+            if on vpn; then
             # A utun with a peer address means a tunnel is actually carrying
             # traffic; macOS keeps empty utun interfaces around regardless.
             if ifconfig 2>/dev/null | awk '/^utun/{i=$1} /inet .*-->/{if(i)print i}' | grep -q .; then
@@ -590,16 +617,20 @@ public enum SketchyBarConfigEmitter {
             else
               ARGS+=(--set w.vpn drawing=off)
             fi
-            """ : "")
+            else
+              ARGS+=(--set w.vpn drawing=off)
+            fi
 
-            \(m.keyboardLayout ? """
+            if on keyboard-layout; then
             KBD=$(defaults read ~/Library/Preferences/com.apple.HIToolbox.plist AppleSelectedInputSources 2>/dev/null \\
               | awk -F'"' '/KeyboardLayout Name/{print $4; exit}')
             [ -n "$KBD" ] && ARGS+=(--set w.kbd drawing=on label="$KBD") \\
                           || ARGS+=(--set w.kbd drawing=off)
-            """ : "")
+            else
+              ARGS+=(--set w.kbd drawing=off)
+            fi
 
-            \(m.focusMode ? """
+            if on focus-mode; then
             FOCUS="$HOME/Library/DoNotDisturb/DB/Assertions.json"
             if [ -s "$FOCUS" ] && /usr/bin/python3 -c \\
               'import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d.get("data",[{}])[0].get("storeAssertionRecords") else 1)' \\
@@ -608,9 +639,11 @@ public enum SketchyBarConfigEmitter {
             else
               ARGS+=(--set w.focus drawing=off)
             fi
-            """ : "")
+            else
+              ARGS+=(--set w.focus drawing=off)
+            fi
 
-            \(m.nowPlaying ? """
+            if on now-playing; then
             NP=""
             for APP in Spotify Music; do
               if pgrep -x "$APP" >/dev/null 2>&1; then
@@ -626,9 +659,11 @@ public enum SketchyBarConfigEmitter {
             else
               ARGS+=(--set w.play drawing=off)
             fi
-            """ : "")
+            else
+              ARGS+=(--set w.play drawing=off)
+            fi
 
-            \(m.weather ? """
+            if on weather; then
             # One network call an hour, cached; the bar never blocks on it.
             WC="$HOME/.config/panewright/.weather"
             if [ ! -f "$WC" ] || [ $(( $(date +%s) - $(stat -f %m "$WC" 2>/dev/null || echo 0) )) -gt 3600 ]; then
@@ -638,7 +673,9 @@ public enum SketchyBarConfigEmitter {
             WX=$(cat "$WC" 2>/dev/null | tr -d '+' | head -c 20)
             [ -n "$WX" ] && ARGS+=(--set w.weather drawing=on label="$WX") \\
                          || ARGS+=(--set w.weather drawing=off)
-            """ : "")
+            else
+              ARGS+=(--set w.weather drawing=off)
+            fi
 
             [ ${#ARGS[@]} -gt 0 ] && "$BAR" "${ARGS[@]}"
             exit 0
@@ -717,30 +754,37 @@ public enum SketchyBarConfigEmitter {
             --subscribe \(name) mouse.entered mouse.exited
             """
         }
-        func chip(_ name: String, _ tip: String, click: String? = nil) {
-            var set = "$BAR --add item \(name) right --set \(name) label=\"…\" drawing=off"
-                + " label.font=\"\(palette.font)\" label.padding_left=8 label.padding_right=8"
-                + " background.corner_radius=6 background.height=20"
-            if let click { set += " click_script=\"\(click)\"" }
-            lines.append(set)
+        /// `key` is the config key, so right-click can turn the widget off.
+        func chip(_ name: String, _ key: String, _ tip: String, click: String? = nil) {
+            // Right-click always disables; left-click runs the widget's own
+            // action when it has one.
+            let disable = "open 'panewright://widgets/disable/\(key)'"
+            let action =
+                click.map { "if [ \\\"$BUTTON\\\" = \\\"right\\\" ]; then \(disable); else \($0); fi" }
+                ?? "if [ \\\"$BUTTON\\\" = \\\"right\\\" ]; then \(disable); fi"
+            lines.append(
+                "$BAR --add item \(name) right --set \(name) label=\"…\" drawing=off"
+                    + " label.font=\"\(palette.font)\" label.padding_left=8 label.padding_right=8"
+                    + " background.corner_radius=6 background.height=20"
+                    + " click_script=\"\(action)\"")
             lines.append(tooltip(name, tip))
         }
         // Rightmost first — SketchyBar stacks `right` items leftward.
-        if modules.weather { chip("w.weather", "Weather · current conditions") }
-        if modules.nowPlaying { chip("w.play", "Now playing · click to play/pause", click: "osascript -e 'tell application \\\"Spotify\\\" to playpause' 2>/dev/null || osascript -e 'tell application \\\"Music\\\" to playpause'") }
-        if modules.focusMode { chip("w.focus", "Focus · Do Not Disturb state") }
-        if modules.keyboardLayout { chip("w.kbd", "Keyboard · input source") }
-        if modules.vpn { chip("w.vpn", "VPN · tunnel status") }
-        if modules.brewUpdates { chip("w.brew", "Homebrew · outdated packages", click: "open -a Terminal") }
-        if modules.volume { chip("w.vol", "Volume · click to mute", click: "osascript -e 'set volume output muted (not (output muted of (get volume settings)))'") }
-        if modules.micMute { chip("w.mic", "Microphone · click to toggle mute", click: "$SCRIPTS_DIR/mic-toggle.sh") }
-        if modules.scratchpad { chip("w.scratch", "Scratchpad · stashed windows") }
-        if modules.cloudContext { chip("w.cloud", "kubectl context / AWS profile") }
-        if modules.docker { chip("w.docker", "Docker · running containers") }
-        if modules.battery { chip("w.batt", "Battery · charge and time left") }
-        if modules.disk { chip("w.disk", "Disk · boot volume") }
-        if modules.network { chip("w.net", "Network · down / up per second") }
-        if modules.ports {
+        chip("w.weather", "weather", "Weather · current conditions")
+        chip("w.play", "now-playing", "Now playing · click to play/pause", click: "osascript -e 'tell application \\\"Spotify\\\" to playpause' 2>/dev/null || osascript -e 'tell application \\\"Music\\\" to playpause'")
+        chip("w.focus", "focus-mode", "Focus · Do Not Disturb state")
+        chip("w.kbd", "keyboard-layout", "Keyboard · input source")
+        chip("w.vpn", "vpn", "VPN · tunnel status")
+        chip("w.brew", "brew-updates", "Homebrew · outdated packages", click: "open -a Terminal")
+        chip("w.vol", "volume", "Volume · click to mute", click: "osascript -e 'set volume output muted (not (output muted of (get volume settings)))'")
+        chip("w.mic", "mic-mute", "Microphone · click to toggle mute", click: "$SCRIPTS_DIR/mic-toggle.sh")
+        chip("w.scratch", "scratchpad", "Scratchpad · stashed windows")
+        chip("w.cloud", "cloud-context", "kubectl context / AWS profile")
+        chip("w.docker", "docker", "Docker · running containers")
+        chip("w.batt", "battery", "Battery · charge and time left")
+        chip("w.disk", "disk", "Disk · boot volume")
+        chip("w.net", "network", "Network · down / up per second")
+        do {
             // Ports already unfurls a list on click, so its popup leads with a
             // title row that doubles as the hover tooltip.
             lines.append(
@@ -766,7 +810,8 @@ public enum SketchyBarConfigEmitter {
         }
         lines.append(
             "$BAR --add item widgets_driver right --set widgets_driver drawing=off"
-                + " update_freq=5 script=\"$PLUGINS/panewright_widgets.sh\"")
+                + " update_freq=5 script=\"$PLUGINS/panewright_widgets.sh\""
+                + " --subscribe widgets_driver panewright_widgets")
         return lines.joined(separator: "\n")
     }
 
