@@ -236,6 +236,7 @@ final class AppModel {
             self?.startBarHealthCheck()
             self?.startWindowFitting()
             self?.appSwitchRouter.start()
+            WakeGuard.observe()
             MonitorMap.observe()
         }
         Task.detached(priority: .userInitiated) {
@@ -846,6 +847,12 @@ final class AppModel {
 
     private func startBarHealthCheck() {
         Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
+            // A wake makes AeroSpace report zero managed windows and the bar
+            // read as down, for a second or two, because neither has finished
+            // coming back. Both checks below then "recover" a system that was
+            // never broken — restarting AeroSpace and rebuilding the bar every
+            // time the lid opens.
+            guard !WakeGuard.isSettling else { return }
             Task.detached(priority: .utility) {
                 let orchestrator = Orchestrator()
                 if let config = try? orchestrator.loadConfig(), config.statusBar.enabled,
