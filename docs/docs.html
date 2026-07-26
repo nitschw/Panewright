@@ -150,11 +150,18 @@
   <p class="lede">Everything Panewright does, with an example for everything. Your config lives at <code>~/.config/panewright/panewright.toml</code> — every key below is optional, and saving the file applies it live.</p>
 
   <h2 id="install">Install &amp; permissions</h2>
-  <pre>brew install --cask nikitabobko/tap/aerospace   <span class="c"># tiling engine (required)</span>
+  <pre>brew trust nitschw/tap                <span class="c"># Homebrew requires this for third-party casks</span>
+brew install nitschw/tap/panewright   <span class="c"># Panewright + the tiling engine, borders, status bar</span></pre>
+  <p>That's the whole install: the cask pulls in the tiling engine (Panewright's build of AeroSpace, patched so hidden workspaces never peek out around a Dock), focus borders, and the status bar. Launch <b>Panewright.app</b> and the <b>setup checklist</b> (menu bar icon → Setup…) walks through the permissions below.</p>
+  <p>Already running AeroSpace? A brew-installed one conflicts loudly and the message explains itself. A manually downloaded one has to be removed or adopted first: <code>brew install --cask --adopt nitschw/tap/aerospace-panewright</code>.</p>
+  <details>
+  <summary>Installing the pieces by hand instead</summary>
+  <pre>brew install --cask nitschw/tap/aerospace-panewright   <span class="c"># tiling engine (required)</span>
 brew install FelixKratz/formulae/borders        <span class="c"># focus borders (optional)</span>
 brew install FelixKratz/formulae/sketchybar     <span class="c"># status bar (optional)</span>
 brew install --cask karabiner-elements          <span class="c"># Caps Lock as $mod (optional)</span></pre>
-  <p>Then drop <b>Panewright.app</b> into Applications and launch it. The <b>setup checklist</b> (menu bar icon → Setup…) walks through everything below and can run the brew installs itself.</p>
+  <p>Then drop <b>Panewright.app</b> (from the <a href="#releases">releases table</a>) into Applications and launch it.</p>
+  </details>
   <table>
     <tr><th>Who</th><th>Permission</th><th>Why</th></tr>
     <tr><td>AeroSpace</td><td>Accessibility</td><td>Moving and resizing windows. <b>Restart AeroSpace after granting</b> — grants only take effect at launch.</td></tr>
