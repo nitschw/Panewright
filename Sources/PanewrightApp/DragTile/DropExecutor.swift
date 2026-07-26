@@ -116,7 +116,14 @@ struct DropExecutor: Sendable {
         }
         if Self.adjacentVertically(d, t) {
             let toward = Self.verticalDirection(from: d, to: t)
-            DragLog.log("executor: join-with \(toward) to form horizontal pair")
+            // The tree shape matters here and isn't visible from the frames:
+            // joining two windows that are the only children of a container
+            // flips that container, but joining inside a deeper nest can
+            // leave the orientation untouched. Record what we were acting on
+            // so a drop that lands wrong can be diagnosed from the log.
+            DragLog.log(
+                "executor: join-with \(toward) to form horizontal pair"
+                    + " — \(containerShape(dragged: dragged, target: targetID))")
             guard (try? cli.run(["join-with", "--window-id", "\(dragged)", toward])) != nil
             else {
                 return "drag-to-tile: join-with \(toward) failed"
@@ -128,6 +135,8 @@ struct DropExecutor: Sendable {
             let direction = Self.horizontalDirection(from: d2, to: t2)
             try? cli.run(["swap", "--window-id", "\(dragged)", direction])
         }
+        DragLog.log(
+            "executor: settled — \(containerShape(dragged: dragged, target: targetID))")
         return "drag-to-tile: placed \(zone.rawValue) of target"
     }
 
@@ -140,7 +149,9 @@ struct DropExecutor: Sendable {
         }
         if Self.adjacentHorizontally(d, t) {
             let toward = Self.horizontalDirection(from: d, to: t)
-            DragLog.log("executor: join-with \(toward) to form vertical pair")
+            DragLog.log(
+                "executor: join-with \(toward) to form vertical pair"
+                    + " — \(containerShape(dragged: dragged, target: targetID))")
             guard (try? cli.run(["join-with", "--window-id", "\(dragged)", toward])) != nil
             else {
                 return "drag-to-tile: join-with \(toward) failed"
@@ -152,7 +163,30 @@ struct DropExecutor: Sendable {
             let direction = Self.verticalDirection(from: d2, to: t2)
             try? cli.run(["swap", "--window-id", "\(dragged)", direction])
         }
+        DragLog.log(
+            "executor: settled — \(containerShape(dragged: dragged, target: targetID))")
         return "drag-to-tile: stacked \(zone.rawValue) of target"
+    }
+
+    /// The parent container layout of both windows, which is what decides
+    /// whether a join changes anything. Diagnostic only — never branched on,
+    /// so a failure to read it can't change what the drop does.
+    private func containerShape(dragged: CGWindowID, target: CGWindowID) -> String {
+        guard
+            let listing = try? cli.run([
+                "list-windows", "--workspace", "focused",
+                "--format", "%{window-id}|%{window-parent-container-layout}",
+            ])
+        else { return "shape unknown" }
+        var shapes: [CGWindowID: String] = [:]
+        for line in listing.split(separator: "\n") {
+            let parts = line.split(separator: "|").map {
+                $0.trimmingCharacters(in: .whitespaces)
+            }
+            guard parts.count >= 2, let id = CGWindowID(parts[0]) else { continue }
+            shapes[id] = parts[1]
+        }
+        return "dragged in \(shapes[dragged] ?? "?"), target in \(shapes[target] ?? "?")"
     }
 
     // MARK: Walking
