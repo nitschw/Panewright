@@ -873,9 +873,25 @@ public enum SketchyBarConfigEmitter {
             // Runs the upgrade in a visible Terminal rather than silently:
             // brew asks questions, and an upgrade that hangs invisibly waiting
             // for an answer is worse than one you can see.
+            //
+            // Rewriting the cache the moment the upgrade finishes is what keeps
+            // the chip honest. The app refreshes it hourly, so upgrading five
+            // minutes after a sweep left the bar insisting twenty packages were
+            // out of date for the next fifty-five — which reads as the
+            // indicator being broken rather than merely behind.
+            //
+            // Running brew here is safe in a way it isn't from the bar's own
+            // plugin: this is a real interactive Terminal shell, which is the
+            // environment brew needs to report anything at all. Via a temp file
+            // so an interrupted run can't publish an empty list and quietly
+            // claim everything is up to date. No explicit bar trigger needed —
+            // the widget script re-reads this file every five seconds.
+            let cache = "$HOME/.config/panewright/.brew-outdated"
             let upgrade =
                 "osascript -e 'tell application \\\"Terminal\\\" to do script"
-                + " \\\"brew upgrade\\\"' -e 'tell application \\\"Terminal\\\" to activate'"
+                + " \\\"brew upgrade; brew outdated --quiet > \(cache).new"
+                + " && mv \(cache).new \(cache)\\\"'"
+                + " -e 'tell application \\\"Terminal\\\" to activate'"
             lines.append(
                 "$BAR --add item w.brew.upgrade popup.w.brew --set w.brew.upgrade"
                     + " label=\"Upgrade All…\" drawing=off label.font=\"\(palette.font)\""

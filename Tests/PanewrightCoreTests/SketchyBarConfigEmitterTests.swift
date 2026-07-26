@@ -354,3 +354,33 @@ import Testing
         #expect(plugin.contains("grep -c . \"$BREWC\""))
     }
 }
+
+@Suite struct BrewUpgradeRefreshTests {
+    private func upgradeLine() throws -> String {
+        var config = PanewrightConfig.default
+        config.modules.brewUpdates = true
+        let rc = try SketchyBarConfigEmitter.emit(config).sketchybarrc
+        return String(
+            rc.split(separator: "\n")
+                .first { $0.contains("--add item w.brew.upgrade") } ?? "")
+    }
+
+    /// Upgrading has to rewrite the cache itself. The app's sweep is hourly, so
+    /// upgrading just after one left the chip insisting twenty packages were
+    /// out of date for the rest of the hour — indistinguishable, from the bar,
+    /// from the indicator being broken.
+    @Test func upgradingRewritesTheCacheItself() throws {
+        let line = try upgradeLine()
+        #expect(line.contains("brew upgrade;"))
+        #expect(line.contains("brew outdated --quiet"))
+    }
+
+    /// Straight to the real file would leave it empty if the run is interrupted
+    /// — which the widget reads as "nothing outdated", the most misleading
+    /// answer available.
+    @Test func theCacheIsWrittenViaATempFile() throws {
+        let line = try upgradeLine()
+        #expect(line.contains(".brew-outdated.new"))
+        #expect(line.contains("&& mv"))
+    }
+}
