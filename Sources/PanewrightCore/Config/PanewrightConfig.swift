@@ -197,17 +197,53 @@ public struct PanewrightConfig: Equatable, Sendable {
             case native, technical
         }
 
+        public enum Position: String, Equatable, Sendable, CaseIterable {
+            case bottom, top
+        }
+
         public var enabled: Bool
         public var theme: Theme
         /// Highlight color for the active workspace pill. `nil` follows
         /// ``FocusBorder/activeColor`` so one accent drives the whole system;
         /// set it to break the bar's highlight away from the window border.
         public var accentColor: String?
+        /// Which screen edge the bar lives on. SketchyBar only does
+        /// horizontal bars — left/right were probed and silently coerce to
+        /// top, so they aren't offered.
+        public var position: Position
+        /// Bar height in points. `nil` keeps the theme's default.
+        public var thickness: Int?
+        /// Label font size in points. `nil` keeps the theme's default.
+        public var fontSize: Int?
+        /// Keep the bar visible over fullscreen apps.
+        public var showInFullscreen: Bool
+        /// Background opacity 0–1. `nil` keeps the theme's default (the
+        /// native theme is deliberately glassy; turn this up for busy
+        /// wallpaper).
+        public var opacity: Double?
 
-        public init(enabled: Bool = true, theme: Theme = .native, accentColor: String? = nil) {
+        public init(
+            enabled: Bool = true, theme: Theme = .native, accentColor: String? = nil,
+            position: Position = .bottom, thickness: Int? = nil, fontSize: Int? = nil,
+            showInFullscreen: Bool = false, opacity: Double? = nil
+        ) {
             self.enabled = enabled
             self.theme = theme
             self.accentColor = accentColor
+            self.position = position
+            self.thickness = thickness
+            self.fontSize = fontSize
+            self.showInFullscreen = showInFullscreen
+            self.opacity = opacity
+        }
+
+        /// The bar height actually in effect.
+        public var effectiveThickness: Int {
+            thickness ?? (theme == .native ? 30 : 26)
+        }
+        /// The label size actually in effect.
+        public var effectiveFontSize: Int {
+            fontSize ?? (theme == .native ? 13 : 12)
         }
     }
 

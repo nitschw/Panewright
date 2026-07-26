@@ -50,40 +50,58 @@ public enum SketchyBarConfigEmitter {
     }
 
     private static func palette(
-        for theme: PanewrightConfig.StatusBar.Theme, lift: Int = 0, sideInset: Int = 0
+        for bar: PanewrightConfig.StatusBar, lift: Int = 0, sideInset: Int = 0
     ) -> Palette {
-        switch theme {
+        let geometry = barGeometry(
+            for: bar.theme, dockInsetBottom: lift, dockInsetSides: sideInset)
+        let height = bar.effectiveThickness
+        let size = bar.effectiveFontSize
+        // Theme background: base color is the theme's; only the alpha byte is
+        // user-tunable, so "more opaque over busy wallpaper" never turns into
+        // a third theme by accident.
+        let alpha = bar.opacity.map { Int(($0 * 255).rounded()) }
+        let common =
+            " margin=\(geometry.margin) y_offset=\(geometry.yOffset)"
+            + " position=\(bar.position.rawValue)"
+            + " show_in_fullscreen=\(bar.showInFullscreen ? "on" : "off")"
+        switch bar.theme {
         case .native:
-            Palette(
+            return Palette(
                 barProps:
-                    "height=30 corner_radius=9"
-                    + " margin=\(barGeometry(for: .native, dockInsetBottom: lift, dockInsetSides: sideInset).margin)"
-                    + " y_offset=\(barGeometry(for: .native, dockInsetBottom: lift, dockInsetSides: sideInset).yOffset)"
-                    + " blur_radius=30 color=0x2c000000",
-                font: "SF Pro:Semibold:13.0",
+                    "height=\(height) corner_radius=9"
+                    + common
+                    + " blur_radius=30"
+                    + String(format: " color=0x%02x000000", alpha ?? 0x2c),
+                font: "SF Pro:Semibold:\(size).0",
                 text: "0xffffffff",
                 dim: "0x80ffffff")
         case .technical:
-            Palette(
+            return Palette(
                 barProps:
-                    "height=26 corner_radius=0"
-                    + " margin=\(barGeometry(for: .technical, dockInsetBottom: lift, dockInsetSides: sideInset).margin)"
-                    + " y_offset=\(barGeometry(for: .technical, dockInsetBottom: lift, dockInsetSides: sideInset).yOffset)"
-                    + " blur_radius=0 color=0xf016161e",
-                font: "SF Mono:Bold:12.0",
+                    "height=\(height) corner_radius=0"
+                    + common
+                    + " blur_radius=0"
+                    + String(format: " color=0x%02x16161e", alpha ?? 0xf0),
+                font: "SF Mono:Bold:\(size).0",
                 text: "0xffc0caf5",
                 dim: "0x66c0caf5")
         }
     }
 
     /// Vertical space tiles must reserve so the bar isn't covered by windows:
-    /// bar height + y-offset + breathing room. The AeroSpace emitter adds
-    /// this to outer.top whenever the bar is enabled.
+    /// bar height + y-offset + breathing room. Derived from the thickness in
+    /// effect, so a thicker bar automatically pushes tiles further — the two
+    /// numbers can't drift because there's only one.
+    public static func reservedGap(for bar: PanewrightConfig.StatusBar) -> Int {
+        // Matches the numbers the themes always reserved (40 and 32 at their
+        // default thickness), now derived so a custom thickness moves them.
+        let offsetAndBreathing = bar.theme == .native ? 10 : 6
+        return bar.effectiveThickness + offsetAndBreathing
+    }
+
+    /// The old name, kept for callers that only know the theme.
     public static func reservedTopGap(for theme: PanewrightConfig.StatusBar.Theme) -> Int {
-        switch theme {
-        case .native: 40  // height 30 + y_offset 5 + 5 breathing
-        case .technical: 32  // height 26 + 6 breathing
-        }
+        reservedGap(for: PanewrightConfig.StatusBar(theme: theme))
     }
 
     /// - Parameter dockInsetBottom: how much of the bottom edge the Dock has
@@ -104,7 +122,7 @@ public enum SketchyBarConfigEmitter {
             String(format: "0x%08x", try ColorHex.argb(fromCSSHex: $0))
         } ?? accent
         let palette = palette(
-            for: config.statusBar.theme, lift: dockInsetBottom,
+            for: config.statusBar, lift: dockInsetBottom,
             sideInset: dockInsetSides)
         let workspaces = AeroSpaceConfigEmitter.workspaceNumbers(in: config.bindings)
         let workspaceList = workspaces.map(String.init).joined(separator: " ")
@@ -128,7 +146,7 @@ public enum SketchyBarConfigEmitter {
             # zone, which fought our drag-to-park and workspace clicks. The
             # bottom edge triggers nothing, needs no menu-bar hiding, and is
             # consistent across a notched primary and flat externals.
-            $BAR --bar position=bottom sticky=on \(palette.barProps)
+            $BAR --bar sticky=on \(palette.barProps)
             $BAR --default icon.font="\(palette.font)" label.font="\(palette.font)" \\
                 icon.color=\(palette.text) label.color=\(palette.text) \\
                 padding_left=4 padding_right=4

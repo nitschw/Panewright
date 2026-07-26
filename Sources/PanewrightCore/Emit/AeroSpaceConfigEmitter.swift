@@ -66,15 +66,15 @@ public enum AeroSpaceConfigEmitter {
         lines.append("[gaps]")
         lines.append("inner.horizontal = \(config.gaps.inner)")
         lines.append("inner.vertical = \(config.gaps.inner)")
-        // The status bar sits at the bottom, so tiles reserve that strip;
-        // without it the normal edge applies.
-        let bottomGap =
-            config.gaps.outer
-            + (config.statusBar.enabled
-                ? SketchyBarConfigEmitter.reservedTopGap(for: config.statusBar.theme) : 0)
+        // Tiles reserve the strip on whichever edge the bar lives; the other
+        // edge keeps the normal gap.
+        let reserve =
+            config.statusBar.enabled
+            ? SketchyBarConfigEmitter.reservedGap(for: config.statusBar) : 0
+        let barAtBottom = config.statusBar.position == .bottom
         lines.append("outer.left = \(config.gaps.outer)")
-        lines.append("outer.top = \(config.gaps.outer)")
-        lines.append("outer.bottom = \(bottomGap)")
+        lines.append("outer.top = \(config.gaps.outer + (barAtBottom ? 0 : reserve))")
+        lines.append("outer.bottom = \(config.gaps.outer + (barAtBottom ? reserve : 0))")
         lines.append("outer.right = \(config.gaps.outer)")
         lines.append("")
         let barEnabled = config.statusBar.enabled

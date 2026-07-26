@@ -499,13 +499,14 @@ final class WindowFitController {
     private func displayBounds(_ config: PanewrightConfig) -> CGRect? {
         guard let screen = NSScreen.main else { return nil }
         let outer = CGFloat(config.gaps.outer)
-        // The bar sits at the bottom, and the emitter adds its reserved height
-        // to the bottom outer gap — mirror that rather than re-deriving it.
-        let bottom =
-            outer
-            + (config.statusBar.enabled
-                ? CGFloat(
-                    SketchyBarConfigEmitter.reservedTopGap(for: config.statusBar.theme)) : 0)
+        // The emitter adds the bar's reserved height to whichever edge the
+        // bar lives on — mirror that rather than re-deriving it.
+        let reserve =
+            config.statusBar.enabled
+            ? CGFloat(SketchyBarConfigEmitter.reservedGap(for: config.statusBar)) : 0
+        let barAtBottom = config.statusBar.position == .bottom
+        let bottom = outer + (barAtBottom ? reserve : 0)
+        let extraTop = barAtBottom ? 0 : reserve
         // visibleFrame is the screen minus what the system has already claimed:
         // the menu bar, and the Dock on whichever edge it happens to live. It
         // is the only way to be right for all four placements — there is no
@@ -527,9 +528,9 @@ final class WindowFitController {
         let insetBottom = visible.minY - full.minY
         return CGRect(
             x: full.minX + insetLeft + outer,
-            y: insetTop + outer,
+            y: insetTop + outer + extraTop,
             width: full.width - insetLeft - insetRight - outer * 2,
-            height: full.height - insetTop - insetBottom - outer - bottom)
+            height: full.height - insetTop - insetBottom - outer - extraTop - bottom)
     }
 
     /// Identity of a layout: which windows, and roughly where. Rounded so

@@ -401,7 +401,7 @@ import Testing
         let rc = try SketchyBarConfigEmitter.emit(config, dockInsetBottom: dockInsetBottom)
             .sketchybarrc
         return String(
-            rc.split(separator: "\n").first { $0.contains("--bar position=") } ?? "")
+            rc.split(separator: "\n").first { $0.contains("$BAR --bar ") } ?? "")
     }
 
     @Test func noDockOnTheBottomLeavesTheBarWhereItWas() throws {
@@ -436,7 +436,7 @@ import Testing
         config.statusBar.theme = theme
         let rc = try SketchyBarConfigEmitter.emit(config, dockInsetSides: sides).sketchybarrc
         return String(
-            rc.split(separator: "\n").first { $0.contains("--bar position=") } ?? "")
+            rc.split(separator: "\n").first { $0.contains("$BAR --bar ") } ?? "")
     }
 
     @Test func noSideDockLeavesTheThemeMarginAlone() throws {
@@ -483,5 +483,73 @@ import Testing
         let widgets = try files().widgetsPlugin
         #expect(widgets.contains(".widgets-order"))
         #expect(widgets.contains("panewright_reorder.sh"))
+    }
+}
+
+/// The bar knobs that were baked into the themes, now configurable.
+@Suite struct BarSettingsTests {
+    private func barLine(_ mutate: (inout PanewrightConfig) -> Void) throws -> String {
+        var config = PanewrightConfig.default
+        mutate(&config)
+        let rc = try SketchyBarConfigEmitter.emit(config).sketchybarrc
+        return String(rc.split(separator: "\n").first { $0.contains("$BAR --bar ") } ?? "")
+    }
+
+    @Test func defaultsMatchWhatTheThemesAlwaysShipped() throws {
+        let line = try barLine { _ in }
+        #expect(line.contains("position=bottom"))
+        #expect(line.contains("height=30"))
+        #expect(line.contains("color=0x2c000000"))
+        #expect(line.contains("show_in_fullscreen=off"))
+    }
+
+    @Test func everyKnobReachesTheBar() throws {
+        let line = try barLine {
+            $0.statusBar.position = .top
+            $0.statusBar.thickness = 40
+            $0.statusBar.fontSize = 16
+            $0.statusBar.showInFullscreen = true
+            $0.statusBar.opacity = 1.0
+        }
+        #expect(line.contains("position=top"))
+        #expect(line.contains("height=40"))
+        #expect(line.contains("show_in_fullscreen=on"))
+        // Full opacity, theme's base color.
+        #expect(line.contains("color=0xff000000"))
+    }
+
+    /// A top bar moves the tiles' reserved strip with it, and a thicker bar
+    /// reserves more — the reserve derives from the thickness, so the two
+    /// cannot disagree.
+    @Test func theReservedStripFollowsTheBar() {
+        var config = PanewrightConfig.default
+        config.gaps = .init(inner: 8, outer: 8)
+        config.statusBar.position = .top
+        config.statusBar.thickness = 50
+        let toml = AeroSpaceConfigEmitter.emit(config)
+        #expect(toml.contains("outer.top = 68"))  // 8 + 50 + 10
+        #expect(toml.contains("outer.bottom = 8"))
+    }
+
+    @Test func theKnobsRoundTripThroughTheConfigFile() throws {
+        var config = PanewrightConfig.default
+        config.statusBar.position = .top
+        config.statusBar.thickness = 34
+        config.statusBar.fontSize = 15
+        config.statusBar.showInFullscreen = true
+        config.statusBar.opacity = 0.5
+        let parsed = try ConfigParser.parse(toml: PanewrightConfigSerializer.emit(config))
+        #expect(parsed.statusBar.position == .top)
+        #expect(parsed.statusBar.thickness == 34)
+        #expect(parsed.statusBar.fontSize == 15)
+        #expect(parsed.statusBar.showInFullscreen == true)
+        #expect(parsed.statusBar.opacity == 0.5)
+    }
+
+    @Test func verticalPositionsAreRefusedLoudly() {
+        // SketchyBar coerces left/right to top silently; we refuse instead.
+        #expect(throws: ConfigError.invalidBarPosition("left")) {
+            _ = try ConfigParser.parse(toml: "[bar]\nposition = \"left\"")
+        }
     }
 }

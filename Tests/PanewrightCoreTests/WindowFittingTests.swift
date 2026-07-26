@@ -1153,3 +1153,78 @@ private func window(
         }
     }
 }
+
+/// Choosing which two columns to merge when width runs out.
+///
+/// The motivating layout, measured on a 1728pt display: columns of 600, 574,
+/// 800 and 87 at their floors demand 2061pt of a 1712pt tiled area, while the
+/// same windows as a 2×2 grid need max(600,574) + max(800,87) = 1400.
+@Suite struct StackingTests {
+    let bounds = CGRect(x: 0, y: 36, width: 1712, height: 1037)
+
+    func column(_ id: UInt32, _ bundle: String, x: CGFloat, width: CGFloat)
+        -> WindowFitting.Window
+    {
+        WindowFitting.Window(
+            id: id, bundleID: bundle,
+            frame: CGRect(x: x, y: 36, width: width, height: 1037),
+            arrived: Date(timeIntervalSince1970: TimeInterval(id)))
+    }
+
+    var handoffLayout: [WindowFitting.Window] {
+        [
+            column(1, "claude", x: 0, width: 600),
+            column(2, "safari", x: 604, width: 574),
+            column(3, "discord", x: 1182, width: 800),
+            column(4, "iterm", x: 1986, width: 87),
+        ]
+    }
+
+    var floors: WindowFitting.Minimums {
+        WindowFitting.Minimums(widths: [
+            "claude": 600, "safari": 574, "discord": 800, "iterm": 87,
+        ])
+    }
+
+    @Test func columnsThatCannotFitStackBeforeAnythingLeaves() {
+        let verdict = WindowFitting.nextStep(
+            for: handoffLayout, minimums: floors, bounds: bounds,
+            separation: 4, usable: 360)
+        guard case .adjusting(.stack(let id, let with)) = verdict else {
+            Issue.record("expected a stack, got \(verdict)")
+            return
+        }
+        // The widest narrower-member wins: min(600,574)=574 beats every other
+        // adjacent pair. Safari (narrower) joins Claude's column.
+        #expect(id == 2)
+        #expect(with == 1)
+    }
+
+    @Test func knownHeightFloorsVetoAnImpossibleStack() {
+        var minimums = floors
+        for app in ["claude", "safari", "discord", "iterm"] {
+            minimums.record(app, .vertical, 600)
+        }
+        let verdict = WindowFitting.nextStep(
+            for: handoffLayout, minimums: minimums, bounds: bounds,
+            separation: 4, usable: 360)
+        guard case .adjusting(.evict) = verdict else {
+            Issue.record("expected eviction once stacking is impossible, got \(verdict)")
+            return
+        }
+    }
+
+    /// A window already inside a stack is half-height, so it can't be a
+    /// candidate — stacks must not nest by accident.
+    @Test func halfHeightWindowsAreNotStackingCandidates() {
+        var windows = handoffLayout
+        windows[3] = WindowFitting.Window(
+            id: 4, bundleID: "iterm",
+            frame: CGRect(x: 1986, y: 36, width: 87, height: 500),
+            arrived: Date(timeIntervalSince1970: 4))
+        let pair = WindowFitting.stackablePair(
+            in: windows, minimums: floors, bounds: bounds, separation: 4)
+        #expect(pair?.id != 4)
+        #expect(pair?.with != 4)
+    }
+}

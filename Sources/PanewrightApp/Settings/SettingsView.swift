@@ -233,6 +233,46 @@ struct SettingsView: View {
                     .tag(PanewrightConfig.StatusBar.Theme.technical)
             }
             .pickerStyle(.segmented)
+            // Top or bottom only: left/right were probed, and SketchyBar
+            // silently coerces vertical positions to "top".
+            Picker("Edge", selection: bind(\.statusBar.position)) {
+                Text("Bottom").tag(PanewrightConfig.StatusBar.Position.bottom)
+                Text("Top").tag(PanewrightConfig.StatusBar.Position.top)
+            }
+            .pickerStyle(.segmented)
+            intSlider(
+                "Thickness",
+                value: Binding(
+                    get: { model.config.statusBar.effectiveThickness },
+                    set: {
+                        model.config.statusBar.thickness = $0
+                        model.configChanged()
+                    }),
+                range: 18...60)
+            intSlider(
+                "Text size",
+                value: Binding(
+                    get: { model.config.statusBar.effectiveFontSize },
+                    set: {
+                        model.config.statusBar.fontSize = $0
+                        model.configChanged()
+                    }),
+                range: 9...24)
+            intSlider(
+                "Opacity %",
+                value: Binding(
+                    get: {
+                        Int(
+                            ((model.config.statusBar.opacity
+                                ?? (model.config.statusBar.theme == .native ? 0.17 : 0.94))
+                                * 100).rounded())
+                    },
+                    set: {
+                        model.config.statusBar.opacity = Double($0) / 100
+                        model.configChanged()
+                    }),
+                range: 0...100)
+            Toggle("Show over fullscreen apps", isOn: bind(\.statusBar.showInFullscreen))
             Toggle(
                 "Use a separate accent color for the bar",
                 isOn: Binding(

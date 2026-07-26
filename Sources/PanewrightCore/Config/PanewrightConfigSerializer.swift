@@ -57,6 +57,19 @@ public enum PanewrightConfigSerializer {
         lines.append("[bar]")
         lines.append("enabled = \(config.statusBar.enabled)")
         lines.append("theme = \"\(config.statusBar.theme.rawValue)\"")
+        lines.append("position = \"\(config.statusBar.position.rawValue)\"")
+        if let thickness = config.statusBar.thickness {
+            lines.append("thickness = \(thickness)")
+        }
+        if let size = config.statusBar.fontSize {
+            lines.append("font-size = \(size)")
+        }
+        if config.statusBar.showInFullscreen {
+            lines.append("show-in-fullscreen = true")
+        }
+        if let opacity = config.statusBar.opacity {
+            lines.append("opacity = \(opacity)")
+        }
         if let accent = config.statusBar.accentColor {
             lines.append("accent-color = \"\(accent)\"")
         }

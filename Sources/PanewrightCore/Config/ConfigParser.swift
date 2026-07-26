@@ -8,6 +8,7 @@ public enum ConfigError: Error, Equatable, CustomStringConvertible {
     case invalidWorkspaceNumber(String)
     case invalidColor(String)
     case invalidTheme(String)
+    case invalidBarPosition(String)
     case invalidProfileName(String)
 
     public var description: String {
@@ -24,6 +25,8 @@ public enum ConfigError: Error, Equatable, CustomStringConvertible {
             "invalid color '\(value)' (expected #RRGGBB or #RRGGBBAA)"
         case .invalidTheme(let value):
             "unknown bar theme '\(value)' (expected native or technical)"
+        case .invalidBarPosition(let value):
+            "unknown bar position '\(value)' (expected bottom or top — SketchyBar has no vertical bars)"
         case .invalidProfileName(let value):
             "invalid profile name '\(value)'"
         }
@@ -68,6 +71,27 @@ public enum ConfigParser {
                     throw ConfigError.invalidTheme(theme)
                 }
                 config.statusBar.theme = parsed
+            }
+            if let position = bar.position {
+                guard let parsed = PanewrightConfig.StatusBar.Position(rawValue: position)
+                else {
+                    // Left/right were measured, not just declined: SketchyBar
+                    // silently coerces both to top. Refusing here beats a bar
+                    // that lands on an edge nobody asked for.
+                    throw ConfigError.invalidBarPosition(position)
+                }
+                config.statusBar.position = parsed
+            }
+            if let thickness = bar.thickness {
+                config.statusBar.thickness = max(18, min(60, thickness))
+            }
+            if let size = bar.fontSize {
+                config.statusBar.fontSize = max(9, min(24, size))
+            }
+            config.statusBar.showInFullscreen =
+                bar.showInFullscreen ?? config.statusBar.showInFullscreen
+            if let opacity = bar.opacity {
+                config.statusBar.opacity = max(0, min(1, opacity))
             }
             if let accent = bar.accentColor {
                 // Fail loudly here rather than emitting a bar the daemon rejects.
@@ -446,10 +470,17 @@ private struct RawConfig: Codable {
         var enabled: Bool?
         var theme: String?
         var accentColor: String?
+        var position: String?
+        var thickness: Int?
+        var fontSize: Int?
+        var showInFullscreen: Bool?
+        var opacity: Double?
 
         enum CodingKeys: String, CodingKey {
-            case enabled, theme
+            case enabled, theme, position, thickness, opacity
             case accentColor = "accent-color"
+            case fontSize = "font-size"
+            case showInFullscreen = "show-in-fullscreen"
         }
     }
 

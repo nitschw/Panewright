@@ -29,7 +29,11 @@ enum BarPlacer {
     /// screen-parameter notifications fire for app activations too, and a
     /// measure-first design makes false alarms free.
     static func reconcile() {
-        guard let bar = SketchyBarSupervisor.locate(), bar.isRunning(),
+        // The measured placement exists for the bottom edge, where the Dock
+        // and the bar can collide. A top bar has no Dock to dodge (the Dock
+        // can't live there) and keeps its static offset.
+        guard (try? Orchestrator().loadConfig())?.statusBar.position != .top,
+            let bar = SketchyBarSupervisor.locate(), bar.isRunning(),
             let screen = NSScreen.main
         else { return }
         let rawBottom = screen.frame.height
