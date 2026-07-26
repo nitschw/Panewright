@@ -251,12 +251,31 @@ final class WindowFitController {
                     return
                 }
             }
-            // Bounded so a layout we cannot fix becomes a quiet stalemate
-            // rather than an endless churn of resize commands.
+            // Out of attempts. Before calling it a stalemate, ask once more:
+            // those attempts existed to learn the floors, and the answer they
+            // produce is often "these genuinely don't fit". Marking the layout
+            // settled without asking meant the fitter proved a workspace was
+            // impossible and then sat on the finding — four windows left
+            // visibly overlapping, one of them off the edge of the screen,
+            // with eviction never considered.
             let windows = currentWindows(cli: cli)
             DragLog.log(
-                "fitting: giving up after \(Self.maxAttempts) steps in "
+                "fitting: out of resize steps after "
                     + "\(Int(Date().timeIntervalSince(started) * 1000))ms")
+            let final = WindowFitting.nextStep(
+                for: windows, minimums: minimums.minimums, bounds: bounds,
+                separation: separation, step: config.fitting.step,
+                overflowEnabled: config.fitting.overflow)
+            if case .adjusting(.evict(let id)) = final,
+                Date().timeIntervalSince(lastInteraction) >= Self.settleAfterInteraction,
+                Date().timeIntervalSince(lastEviction) >= Self.evictionCooldown,
+                evictedFrom != Set(windows.map(\.id)),
+                recentlyEvicted[id].map({ Date().timeIntervalSince($0) >= Self.reEvictionGuard })
+                    ?? true
+            {
+                evict(id: id, windows: windows, cli: cli)
+                return
+            }
             settled = signature(of: windows)
         }
     }
