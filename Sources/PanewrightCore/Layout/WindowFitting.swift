@@ -448,6 +448,41 @@ public enum WindowFitting {
         return max(0, axis.extent(window.frame) - floor)
     }
 
+    /// The floor worth recording, given what a refusal claimed and what the
+    /// app's other windows are doing right now.
+    ///
+    /// A floor is a claim about the *app*: "it will not go below this". Any
+    /// window of that app currently sitting below the claim refutes it. The
+    /// app plainly does go that small, so the refusal came from somewhere
+    /// else — and there is always a somewhere else, because AeroSpace
+    /// redistributes freed space among siblings, so a window with nowhere to
+    /// send it refuses in exactly the way an app at its limit does. The resize
+    /// alone cannot tell the two apart. Another window of the same app can.
+    ///
+    /// Without this, several windows of one app fight over the single per-app
+    /// slot. Three iTerms produced 752, then 301, 311, 256, 282, 379, 276,
+    /// 396 in under two minutes, each overwriting the last, the "floor was
+    /// wrong" check firing every round. The fitter spent its entire step
+    /// budget re-learning a contradiction and so never reached the eviction
+    /// the workspace actually needed — five windows sat overlapping while it
+    /// argued with itself.
+    ///
+    /// Clamping rather than rejecting matters: a stale, too-high floor has to
+    /// be able to come *down*. Rejecting the claim outright would leave the
+    /// bogus 752 in place forever.
+    public static func corroborated(
+        _ claimed: CGFloat, forBundleID bundleID: String,
+        among windows: [Window], axis: Axis
+    ) -> CGFloat {
+        let observed =
+            windows
+            .filter { $0.bundleID == bundleID }
+            .map { axis.extent($0.frame) }
+            .min()
+        guard let observed else { return claimed }
+        return min(claimed, observed)
+    }
+
     /// What a shrink attempt taught us.
     ///
     /// Asked for 80 and got 80: it had the room, we've learned nothing. Asked

@@ -326,12 +326,15 @@ final class WindowFitController {
                 let after = axis.extent(now.frame)
                 if after < before - 1 {
                     // It moved, so the recorded floor was wrong. Record what
-                    // it actually reached.
-                    minimums.record(bundleID: window.bundleID, axis: axis, minimum: after)
+                    // it actually reached — or what a smaller sibling window
+                    // of the same app already proves, whichever is lower.
+                    let floor = WindowFitting.corroborated(
+                        after, forBundleID: window.bundleID, among: windows, axis: axis)
+                    minimums.record(bundleID: window.bundleID, axis: axis, minimum: floor)
                     minimums.save()
                     DragLog.log(
                         "fitting: \(window.bundleID) went below its recorded floor"
-                            + " — now \(Int(after))pt \(axis.rawValue)")
+                            + " — now \(Int(floor))pt \(axis.rawValue)")
                     improved = true
                 }
             }
@@ -365,10 +368,21 @@ final class WindowFitController {
                     + "\(Int(learned.minimum))pt \(axis.rawValue)")
             return
         }
-        DragLog.log(
-            "fitting: learned \(learned.bundleID) won't go below "
-                + "\(Int(learned.minimum))pt \(axis.rawValue)")
-        minimums.record(bundleID: learned.bundleID, axis: axis, minimum: learned.minimum)
+        // Another window of the same app, currently smaller than this refusal
+        // claims, is proof the refusal was the tree's doing and not the app's.
+        let floor = WindowFitting.corroborated(
+            learned.minimum, forBundleID: learned.bundleID, among: windows, axis: axis)
+        if floor < learned.minimum {
+            DragLog.log(
+                "fitting: \(learned.bundleID) refused at \(Int(learned.minimum))pt "
+                    + "\(axis.rawValue) but another of its windows sits at "
+                    + "\(Int(floor))pt — recording that instead")
+        } else {
+            DragLog.log(
+                "fitting: learned \(learned.bundleID) won't go below "
+                    + "\(Int(floor))pt \(axis.rawValue)")
+        }
+        minimums.record(bundleID: learned.bundleID, axis: axis, minimum: floor)
         minimums.save()
     }
 

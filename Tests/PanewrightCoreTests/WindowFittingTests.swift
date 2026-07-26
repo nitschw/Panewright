@@ -1006,3 +1006,64 @@ private func window(
     }
 }
 
+/// Keeping one app's floor honest when it has several windows.
+///
+/// The numbers are the real thrash from workspace 0: three iTerms sharing a
+/// single per-app slot produced 752, 301, 311, 256, 282, 379, 276, 396 in
+/// under two minutes. Each refusal overwrote the last, so the fitter spent
+/// every round re-learning a contradiction and never reached the eviction the
+/// workspace needed — five windows sat overlapping while it argued with itself.
+@Suite struct CorroborationTests {
+    func iterm(_ id: UInt32, width: CGFloat) -> WindowFitting.Window {
+        WindowFitting.Window(
+            id: id, bundleID: "com.googlecode.iterm2",
+            frame: CGRect(x: 0, y: 36, width: width, height: 1037), arrived: Date())
+    }
+
+    @Test func aSmallerWindowOfTheSameAppRefutesTheClaim() {
+        let windows = [iterm(1, width: 396), iterm(2, width: 276), iterm(3, width: 310)]
+        #expect(
+            WindowFitting.corroborated(
+                396, forBundleID: "com.googlecode.iterm2", among: windows, axis: .horizontal)
+                == 276)
+    }
+
+    /// The point of clamping rather than rejecting: a stale, too-high floor
+    /// has to be able to come down, or the bogus 752 lives forever.
+    @Test func aStaleHighFloorIsPulledDownToTheEvidence() {
+        let windows = [iterm(1, width: 752), iterm(2, width: 301)]
+        #expect(
+            WindowFitting.corroborated(
+                752, forBundleID: "com.googlecode.iterm2", among: windows, axis: .horizontal)
+                == 301)
+    }
+
+    @Test func anUncontradictedClaimIsRecordedAsIs() {
+        let windows = [iterm(1, width: 310)]
+        #expect(
+            WindowFitting.corroborated(
+                310, forBundleID: "com.googlecode.iterm2", among: windows, axis: .horizontal)
+                == 310)
+    }
+
+    /// Other apps' windows are not evidence about this one.
+    @Test func onlyTheSameAppCounts() {
+        let discord = WindowFitting.Window(
+            id: 9, bundleID: "com.hnc.Discord",
+            frame: CGRect(x: 0, y: 36, width: 200, height: 1037), arrived: Date())
+        let windows = [iterm(1, width: 396), discord]
+        #expect(
+            WindowFitting.corroborated(
+                396, forBundleID: "com.googlecode.iterm2", among: windows, axis: .horizontal)
+                == 396)
+    }
+
+    /// Width evidence must not silently become height evidence.
+    @Test func eachAxisIsJudgedOnItsOwn() {
+        let windows = [iterm(1, width: 396), iterm(2, width: 276)]
+        #expect(
+            WindowFitting.corroborated(
+                400, forBundleID: "com.googlecode.iterm2", among: windows, axis: .vertical)
+                == 400)
+    }
+}
