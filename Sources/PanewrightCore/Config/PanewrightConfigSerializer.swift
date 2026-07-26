@@ -72,6 +72,8 @@ public enum PanewrightConfigSerializer {
         lines.append("step = \(config.fitting.step)")
         lines.append("# Keep floating windows above tiled ones.")
         lines.append("float-on-top = \(config.fitting.floatOnTop)")
+        lines.append("# Never shrink a window below this, whatever the app accepts.")
+        lines.append("minimum-usable = \(config.fitting.minimumUsable)")
         lines.append("")
         lines.append("[pills]")
         lines.append("enabled = \(config.pills.enabled)")

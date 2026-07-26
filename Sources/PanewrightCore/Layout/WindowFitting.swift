@@ -192,6 +192,8 @@ public enum WindowFitting {
         bounds: CGRect? = nil,
         separation: CGFloat = 0,
         step: Int = 240,
+        /// The smallest a window may be shrunk to, whatever the app accepts.
+        usable: CGFloat = 0,
         overflowEnabled: Bool = true
     ) -> Verdict {
         let worst = Axis.allCases
@@ -224,7 +226,9 @@ public enum WindowFitting {
             .filter {
                 hasNeighbour($0, among: windows, along: worst.axis, separation: separation)
             }
-            .map { (window: $0, slack: slack(of: $0, minimums: minimums, axis: worst.axis)) }
+            .map {
+                (window: $0, slack: slack(of: $0, minimums: minimums, axis: worst.axis, usable: usable))
+            }
             // Any usable room counts, not only enough to close the whole gap
             // alone. Requiring a single window to absorb the entire ask meant
             // three windows with fifty points of room each were all discarded
@@ -363,11 +367,16 @@ public enum WindowFitting {
     /// promising thing to ask — and if it does refuse, that refusal is what
     /// teaches us its minimum.
     private static func slack(
-        of window: Window, minimums: Minimums, axis: Axis
+        of window: Window, minimums: Minimums, axis: Axis, usable: CGFloat
     ) -> CGFloat {
-        guard let floor = minimums.floor(window.bundleID, axis) else {
-            return axis.extent(window.frame)
-        }
+        // An app's technical minimum is not the same as a size worth having.
+        // iTerm will accept 87 points wide; nobody wants a terminal that
+        // narrow. Counting that as available room made the fitter prefer
+        // crushing one window to nothing over admitting the workspace was
+        // over-full — the terminal shrank a little more with every window
+        // added, and eviction was never reached because *something* always
+        // had "room".
+        let floor = max(minimums.floor(window.bundleID, axis) ?? 0, usable)
         return max(0, axis.extent(window.frame) - floor)
     }
 

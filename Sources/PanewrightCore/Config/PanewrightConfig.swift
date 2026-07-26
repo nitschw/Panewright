@@ -46,15 +46,22 @@ public struct PanewrightConfig: Equatable, Sendable {
         /// loop. A floating window covered by a tiled one defeats the purpose
         /// of floating it.
         public var floatOnTop: Bool
+        /// The smallest a window will be shrunk to, whatever the app will
+        /// technically accept. An app's minimum is not the same as a size
+        /// worth having: iTerm takes 87 points wide, and treating that as
+        /// usable space means the terminal shrinks a little more with every
+        /// window added rather than the workspace admitting it's full.
+        public var minimumUsable: Int
 
         public init(
             enabled: Bool = true, overflow: Bool = true, step: Int = 240,
-            floatOnTop: Bool = true
+            floatOnTop: Bool = true, minimumUsable: Int = 360
         ) {
             self.enabled = enabled
             self.overflow = overflow
             self.step = step
             self.floatOnTop = floatOnTop
+            self.minimumUsable = minimumUsable
         }
     }
 

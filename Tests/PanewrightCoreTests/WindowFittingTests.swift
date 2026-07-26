@@ -837,3 +837,54 @@ private func window(
         #expect(WindowFitting.deficit(in: windows, bounds: tiled, axis: .vertical) == 0)
     }
 }
+
+/// An app's technical minimum is not a size worth having.
+@Suite struct UsableMinimumTests {
+    private let screen = CGRect(x: 0, y: 0, width: 1728, height: 1117)
+
+    @Test func aWindowIsNotCrushedBelowSomethingUsable() {
+        // The reported case: iTerm accepts 87pt wide, so it always had "room"
+        // and was shrunk a little more with every window added, while eviction
+        // was never reached because something always looked shrinkable.
+        let windows = [
+            window(1, "claude", x: 52, width: 600, arrived: 100),
+            window(2, "safari", x: 559, width: 574, arrived: 200),
+            window(3, "discord", x: 1063, width: 800, arrived: 300),
+            window(4, "iterm", x: 1568, width: 156, arrived: 400),
+        ]
+        let minimums = WindowFitting.Minimums(widths: [
+            "claude": 600, "safari": 574, "discord": 800, "iterm": 87,
+        ])
+        // With no usable floor, the terminal keeps being the victim.
+        guard
+            case .adjusting(.shrink(let victim, _, _)) = WindowFitting.nextStep(
+                for: windows, minimums: minimums, bounds: screen, separation: 5, usable: 0)
+        else {
+            Issue.record("expected a shrink")
+            return
+        }
+        #expect(victim == 4)
+
+        // With one, nothing has usable room and the workspace is admitted full.
+        let verdict = WindowFitting.nextStep(
+            for: windows, minimums: minimums, bounds: screen, separation: 5, usable: 360)
+        #expect(verdict == .adjusting(.evict(id: 4)))
+    }
+
+    @Test func aWindowWellAboveTheUsableFloorStillGivesSpace() {
+        // The floor only stops the crushing; it mustn't stop ordinary fitting.
+        let windows = [
+            window(1, "roomy", x: 0, width: 1200, arrived: 100),
+            window(2, "pinned", x: 1100, width: 600, arrived: 200),
+        ]
+        guard
+            case .adjusting(.shrink(let id, _, _)) = WindowFitting.nextStep(
+                for: windows, minimums: WindowFitting.Minimums(widths: ["pinned": 600]),
+                bounds: screen, separation: 5, usable: 360)
+        else {
+            Issue.record("expected a shrink")
+            return
+        }
+        #expect(id == 1)
+    }
+}

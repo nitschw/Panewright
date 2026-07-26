@@ -181,6 +181,7 @@ final class WindowFitController {
                 let verdict = WindowFitting.nextStep(
                     for: windows, minimums: minimums.minimums, bounds: bounds,
                     separation: separation, step: config.fitting.step,
+                    usable: CGFloat(config.fitting.minimumUsable),
                     overflowEnabled: config.fitting.overflow)
                 switch verdict {
                 case .fits:
@@ -269,6 +270,7 @@ final class WindowFitController {
             let final = WindowFitting.nextStep(
                 for: windows, minimums: minimums.minimums, bounds: bounds,
                 separation: separation, step: config.fitting.step,
+                usable: CGFloat(config.fitting.minimumUsable),
                 overflowEnabled: config.fitting.overflow)
             if case .adjusting(.evict(let id)) = final,
                 Date().timeIntervalSince(lastInteraction) >= Self.settleAfterInteraction,
