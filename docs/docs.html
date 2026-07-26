@@ -154,13 +154,6 @@
 brew install nitschw/tap/panewright   <span class="c"># Panewright + the tiling engine, borders, status bar</span></pre>
   <p>That's the whole install: the tiling engine is <b>built into Panewright</b> (a patched build of AeroSpace that runs under Panewright's own permissions), and the cask pulls in focus borders and the status bar. Launch <b>Panewright.app</b> and the <b>setup checklist</b> (menu bar icon → Setup…) walks through the permissions below.</p>
   <p>Already running AeroSpace, any flavor? Uninstall it first — two engines fight over the same windows.</p>
-  <details>
-  <summary>Installing the pieces by hand instead</summary>
-  <pre>brew install FelixKratz/formulae/borders        <span class="c"># focus borders (optional)</span>
-brew install FelixKratz/formulae/sketchybar     <span class="c"># status bar (optional)</span>
-brew install --cask karabiner-elements          <span class="c"># Caps Lock as $mod (optional)</span></pre>
-  <p>Then drop <b>Panewright.app</b> (from the <a href="#releases">releases table</a>) into Applications and launch it. The engine and its <code>aerospace</code> CLI are inside the app.</p>
-  </details>
   <table>
     <tr><th>Who</th><th>Permission</th><th>Why</th></tr>
     <tr><td>Panewright</td><td>Accessibility + Input Monitoring</td><td>Window management (the built-in tiling engine runs under Panewright's own grant), the drag-to-tile event tap, and focus-follows-mouse. Quit and reopen Panewright after granting.</td></tr>
@@ -561,30 +554,30 @@ aerospace move-node-to-workspace --window-id 12345 3</pre>
   <div class="note">Keep your scripts anywhere except <code>~/.config/panewright/scripts/</code> — that directory is generated and overwritten on every apply.</div>
 
   <h2 id="releases">Releases</h2>
-  <p>Every release lives permanently on <a href="https://github.com/nitschw/Panewright/releases">GitHub Releases</a>; installed apps update themselves via Sparkle. Bleeding-edge builds of every commit are available as CI artifacts on the <a href="https://github.com/nitschw/Panewright/actions">Actions page</a> (unsigned — for the brave).</p>
+  <p>Install and update through Homebrew; installed apps also update themselves via Sparkle.</p>
   <table>
-    <tr><th>Version</th><th>Released</th><th>macOS</th><th>Download</th></tr>
+    <tr><th>Version</th><th>Released</th><th>macOS</th></tr>
     <!-- RELEASES -->
-    <tr><td>0.4.0</td><td>2026-07-26</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.4.0/Panewright-0.4.0.zip">Panewright-0.4.0.zip</a></td></tr>
-    <tr><td>0.3.6</td><td>2026-07-25</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.3.6/Panewright-0.3.6.zip">Panewright-0.3.6.zip</a></td></tr>
-    <tr><td>0.3.5</td><td>2026-07-25</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.3.5/Panewright-0.3.5.zip">Panewright-0.3.5.zip</a></td></tr>
-    <tr><td>0.3.4</td><td>2026-07-25</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.3.4/Panewright-0.3.4.zip">Panewright-0.3.4.zip</a></td></tr>
-    <tr><td>0.3.3</td><td>2026-07-25</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.3.3/Panewright-0.3.3.zip">Panewright-0.3.3.zip</a></td></tr>
-    <tr><td>0.3.2</td><td>2026-07-25</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.3.2/Panewright-0.3.2.zip">Panewright-0.3.2.zip</a></td></tr>
-    <tr><td>0.3.1</td><td>2026-07-24</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.3.1/Panewright-0.3.1.zip">Panewright-0.3.1.zip</a></td></tr>
-    <tr><td>0.3.0</td><td>2026-07-24</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.3.0/Panewright-0.3.0.zip">Panewright-0.3.0.zip</a></td></tr>
-    <tr><td>0.2.9</td><td>2026-07-24</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.2.9/Panewright-0.2.9.zip">Panewright-0.2.9.zip</a></td></tr>
-    <tr><td>0.2.8</td><td>2026-07-23</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.2.8/Panewright-0.2.8.zip">Panewright-0.2.8.zip</a></td></tr>
-    <tr><td>0.2.7</td><td>2026-07-23</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.2.7/Panewright-0.2.7.zip">Panewright-0.2.7.zip</a></td></tr>
-    <tr><td>0.2.6</td><td>2026-07-23</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.2.6/Panewright-0.2.6.zip">Panewright-0.2.6.zip</a></td></tr>
-    <tr><td>0.2.5</td><td>2026-07-23</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.2.5/Panewright-0.2.5.zip">Panewright-0.2.5.zip</a></td></tr>
-    <tr><td>0.2.4</td><td>2026-07-23</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.2.4/Panewright-0.2.4.zip">Panewright-0.2.4.zip</a></td></tr>
-    <tr><td>0.2.3</td><td>2026-07-23</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.2.3/Panewright-0.2.3.zip">Panewright-0.2.3.zip</a></td></tr>
-    <tr><td>0.2.2</td><td>2026-07-23</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.2.2/Panewright-0.2.2.zip">Panewright-0.2.2.zip</a></td></tr>
-    <tr><td>0.2.1</td><td>2026-07-23</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.2.1/Panewright-0.2.1.zip">Panewright-0.2.1.zip</a></td></tr>
-    <tr><td>0.2.0</td><td>2026-07-23</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.2.0/Panewright-0.2.0.zip">Panewright-0.2.0.zip</a></td></tr>
-    <tr><td>0.1.1</td><td>2026-07-23</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.1.1/Panewright-0.1.1.zip">Panewright-0.1.1.zip</a></td></tr>
-    <tr><td>0.1.0</td><td>2026-07-23</td><td>14.0+</td><td><a href="https://github.com/nitschw/Panewright/releases/download/v0.1.0/Panewright-0.1.0.zip">Panewright-0.1.0.zip</a></td></tr>
+    <tr><td>0.4.0</td><td>2026-07-26</td><td>14.0+</td></tr>
+    <tr><td>0.3.6</td><td>2026-07-25</td><td>14.0+</td></tr>
+    <tr><td>0.3.5</td><td>2026-07-25</td><td>14.0+</td></tr>
+    <tr><td>0.3.4</td><td>2026-07-25</td><td>14.0+</td></tr>
+    <tr><td>0.3.3</td><td>2026-07-25</td><td>14.0+</td></tr>
+    <tr><td>0.3.2</td><td>2026-07-25</td><td>14.0+</td></tr>
+    <tr><td>0.3.1</td><td>2026-07-24</td><td>14.0+</td></tr>
+    <tr><td>0.3.0</td><td>2026-07-24</td><td>14.0+</td></tr>
+    <tr><td>0.2.9</td><td>2026-07-24</td><td>14.0+</td></tr>
+    <tr><td>0.2.8</td><td>2026-07-23</td><td>14.0+</td></tr>
+    <tr><td>0.2.7</td><td>2026-07-23</td><td>14.0+</td></tr>
+    <tr><td>0.2.6</td><td>2026-07-23</td><td>14.0+</td></tr>
+    <tr><td>0.2.5</td><td>2026-07-23</td><td>14.0+</td></tr>
+    <tr><td>0.2.4</td><td>2026-07-23</td><td>14.0+</td></tr>
+    <tr><td>0.2.3</td><td>2026-07-23</td><td>14.0+</td></tr>
+    <tr><td>0.2.2</td><td>2026-07-23</td><td>14.0+</td></tr>
+    <tr><td>0.2.1</td><td>2026-07-23</td><td>14.0+</td></tr>
+    <tr><td>0.2.0</td><td>2026-07-23</td><td>14.0+</td></tr>
+    <tr><td>0.1.1</td><td>2026-07-23</td><td>14.0+</td></tr>
+    <tr><td>0.1.0</td><td>2026-07-23</td><td>14.0+</td></tr>
     <tr><td colspan="4" style="color:var(--ink-faint)">First release coming soon.</td></tr>
   </table>
 

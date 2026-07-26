@@ -79,10 +79,11 @@ MIN_MACOS="$(/usr/libexec/PlistBuddy -c "Print :LSMinimumSystemVersion" Support/
 python3 - "$VERSION" "$MIN_MACOS" "$URL" << 'EOF'
 import sys, datetime
 version, min_macos, url = sys.argv[1:4]
+# Version history only — the docs deliberately carry no download links;
+# Homebrew is the supported install path and Sparkle handles updates.
 row = (f'    <tr><td>{version}</td>'
        f'<td>{datetime.date.today().isoformat()}</td>'
-       f'<td>{min_macos}+</td>'
-       f'<td><a href="{url}">Panewright-{version}.zip</a></td></tr>\n')
+       f'<td>{min_macos}+</td></tr>\n')
 path = "docs/docs.html"
 content = open(path).read()
 content = content.replace("    <!-- RELEASES -->\n", "    <!-- RELEASES -->\n" + row)
