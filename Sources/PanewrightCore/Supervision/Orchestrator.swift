@@ -144,6 +144,7 @@ public struct Orchestrator: Sendable {
         _ = waitForAeroSpace()
         try? apply(dockInsetBottom: dockInsetBottom, dockInsetSides: dockInsetSides)
         healLayoutsWhenReady()
+        restoreWorkspaces()
         // Distribution is driven from the app layer (MonitorMap) once the
         // display arrangement is known and AeroSpace has settled — running it
         // here races AeroSpace's own startup workspace auto-assignment.
@@ -250,6 +251,10 @@ public struct Orchestrator: Sendable {
     /// tiling engine exits. Launch Panewright again and everything
     /// reassembles.
     public func teardown() {
+        // The freshest possible record of who lives where, taken while the
+        // engine can still answer — bootstrap restores it, so a Panewright
+        // restart stops scrambling workspaces.
+        snapshotWorkspaces()
         if let borders = JankyBordersSupervisor.locate(), borders.isRunning() {
             borders.stop()
         }
@@ -932,13 +937,34 @@ public struct Orchestrator: Sendable {
         if FileManager.default.isExecutableFile(atPath: embedded.path) {
             let engine = Process()
             engine.executableURL = embedded
-            engine.standardOutput = FileHandle.nullDevice
-            engine.standardError = FileHandle.nullDevice
-            // Reap on exit; nothing holds the handle. Termination is pkill's
-            // job (teardown), not ours — and an orphaned engine surviving a
+            // The engine's own words go to a file, not /dev/null. It died
+            // silently across a screen sleep once — no crash report, no log,
+            // nothing to diagnose with. Never again.
+            let log = FileManager.default.homeDirectoryForCurrentUser
+                .appending(path: "Library/Logs/PanewrightEngine.log")
+            // Create, never truncate: the relaunch after a death would
+            // otherwise wipe the termination line the death just wrote —
+            // which is the one line the log exists to keep.
+            if !FileManager.default.fileExists(atPath: log.path) {
+                FileManager.default.createFile(atPath: log.path, contents: nil)
+            }
+            let handle = try? FileHandle(forWritingTo: log)
+            _ = try? handle?.seekToEnd()
+            engine.standardOutput = handle ?? FileHandle.nullDevice
+            engine.standardError = handle ?? FileHandle.nullDevice
+            // Reap on exit and say how it went. Termination is pkill's job
+            // (teardown), not ours — and an orphaned engine surviving a
             // Panewright crash keeps the user's windows managed, which is a
             // feature, not a leak.
-            engine.terminationHandler = { _ in }
+            engine.terminationHandler = { process in
+                let how =
+                    process.terminationReason == .uncaughtSignal
+                    ? "signal \(process.terminationStatus)"
+                    : "exit \(process.terminationStatus)"
+                let line = "\(Date().formatted(.iso8601)) engine terminated: \(how)\n"
+                _ = try? handle?.write(contentsOf: Data(line.utf8))
+                try? handle?.close()
+            }
             try engine.run()
             return
         }
@@ -951,6 +977,60 @@ public struct Orchestrator: Sendable {
         try runTool("/usr/bin/pkill", ["-x", "AeroSpace"])
         Thread.sleep(forTimeInterval: 0.5)
         try launchAeroSpace()
+    }
+
+    /// Which window lives on which workspace, written continuously so an
+    /// engine death doesn't erase the answer.
+    ///
+    /// The engine keeps workspace assignments in memory only: any restart —
+    /// crash, kill, or the silent death one screen-sleep produced — dumps
+    /// every window onto one workspace, and the user rebuilds their layout by
+    /// hand. The snapshot is cheap (one CLI call), and restoring it turns an
+    /// engine restart from "my environment reset" into a blip.
+    public func snapshotWorkspaces() {
+        guard let cli = AeroSpaceCLI.locate(),
+            let output = try? cli.run([
+                "list-windows", "--all", "--format", "%{window-id}\t%{workspace}",
+            ]),
+            let focused = try? cli.run(["list-workspaces", "--focused"])
+        else { return }
+        // A snapshot of a broken engine would restore chaos; only write one
+        // that names at least one real window on a real workspace.
+        guard output.contains("\t") else { return }
+        let file = paths.panewrightConfigFile.deletingLastPathComponent()
+            .appending(path: ".workspace-snapshot")
+        try? (output + "\nFOCUSED\t" + focused.trimmingCharacters(in: .whitespacesAndNewlines))
+            .write(to: file, atomically: true, encoding: .utf8)
+    }
+
+    /// Put every window the snapshot knows back on its workspace. Windows
+    /// that closed in the meantime are skipped by the engine itself (the move
+    /// fails, harmlessly); new windows stay where they landed.
+    public func restoreWorkspaces() {
+        guard let cli = AeroSpaceCLI.locate() else { return }
+        let file = paths.panewrightConfigFile.deletingLastPathComponent()
+            .appending(path: ".workspace-snapshot")
+        guard let content = try? String(contentsOf: file, encoding: .utf8) else { return }
+        var focused: String?
+        var moved = 0
+        for line in content.split(separator: "\n") {
+            let parts = line.split(separator: "\t", maxSplits: 1).map(String.init)
+            guard parts.count == 2 else { continue }
+            if parts[0] == "FOCUSED" {
+                focused = parts[1]
+            } else if (try? cli.run([
+                "move-node-to-workspace", "--window-id", parts[0], parts[1],
+            ])) != nil {
+                moved += 1
+            }
+        }
+        if let focused, !focused.isEmpty {
+            try? cli.run(["workspace", focused])
+        }
+        if moved > 0 {
+            try? runTool(
+                "/bin/echo", ["restored \(moved) windows to their workspaces"])
+        }
     }
 
     /// Restarts scramble workspace tree roots (the accordion surprise).

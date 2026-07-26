@@ -156,6 +156,9 @@ struct PanewrightApp: App {
 @MainActor @Observable
 final class AppModel {
     let orchestrator = Orchestrator()
+    /// When the engine was last (re)launched — snapshots pause briefly after,
+    /// so a fresh engine's scrambled state can't overwrite the good record.
+    @MainActor static var lastEngineLaunch = Date()
     private let dockWatcher = DockWatcher()
     var status: AeroSpaceStatus = .notInstalled
     var lastMessage = ""
@@ -873,6 +876,16 @@ final class AppModel {
                         config, dockInsetBottom: insets.0, dockInsetSides: insets.1)
                 }
                 await self?.checkAeroSpaceHealth(orchestrator)
+                // Keep the who-lives-where record fresh while the engine is
+                // healthy — but not right after a (re)launch, when the truth
+                // is still the snapshot, not the engine. Overwriting the good
+                // record with everything-on-one-workspace would make the next
+                // restore useless.
+                if await MainActor.run(body: {
+                    Date().timeIntervalSince(AppModel.lastEngineLaunch) > 60
+                }) {
+                    orchestrator.snapshotWorkspaces()
+                }
                 Self.refreshBrewOutdatedCache()
             }
         }
@@ -946,7 +959,21 @@ final class AppModel {
             !orchestrator.isAeroSpaceProcessRunning()
         {
             DragLog.log("aerospace health: engine not running — launching")
+            await MainActor.run { AppModel.lastEngineLaunch = Date() }
             try? orchestrator.launchAeroSpace()
+            // A fresh engine dumps every window onto one workspace; the
+            // snapshot puts them back. Wait for the server first — moves
+            // against a socket that isn't listening yet just vanish.
+            for _ in 0..<20 {
+                try? await Task.sleep(for: .milliseconds(500))
+                if let cli = AeroSpaceCLI.locate(),
+                    (try? cli.run(["list-workspaces", "--focused"])) != nil
+                {
+                    orchestrator.restoreWorkspaces()
+                    DragLog.log("aerospace health: workspaces restored from snapshot")
+                    break
+                }
+            }
             return
         }
         let onScreen = WindowSnapshot.capture().filter {

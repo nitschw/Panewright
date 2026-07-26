@@ -52,6 +52,9 @@ final class WindowFitController {
     /// genuinely too full still resolves without being touched again.
     private static let settleAfterInteraction: TimeInterval = 3
     private var lastEviction = Date.distantPast
+    /// Same idea as the eviction cooldown: a join reshapes the tree, and
+    /// judging the layout again before AeroSpace has settled reads chaos.
+    private var lastStack = Date.distantPast
     /// The window set at the moment of the last eviction. Nothing else moves
     /// until this differs from what's actually on screen.
     private var evictedFrom: Set<UInt32> = []
@@ -271,6 +274,36 @@ final class WindowFitController {
                         return
                     }
                     evict(id: id, windows: windows, cli: cli)
+                    return
+                case .adjusting(.stack(let id, let with)):
+                    // Structural, like eviction — never mid-gesture, never in
+                    // a rapid burst, and once per settle so a failed join
+                    // doesn't loop.
+                    guard
+                        Date().timeIntervalSince(lastInteraction) >= Self.settleAfterInteraction,
+                        Date().timeIntervalSince(lastStack) >= Self.evictionCooldown,
+                        let mover = windows.first(where: { $0.id == id }),
+                        let target = windows.first(where: { $0.id == with })
+                    else { return }
+                    lastStack = Date()
+                    let direction =
+                        target.frame.midX < mover.frame.midX ? "left" : "right"
+                    DragLog.log(
+                        "fitting: columns don't fit — stacking \(mover.bundleID)"
+                            + " (\(Int(mover.frame.width))pt) into"
+                            + " \(target.bundleID)'s column")
+                    guard
+                        (try? cli.run(["join-with", "--window-id", "\(id)", direction])) != nil
+                    else {
+                        DragLog.log("fitting: join-with failed — leaving the layout alone")
+                        settled = signature(of: windows)
+                        return
+                    }
+                    // The tree reshapes more slowly than windows move; give it
+                    // a beat, then let the next tick judge the new geometry
+                    // fresh rather than acting on mid-transition frames.
+                    try? await Task.sleep(for: .milliseconds(350))
+                    consecutiveOverlaps = 0
                     return
                 case .adjusting(.shrink(let id, let by, let axis)):
                     guard let target = windows.first(where: { $0.id == id }) else { return }

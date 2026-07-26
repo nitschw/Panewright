@@ -273,8 +273,13 @@ private func window(
     @Test func whenNothingCanShrinkTheNewestArrivalIsEvicted() {
         // Both on their floor, and the row still doesn't fit the display: no
         // arrangement of these two works. iTerm arrived last, so iTerm leaves.
+        // Height floors veto the stacking escalation, so this still tests
+        // the true last resort.
         let verdict = WindowFitting.nextStep(
-            for: tooWideForTheScreen, minimums: WindowFitting.Minimums(widths: ["chrome": 900, "iterm": 900]),
+            for: tooWideForTheScreen,
+            minimums: WindowFitting.Minimums(
+                widths: ["chrome": 900, "iterm": 900],
+                heights: ["chrome": 900, "iterm": 900]),
             bounds: smallScreen, step: 60)
         #expect(verdict == .adjusting(.evict(id: 2)))
     }
@@ -283,7 +288,10 @@ private func window(
         // Someone who disabled overflow is choosing to live with it; the
         // verdict still reports the problem rather than claiming it fits.
         let verdict = WindowFitting.nextStep(
-            for: tooWideForTheScreen, minimums: WindowFitting.Minimums(widths: ["chrome": 900, "iterm": 900]),
+            for: tooWideForTheScreen,
+            minimums: WindowFitting.Minimums(
+                widths: ["chrome": 900, "iterm": 900],
+                heights: ["chrome": 900, "iterm": 900]),
             bounds: smallScreen, step: 60, overflowEnabled: false)
         #expect(verdict == .cannotFit(count: 2))
     }
@@ -721,7 +729,8 @@ private func window(
             window(1, "a", x: 0, width: 900, arrived: 100),
             window(2, "b", x: 890, width: 900, arrived: 200),
         ]
-        let minimums = WindowFitting.Minimums(widths: ["a": 900, "b": 900])
+        let minimums = WindowFitting.Minimums(
+            widths: ["a": 900, "b": 900], heights: ["a": 600, "b": 600])
         let verdict = WindowFitting.nextStep(
             for: windows, minimums: minimums, bounds: CGRect(x: 0, y: 0, width: 1000, height: 1000),
             separation: 5, step: 240)
@@ -891,7 +900,8 @@ private func window(
             window(1, "a", x: 0, width: 900, arrived: 100),
             window(2, "b", x: 890, width: 900, arrived: 200),
         ]
-        let minimums = WindowFitting.Minimums(widths: ["a": 900, "b": 900])
+        let minimums = WindowFitting.Minimums(
+            widths: ["a": 900, "b": 900], heights: ["a": 600, "b": 600])
         #expect(
             WindowFitting.nextStep(
                 for: windows, minimums: minimums,
@@ -1103,8 +1113,9 @@ private func window(
         }
     }
 
-    /// The same call on a workspace where no arrangement exists must not crush
-    /// everything first.
+    /// The same call on a workspace where no arrangement of columns exists
+    /// must not crush everything first — it escalates structurally instead.
+    /// Stacking beats evicting; either beats shaving four windows to nothing.
     @Test func nothingIsCrushedWhenNoArrangementFits() {
         let windows = [
             window(1, "com.hnc.Discord", width: 500),
@@ -1118,9 +1129,10 @@ private func window(
         ])
         let verdict = WindowFitting.nextStep(
             for: windows, minimums: minimums, bounds: bounds, usable: 360)
-        guard case .adjusting(.evict) = verdict else {
+        switch verdict {
+        case .adjusting(.stack), .adjusting(.evict): break
+        default:
             Issue.record("kept shrinking a workspace that cannot fit: \(verdict)")
-            return
         }
     }
 

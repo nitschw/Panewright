@@ -84,6 +84,10 @@ public enum WindowFitting {
         /// Ask this window to give up space along an axis. Whatever it
         /// actually gives up teaches us its floor in that direction.
         case shrink(id: UInt32, by: Int, axis: Axis)
+        /// Put this window in a column with that one — two windows at half
+        /// height where two columns used to be, reclaiming the narrower
+        /// column's whole width.
+        case stack(id: UInt32, with: UInt32)
         /// Every window is already at its minimum and they still don't fit.
         case evict(id: UInt32)
     }
@@ -277,9 +281,70 @@ public enum WindowFitting {
                 return .adjusting(.shrink(id: target.window.id, by: ask, axis: worst.axis))
             }
         }
+        // Nothing has width to give. Before anything leaves the workspace,
+        // try trading height for it: two columns stacked into one reclaim the
+        // narrower column's entire width. The arithmetic that makes this the
+        // right escalation is stark — four columns at their floors can demand
+        // hundreds of points more than the display while the same windows as
+        // a 2×2 grid fit with room to spare. A half-height window on the
+        // workspace you're using beats a full-height window somewhere else.
+        if worst.axis == .horizontal, let bounds,
+            let pair = stackablePair(
+                in: windows, minimums: minimums, bounds: bounds, separation: separation)
+        {
+            return .adjusting(.stack(id: pair.id, with: pair.with))
+        }
         guard overflowEnabled, let newest = windows.max(by: { $0.arrived < $1.arrived })
         else { return .cannotFit(count: windows.count) }
         return .adjusting(.evict(id: newest.id))
+    }
+
+    /// The best pair of columns to merge into one, if any pair qualifies.
+    ///
+    /// Candidates are full-height column neighbours — matching vertical spans
+    /// (the sibling test) and side by side. Anything already inside a stack
+    /// fails the full-height check, so stacks don't nest deeper by accident.
+    ///
+    /// Two rules pick the pair:
+    ///
+    /// - It must fit at half height. Judged by the learned height floors,
+    ///   which are usually absent (floors are only learned on an axis with a
+    ///   neighbour, and all-column layouts never contest height) — absent
+    ///   counts as no constraint, so this fails safe in the direction of
+    ///   trying: it can veto a stack two floors prove impossible, and
+    ///   otherwise lets the resize loop discover the truth by doing.
+    /// - Of the survivors, reclaim the most width. Stacking removes the
+    ///   narrower column from the row, so the pair with the widest *narrower*
+    ///   member wins.
+    ///
+    /// The mover is the narrower window: it joins the wider one's column, so
+    /// the surviving column is the one that was always going to set the width.
+    static func stackablePair(
+        in windows: [Window], minimums: Minimums, bounds: CGRect, separation: CGFloat
+    ) -> (id: UInt32, with: UInt32)? {
+        let fullHeight = bounds.height * 0.8
+        let columns = windows.filter { $0.frame.height >= fullHeight }
+        var best: (id: UInt32, with: UInt32, reclaimed: CGFloat)?
+        for i in columns.indices {
+            for j in columns.indices where j > i {
+                let a = columns[i]
+                let b = columns[j]
+                guard neighbouring(a.frame, b.frame, separation: separation) == .horizontal,
+                    siblings(a.frame, b.frame, along: .horizontal)
+                else { continue }
+                let floorA = minimums.floor(a.bundleID, .vertical) ?? 0
+                let floorB = minimums.floor(b.bundleID, .vertical) ?? 0
+                guard floorA + floorB + separation <= bounds.height else { continue }
+                let reclaimed = min(a.frame.width, b.frame.width)
+                guard reclaimed >= Self.smallestUsefulAsk else { continue }
+                if reclaimed > (best?.reclaimed ?? 0) {
+                    let narrower = a.frame.width <= b.frame.width ? a : b
+                    let wider = narrower.id == a.id ? b : a
+                    best = (id: narrower.id, with: wider.id, reclaimed: reclaimed)
+                }
+            }
+        }
+        return best.map { (id: $0.id, with: $0.with) }
     }
 
     /// Whether a set of windows can share a display at all, and why not.
