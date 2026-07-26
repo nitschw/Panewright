@@ -934,6 +934,21 @@ final class AppModel {
     private var aeroStallRestarted = false
     private var aeroStallNotified = false
     private func checkAeroSpaceHealth(_ orchestrator: Orchestrator) async {
+        // A dead engine first, and separately from a stalled one. The stall
+        // path exists for a *running* engine that lost Accessibility; before
+        // the engine was embedded, a dead AeroSpace was Launch Services'
+        // problem. Now it's ours: nothing else will ever bring it back, which
+        // was measured the hard way — a killed engine stayed down until the
+        // whole app was restarted.
+        if let config = try? orchestrator.loadConfig(), config.fitting.enabled
+            || config.statusBar.enabled,
+            AeroSpaceCLI.locate() != nil,
+            !orchestrator.isAeroSpaceProcessRunning()
+        {
+            DragLog.log("aerospace health: engine not running — launching")
+            try? orchestrator.launchAeroSpace()
+            return
+        }
         let onScreen = WindowSnapshot.capture().filter {
             !Self.systemOwners.contains($0.ownerName)
         }.count

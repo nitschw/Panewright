@@ -182,6 +182,19 @@ final class WindowFitController {
             // back after a resize are the same frames the next decision needs,
             // and querying twice was most of the time this loop spent.
             var windows = currentWindows(cli: cli)
+            // Remembered so running out of steps can tell progress from a
+            // stalemate. A window shoved far off-screen needs more correction
+            // than one burst's step budget covers, and marking the layout
+            // settled after a burst that was working meant recovery stopped
+            // until the user jiggled something — "it takes a few clicks of
+            // the resize to fully recover" was exactly this, each click
+            // changing the signature and unlocking one more burst.
+            let deficitAtStart = WindowFitting.Axis.allCases
+                .map {
+                    WindowFitting.deficit(
+                        in: windows, bounds: bounds, separation: separation, axis: $0)
+                }
+                .max() ?? 0
             for attempt in 1...Self.maxAttempts {
                 guard windows.count > 1 else { return }
                 let verdict = WindowFitting.nextStep(
@@ -297,6 +310,22 @@ final class WindowFitController {
                     ?? true
             {
                 evict(id: id, windows: windows, cli: cli)
+                return
+            }
+            // Give up only on a genuine stalemate. If this burst reduced the
+            // deficit, the next tick gets another one — convergence continues
+            // by itself instead of waiting for the user to nudge a window.
+            let deficitNow = WindowFitting.Axis.allCases
+                .map {
+                    WindowFitting.deficit(
+                        in: windows, bounds: bounds, separation: separation, axis: $0)
+                }
+                .max() ?? 0
+            if deficitNow < deficitAtStart - 1 {
+                DragLog.log(
+                    "fitting: progress (\(Int(deficitAtStart)) → \(Int(deficitNow))pt)"
+                        + " — continuing next tick")
+                consecutiveOverlaps = 0
                 return
             }
             settled = signature(of: windows)

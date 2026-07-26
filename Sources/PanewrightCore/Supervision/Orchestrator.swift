@@ -953,7 +953,7 @@ public struct Orchestrator: Sendable {
         }
     }
 
-    func isAeroSpaceProcessRunning() -> Bool {
+    public func isAeroSpaceProcessRunning() -> Bool {
         (try? runTool("/usr/bin/pgrep", ["-x", "AeroSpace"])) != nil
     }
 
