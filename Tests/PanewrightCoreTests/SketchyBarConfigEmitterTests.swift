@@ -384,3 +384,75 @@ import Testing
         #expect(line.contains("&& mv"))
     }
 }
+
+/// Keeping the bar clear of a Dock along the bottom edge.
+///
+/// SketchyBar pins the bar to the bottom of the raw screen and has no idea the
+/// Dock exists, so a bottom Dock — the macOS default — sits on top of it. Only
+/// that one placement shares an edge with the bar; left, right and top Docks
+/// need no adjustment, and asking for one would push the bar off its edge for
+/// no reason.
+@Suite struct DockClearanceTests {
+    private func barLine(dockInsetBottom: Int, theme: PanewrightConfig.StatusBar.Theme)
+        throws -> String
+    {
+        var config = PanewrightConfig.default
+        config.statusBar.theme = theme
+        let rc = try SketchyBarConfigEmitter.emit(config, dockInsetBottom: dockInsetBottom)
+            .sketchybarrc
+        return String(
+            rc.split(separator: "\n").first { $0.contains("--bar position=") } ?? "")
+    }
+
+    @Test func noDockOnTheBottomLeavesTheBarWhereItWas() throws {
+        #expect(try barLine(dockInsetBottom: 0, theme: .native).contains("y_offset=5"))
+        #expect(try barLine(dockInsetBottom: 0, theme: .technical).contains("y_offset=0"))
+    }
+
+    @Test func aBottomDockLiftsTheBarClearOfIt() throws {
+        // A 64pt Dock: the bar's own 5pt offset plus the Dock's height.
+        #expect(try barLine(dockInsetBottom: 64, theme: .native).contains("y_offset=69"))
+        #expect(try barLine(dockInsetBottom: 64, theme: .technical).contains("y_offset=64"))
+    }
+
+    /// The bar keeps its height and position; only the offset moves. A lift
+    /// that also changed the height would eat the space it just reserved.
+    @Test func onlyTheOffsetChanges() throws {
+        let lifted = try barLine(dockInsetBottom: 64, theme: .native)
+        #expect(lifted.contains("position=bottom"))
+        #expect(lifted.contains("height=30"))
+    }
+}
+
+/// A Dock on the left or right overlaps the *end* of the bar, not its face.
+///
+/// margin is SketchyBar's only horizontal lever and insets both ends equally,
+/// so clearing a 50pt left Dock costs 50pt on the right too. There is no
+/// margin_left. A slightly narrower centred bar beats one that disappears
+/// under the Dock at one end.
+@Suite struct SideDockClearanceTests {
+    private func barLine(sides: Int, theme: PanewrightConfig.StatusBar.Theme) throws -> String {
+        var config = PanewrightConfig.default
+        config.statusBar.theme = theme
+        let rc = try SketchyBarConfigEmitter.emit(config, dockInsetSides: sides).sketchybarrc
+        return String(
+            rc.split(separator: "\n").first { $0.contains("--bar position=") } ?? "")
+    }
+
+    @Test func noSideDockLeavesTheThemeMarginAlone() throws {
+        #expect(try barLine(sides: 0, theme: .native).contains("margin=8"))
+        #expect(try barLine(sides: 0, theme: .technical).contains("margin=0"))
+    }
+
+    @Test func aSideDockWidensTheMarginToClearIt() throws {
+        #expect(try barLine(sides: 50, theme: .native).contains("margin=50"))
+        #expect(try barLine(sides: 50, theme: .technical).contains("margin=50"))
+    }
+
+    /// A Dock thinner than the margin the theme already has changes nothing —
+    /// the bar was already clear of it.
+    @Test func aThinDockDoesNotShrinkAnExistingMargin() throws {
+        #expect(try barLine(sides: 4, theme: .native).contains("margin=8"))
+    }
+}
+

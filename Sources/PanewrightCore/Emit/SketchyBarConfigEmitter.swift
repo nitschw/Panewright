@@ -24,19 +24,52 @@ public enum SketchyBarConfigEmitter {
         let dim: String
     }
 
-    private static func palette(for theme: PanewrightConfig.StatusBar.Theme) -> Palette {
+    /// - Parameter lift: points to raise the bar by, so it clears a Dock that
+    ///   sits along the bottom edge. Zero for every other Dock placement,
+    ///   because only a bottom Dock shares an edge with the bar.
+    /// The bar geometry a Dock placement demands, in one place, because two
+    /// paths need the same numbers: the emitted config (a bar restart) and the
+    /// live `--bar` push (a Dock move while the bar is running). Computed
+    /// twice, they drift; the drifted version is the one that only shows up
+    /// when someone moves their Dock.
+    ///
+    /// - A bottom Dock shares the bar's edge, so the bar lifts above it.
+    /// - A side Dock overlaps the bar's *end*; `margin` is SketchyBar's only
+    ///   horizontal lever and it is symmetric (no `margin_left` exists), so
+    ///   clearing one end costs the same at the other.
+    public static func barGeometry(
+        for theme: PanewrightConfig.StatusBar.Theme,
+        dockInsetBottom: Int = 0, dockInsetSides: Int = 0
+    ) -> (yOffset: Int, margin: Int) {
+        switch theme {
+        case .native:
+            (yOffset: 5 + dockInsetBottom, margin: max(8, dockInsetSides))
+        case .technical:
+            (yOffset: dockInsetBottom, margin: dockInsetSides)
+        }
+    }
+
+    private static func palette(
+        for theme: PanewrightConfig.StatusBar.Theme, lift: Int = 0, sideInset: Int = 0
+    ) -> Palette {
         switch theme {
         case .native:
             Palette(
                 barProps:
-                    "height=30 corner_radius=9 margin=8 y_offset=5 blur_radius=30 color=0x2c000000",
+                    "height=30 corner_radius=9"
+                    + " margin=\(barGeometry(for: .native, dockInsetBottom: lift, dockInsetSides: sideInset).margin)"
+                    + " y_offset=\(barGeometry(for: .native, dockInsetBottom: lift, dockInsetSides: sideInset).yOffset)"
+                    + " blur_radius=30 color=0x2c000000",
                 font: "SF Pro:Semibold:13.0",
                 text: "0xffffffff",
                 dim: "0x80ffffff")
         case .technical:
             Palette(
                 barProps:
-                    "height=26 corner_radius=0 margin=0 y_offset=0 blur_radius=0 color=0xf016161e",
+                    "height=26 corner_radius=0"
+                    + " margin=\(barGeometry(for: .technical, dockInsetBottom: lift, dockInsetSides: sideInset).margin)"
+                    + " y_offset=\(barGeometry(for: .technical, dockInsetBottom: lift, dockInsetSides: sideInset).yOffset)"
+                    + " blur_radius=0 color=0xf016161e",
                 font: "SF Mono:Bold:12.0",
                 text: "0xffc0caf5",
                 dim: "0x66c0caf5")
@@ -53,7 +86,16 @@ public enum SketchyBarConfigEmitter {
         }
     }
 
-    public static func emit(_ config: PanewrightConfig) throws -> Files {
+    /// - Parameter dockInsetBottom: how much of the bottom edge the Dock has
+    ///   taken, measured by the caller from `NSScreen.visibleFrame`. SketchyBar
+    ///   positions the bar against the raw screen edge and knows nothing about
+    ///   the Dock, so a bottom Dock lands underneath it unless the bar is
+    ///   lifted clear. Zero when the Dock is anywhere else, or hidden.
+    /// - Parameter dockInsetSides: points the Dock takes from the left or
+    ///   right edge, which overlaps the *end* of a bar that spans its edge.
+    public static func emit(
+        _ config: PanewrightConfig, dockInsetBottom: Int = 0, dockInsetSides: Int = 0
+    ) throws -> Files {
         let accent = String(
             format: "0x%08x", try ColorHex.argb(fromCSSHex: config.focusBorder.activeColor))
         // The workspace highlight defaults to the border accent (one color, one
@@ -61,7 +103,9 @@ public enum SketchyBarConfigEmitter {
         let barAccent = try config.statusBar.accentColor.map {
             String(format: "0x%08x", try ColorHex.argb(fromCSSHex: $0))
         } ?? accent
-        let palette = palette(for: config.statusBar.theme)
+        let palette = palette(
+            for: config.statusBar.theme, lift: dockInsetBottom,
+            sideInset: dockInsetSides)
         let workspaces = AeroSpaceConfigEmitter.workspaceNumbers(in: config.bindings)
         let workspaceList = workspaces.map(String.init).joined(separator: " ")
         // Per-display item names, display outer so each monitor's strip stays
@@ -717,6 +761,7 @@ public enum SketchyBarConfigEmitter {
             fi
 
             [ ${#ARGS[@]} -gt 0 ] && "$BAR" "${ARGS[@]}"
+
             exit 0
             """
 

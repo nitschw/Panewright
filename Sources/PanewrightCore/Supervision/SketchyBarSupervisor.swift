@@ -50,6 +50,39 @@ public struct SketchyBarSupervisor: Sendable {
         process.waitUntilExit()
     }
 
+    /// Adjust the running bar's geometry in place — no reload, so the items
+    /// keep their state and nothing visibly repopulates. A reload is the right
+    /// tool when the *contents* changed; for a Dock move only the frame did.
+    public func setBarGeometry(yOffset: Int, margin: Int? = nil) throws {
+        let process = Process()
+        process.executableURL = executableURL
+        process.arguments =
+            ["--bar", "y_offset=\(yOffset)"] + (margin.map { ["margin=\($0)"] } ?? [])
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        process.waitUntilExit()
+    }
+
+    /// The y_offset the bar is currently configured with — needed alongside a
+    /// measured frame to learn what one unit of y_offset actually moves.
+    public func queryBarYOffset() -> Int? {
+        let process = Process()
+        process.executableURL = executableURL
+        process.arguments = ["--query", "bar"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard
+            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let offset = json["y_offset"] as? Int
+        else { return nil }
+        return offset
+    }
+
     public func stop() {
         let process = Process()
         process.executableURL = URL(filePath: "/usr/bin/pkill")

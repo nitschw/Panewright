@@ -55,7 +55,7 @@ final class ConflictsModel {
         mutate(&updated)
         do {
             try appModel.orchestrator.writeConfig(updated)
-            try appModel.orchestrator.apply()
+            try appModel.orchestrator.apply(dockInsetBottom: DockInset.bottom, dockInsetSides: DockInset.sides)
             config = updated
         } catch {
             appModel.report(error: "\(error)")

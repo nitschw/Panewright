@@ -239,8 +239,11 @@ final class AppModel {
             WakeGuard.observe()
             MonitorMap.observe()
         }
+        let dockBottom = DockInset.bottom
+        let dockSides = DockInset.sides
         Task.detached(priority: .userInitiated) {
-            orchestrator.bootstrap()
+            orchestrator.bootstrap(
+                dockInsetBottom: dockBottom, dockInsetSides: dockSides)
             await finished()
         }
     }
@@ -401,7 +404,9 @@ final class AppModel {
             // Work widgets live in their own bar items created at build time,
             // so toggling one still needs the bar rebuilt; the rest don't.
             if rebuildNeeded {
-                try orchestrator.applyBar(config)
+                try orchestrator.applyBar(
+                    config, dockInsetBottom: DockInset.bottom,
+                    dockInsetSides: DockInset.sides)
                 self.integrations.configure(config.integrations)
             } else {
                 try orchestrator.refreshWidgets(config)
@@ -753,7 +758,7 @@ final class AppModel {
 
     func apply() {
         do {
-            try orchestrator.apply()
+            try orchestrator.apply(dockInsetBottom: DockInset.bottom, dockInsetSides: DockInset.sides)
             lastMessage = "Config applied"
         } catch {
             report(error: "\(error)")
@@ -853,13 +858,17 @@ final class AppModel {
             // never broken — restarting AeroSpace and rebuilding the bar every
             // time the lid opens.
             guard !WakeGuard.isSettling else { return }
+            // Read on the main actor before handing off: NSScreen is not for
+            // background threads, and this timer already runs on main.
+            let insets = MainActor.assumeIsolated { (DockInset.bottom, DockInset.sides) }
             Task.detached(priority: .utility) {
                 let orchestrator = Orchestrator()
                 if let config = try? orchestrator.loadConfig(), config.statusBar.enabled,
                     let bar = SketchyBarSupervisor.locate(), !bar.isRunning()
                 {
                     DragLog.log("bar health: sketchybar is down — restarting")
-                    try? orchestrator.applyBar(config)
+                    try? orchestrator.applyBar(
+                        config, dockInsetBottom: insets.0, dockInsetSides: insets.1)
                 }
                 await self?.checkAeroSpaceHealth(orchestrator)
                 Self.refreshBrewOutdatedCache()

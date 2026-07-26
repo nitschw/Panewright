@@ -111,17 +111,20 @@ public struct Orchestrator: Sendable {
     /// environment up fresh. Deterministic regardless of how the last
     /// session ended (clean quit, crash, or kill). Blocking — callers run
     /// it off the main thread.
-    public func bootstrap() {
+    /// Dock insets arrive as parameters because measuring them needs NSScreen
+    /// and this layer has no AppKit — the caller reads them on the main actor
+    /// before detaching.
+    public func bootstrap(dockInsetBottom: Int = 0, dockInsetSides: Int = 0) {
         teardown()
         Thread.sleep(forTimeInterval: 0.7)
         guard AeroSpaceCLI.locate() != nil else {
             // No engine installed: still sync the visual layer.
-            try? apply()
+            try? apply(dockInsetBottom: dockInsetBottom, dockInsetSides: dockInsetSides)
             return
         }
         try? launchAeroSpace()
         _ = waitForAeroSpace()
-        try? apply()
+        try? apply(dockInsetBottom: dockInsetBottom, dockInsetSides: dockInsetSides)
         healLayoutsWhenReady()
         // Distribution is driven from the app layer (MonitorMap) once the
         // display arrangement is known and AeroSpace has settled — running it
@@ -533,7 +536,7 @@ public struct Orchestrator: Sendable {
 
     /// Full pipeline: regenerate the AeroSpace config, hot-reload it if
     /// AeroSpace is up, and sync the JankyBorders daemon.
-    public func apply() throws {
+    public func apply(dockInsetBottom: Int = 0, dockInsetSides: Int = 0) throws {
         let config = try loadConfig()
         try writeSupportScripts(config)
         try writeAerospaceConfig()
@@ -541,7 +544,8 @@ public struct Orchestrator: Sendable {
             try cli.run(["reload-config"])
         }
         try applyBorders(config)
-        try applyBar(config)
+        try applyBar(
+            config, dockInsetBottom: dockInsetBottom, dockInsetSides: dockInsetSides)
     }
 
     /// Like borders: a missing binary is fine, bad config is not.
@@ -616,10 +620,41 @@ public struct Orchestrator: Sendable {
         process.waitUntilExit()
     }
 
-    public func applyBar(_ config: PanewrightConfig) throws {
+    /// The Dock moved or resized. Rewrite the bar config so the next restart
+    /// agrees, and push the new side margin into the running bar directly —
+    /// deliberately not `applyBar`, whose reload tears every item down and
+    /// repopulates it, which is exactly the jank a Dock move shouldn't cause.
+    ///
+    /// Only the margin is pushed from here. The vertical offset is placed by
+    /// the app layer (BarPlacer), which can measure the bar's real frame:
+    /// SketchyBar's y_offset units are not points on every display, and this
+    /// layer has no way to check what a push actually did.
+    public func refreshBarGeometry(
+        _ config: PanewrightConfig, dockInsetBottom: Int, dockInsetSides: Int
+    ) throws {
+        guard config.statusBar.enabled, let bar = SketchyBarSupervisor.locate() else { return }
+        try writeSketchyBarConfig(
+            config, dockInsetBottom: dockInsetBottom, dockInsetSides: dockInsetSides)
+        guard bar.isRunning() else { return }
+        let geometry = SketchyBarConfigEmitter.barGeometry(
+            for: config.statusBar.theme,
+            dockInsetBottom: dockInsetBottom, dockInsetSides: dockInsetSides)
+        let process = Process()
+        process.executableURL = bar.executableURL
+        process.arguments = ["--bar", "margin=\(geometry.margin)"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        process.waitUntilExit()
+    }
+
+    public func applyBar(
+        _ config: PanewrightConfig, dockInsetBottom: Int = 0, dockInsetSides: Int = 0
+    ) throws {
         guard let bar = SketchyBarSupervisor.locate() else { return }
         if config.statusBar.enabled {
-            try writeSketchyBarConfig(config)
+            try writeSketchyBarConfig(
+                config, dockInsetBottom: dockInsetBottom, dockInsetSides: dockInsetSides)
             try writeEnabledWidgets(config)
             try writeWidgetOrder(config)
             if bar.isRunning() {
@@ -664,8 +699,11 @@ public struct Orchestrator: Sendable {
         ).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    func writeSketchyBarConfig(_ config: PanewrightConfig) throws {
-        let files = try SketchyBarConfigEmitter.emit(config)
+    func writeSketchyBarConfig(
+        _ config: PanewrightConfig, dockInsetBottom: Int = 0, dockInsetSides: Int = 0
+    ) throws {
+        let files = try SketchyBarConfigEmitter.emit(
+            config, dockInsetBottom: dockInsetBottom, dockInsetSides: dockInsetSides)
         let directory = paths.sketchybarConfigDirectory
         // A whole directory of someone else's scripts may live here, with
         // their plugins beside ours.

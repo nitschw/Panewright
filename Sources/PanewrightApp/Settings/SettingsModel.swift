@@ -277,7 +277,7 @@ final class SettingsModel {
     private func save() {
         do {
             try appModel.orchestrator.writeConfig(config)
-            try appModel.orchestrator.apply()
+            try appModel.orchestrator.apply(dockInsetBottom: DockInset.bottom, dockInsetSides: DockInset.sides)
             statusLine = "Applied"
         } catch {
             statusLine = "\(error)"
