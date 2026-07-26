@@ -156,6 +156,7 @@ struct PanewrightApp: App {
 @MainActor @Observable
 final class AppModel {
     let orchestrator = Orchestrator()
+    private let dockWatcher = DockWatcher()
     var status: AeroSpaceStatus = .notInstalled
     var lastMessage = ""
     private var watcher: ConfigWatcher?
@@ -237,6 +238,7 @@ final class AppModel {
             self?.startWindowFitting()
             self?.appSwitchRouter.start()
             WakeGuard.observe()
+            self?.dockWatcher.start()
             MonitorMap.observe()
         }
         let dockBottom = DockInset.bottom
