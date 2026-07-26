@@ -39,7 +39,7 @@ final class WindowFitController {
     /// mid-gesture means fighting the person doing the resizing.
     private var lastInteraction = Date.distantPast
 
-    private static let maxAttempts = 8
+    private static let maxAttempts = 6
     /// How long to leave a workspace alone after moving a window out of it.
     ///
     /// Evicting changes the problem: the windows that remain have more room,
@@ -55,6 +55,14 @@ final class WindowFitController {
     /// The window set at the moment of the last eviction. Nothing else moves
     /// until this differs from what's actually on screen.
     private var evictedFrom: Set<UInt32> = []
+    /// Windows moved out recently, and when.
+    ///
+    /// The set-based guard compares the whole workspace, so it passes as soon
+    /// as *any* window changes — which let the same window be evicted twice,
+    /// the second time to the workspace it was already on. Remembering the
+    /// window itself is what makes that impossible rather than unlikely.
+    private var recentlyEvicted: [UInt32: Date] = [:]
+    private static let reEvictionGuard: TimeInterval = 10
 
     /// Cached workspace membership, refreshed only when the on-screen window
     /// set changes — see currentWindows.
@@ -84,7 +92,7 @@ final class WindowFitController {
         // wrong. Affordable because the per-tick cost is one CGWindowList
         // call: the `aerospace` process is only spawned when the geometry has
         // actually moved (see currentWindows).
-        timer = Timer.scheduledTimer(withTimeInterval: 0.4, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.tick() }
         }
     }
@@ -158,6 +166,7 @@ final class WindowFitController {
         cli: AeroSpaceCLI, config: PanewrightConfig, bounds: CGRect?, separation: CGFloat
     ) {
         converging = true
+        let started = Date()
         Task { @MainActor in
             defer {
                 converging = false
@@ -172,7 +181,11 @@ final class WindowFitController {
                     overflowEnabled: config.fitting.overflow)
                 switch verdict {
                 case .fits:
-                    if attempt > 1 { DragLog.log("fitting: settled after \(attempt - 1) steps") }
+                    if attempt > 1 {
+                        DragLog.log(
+                            "fitting: settled after \(attempt - 1) steps in "
+                                + "\(Int(Date().timeIntervalSince(started) * 1000))ms")
+                    }
                     settled = nil
                     return
                 case .cannotFit(let count):
@@ -182,6 +195,12 @@ final class WindowFitController {
                     settled = signature(of: windows)
                     return
                 case .adjusting(.evict(let id)):
+                    if let when = recentlyEvicted[id],
+                        Date().timeIntervalSince(when) < Self.reEvictionGuard
+                    {
+                        DragLog.log("fitting: \(id) was just moved — not moving it again")
+                        return
+                    }
                     guard evictedFrom != Set(windows.map(\.id)) else {
                         DragLog.log("fitting: waiting for the last eviction to take effect")
                         return
@@ -226,7 +245,7 @@ final class WindowFitController {
                     ])
                     // Let the resize land before reading it back, or we learn
                     // a minimum from a frame that hadn't updated yet.
-                    try? await Task.sleep(for: .milliseconds(45))
+                    try? await Task.sleep(for: .milliseconds(25))
                     learn(from: target, requested: by, axis: axis, cli: cli)
                 case .adjusting(.settle):
                     return
@@ -235,7 +254,9 @@ final class WindowFitController {
             // Bounded so a layout we cannot fix becomes a quiet stalemate
             // rather than an endless churn of resize commands.
             let windows = currentWindows(cli: cli)
-            DragLog.log("fitting: giving up after \(Self.maxAttempts) steps")
+            DragLog.log(
+                "fitting: giving up after \(Self.maxAttempts) steps in "
+                    + "\(Int(Date().timeIntervalSince(started) * 1000))ms")
             settled = signature(of: windows)
         }
     }
@@ -265,7 +286,7 @@ final class WindowFitController {
                 try? cli.run([
                     "resize", "--window-id", "\(window.id)", axis.resizeDimension, "-40",
                 ])
-                try? await Task.sleep(for: .milliseconds(45))
+                try? await Task.sleep(for: .milliseconds(25))
                 guard
                     let now = currentWindows(cli: cli).first(where: { $0.id == window.id })
                 else { continue }
@@ -354,6 +375,22 @@ final class WindowFitController {
     /// Move the newest arrival out, and always say so. A window vanishing from
     /// a workspace with no explanation reads as a bug, not a feature.
     private func evict(id: UInt32, windows: [WindowFitting.Window], cli: AeroSpaceCLI) {
+        // Confirm it's still here, from AeroSpace rather than from our cache.
+        // The cache only refreshes when the on-screen window set changes, so
+        // it can still list a window that has already been moved away — and
+        // moving it "again" lands it on the workspace it's already on.
+        if let listing = try? cli.run([
+            "list-windows", "--workspace", "focused", "--format", "%{window-id}",
+        ]) {
+            let here = Set(
+                listing.split(separator: "\n").compactMap {
+                    UInt32($0.trimmingCharacters(in: .whitespaces))
+                })
+            guard here.contains(id) else {
+                DragLog.log("fitting: \(id) already left this workspace")
+                return
+            }
+        }
         guard let destination = firstEmptyWorkspace(cli: cli) else {
             DragLog.log("fitting: nothing fits but there's no empty workspace to use")
             settled = signature(of: windows)
@@ -371,6 +408,11 @@ final class WindowFitController {
             // how one necessary eviction became two, on a workspace that fit
             // perfectly well once the first window had gone.
             evictedFrom = Set(windows.map(\.id))
+            recentlyEvicted[id] = Date()
+            // Keep this from growing across a long session.
+            recentlyEvicted = recentlyEvicted.filter {
+                Date().timeIntervalSince($0.value) < Self.reEvictionGuard * 2
+            }
             // Say why, with the numbers. A window relocating with no
             // explanation reads as a bug; the arithmetic makes it a decision.
             var reason = "it wouldn't fit"
