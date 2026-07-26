@@ -98,6 +98,9 @@ public struct Orchestrator: Sendable {
     public func writeAerospaceConfig() throws -> String {
         let emitted = AeroSpaceConfigEmitter.emit(try loadConfig())
         let file = paths.aerospaceConfigFile
+        // Someone may already be an AeroSpace user. Keep whatever is there
+        // before replacing it — once, since our own output is recognizable.
+        ConfigBackup.preserve(file, into: backupsDirectory)
         try FileManager.default.createDirectory(
             at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
         try emitted.write(to: file, atomically: true, encoding: .utf8)
@@ -664,6 +667,9 @@ public struct Orchestrator: Sendable {
     func writeSketchyBarConfig(_ config: PanewrightConfig) throws {
         let files = try SketchyBarConfigEmitter.emit(config)
         let directory = paths.sketchybarConfigDirectory
+        // A whole directory of someone else's scripts may live here, with
+        // their plugins beside ours.
+        ConfigBackup.preserveContents(of: directory, into: backupsDirectory)
         let plugins = directory.appending(path: "plugins")
         try FileManager.default.createDirectory(at: plugins, withIntermediateDirectories: true)
         let scripts: [(String, String)] = [
@@ -760,6 +766,12 @@ public struct Orchestrator: Sendable {
     }
 
     // MARK: Profiles — named saved configs, switchable from the menu.
+
+    /// Where configuration we replaced is kept, beside the config it belongs
+    /// to rather than somewhere in Application Support nobody will find.
+    public var backupsDirectory: URL {
+        paths.panewrightConfigFile.deletingLastPathComponent().appending(path: "backups")
+    }
 
     public var profilesDirectory: URL {
         paths.panewrightConfigFile.deletingLastPathComponent().appending(path: "profiles")
