@@ -38,6 +38,21 @@ final class WindowFitController {
     /// through overlapping states on its way somewhere, and correcting them
     /// mid-gesture means fighting the person doing the resizing.
     private var lastInteraction = Date.distantPast
+    /// When the machine last woke. Waking is not a layout change, but it looks
+    /// exactly like one for a second or two: displays come back before
+    /// AeroSpace has re-tiled, so every window reports a frame it is about to
+    /// stop having. Acting on those frames is how opening the lid came to mean
+    /// windows shuffling and one of them leaving the workspace.
+    ///
+    /// It also poisons what we know. A window mid-restore refuses to resize
+    /// because it is busy, not because it is at its floor — that is where the
+    /// 752pt iTerm floor came from, learned in the same second as a wake, and
+    /// a floor that wrong forces evictions for hours afterwards.
+    private var lastWake = Date.distantPast
+    /// Long enough for displays to come back and AeroSpace to re-tile. Short
+    /// enough that a layout genuinely broken across a sleep still gets fixed
+    /// without being touched.
+    private static let wakeSettle: TimeInterval = 6
 
     private static let maxAttempts = 5
     /// How long to leave a workspace alone after moving a window out of it.
@@ -88,6 +103,23 @@ final class WindowFitController {
 
     func start() {
         stop()
+        // NSWorkspace posts these on its own centre, not the default one.
+        // screensDidWake fires for the display coming back, didWake for the
+        // machine; a clamshell open produces one, a lid-open the other, and
+        // both want the same pause.
+        for name in [
+            NSWorkspace.didWakeNotification, NSWorkspace.screensDidWakeNotification,
+        ] {
+            NSWorkspace.shared.notificationCenter.addObserver(
+                forName: name, object: nil, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.lastWake = Date()
+                    self?.consecutiveOverlaps = 0
+                    DragLog.log("fitting: woke — leaving the layout alone briefly")
+                }
+            }
+        }
         // Fast enough that a broken layout is corrected before it registers as
         // wrong. Affordable because the per-tick cost is one CGWindowList
         // call: the `aerospace` process is only spawned when the geometry has
@@ -107,6 +139,12 @@ final class WindowFitController {
             let cli = AeroSpaceCLI.locate(),
             let config = try? Orchestrator().loadConfig(), config.fitting.enabled
         else { return }
+        // Nothing measured just after a wake is trustworthy — not the frames,
+        // and not a window's refusal to resize.
+        guard Date().timeIntervalSince(lastWake) >= Self.wakeSettle else {
+            consecutiveOverlaps = 0
+            return
+        }
         // Any button held means a drag or a resize is in progress. Cheap,
         // synchronous, and needs no permission — and it's the difference
         // between a helper and something that undoes your work as you do it.
