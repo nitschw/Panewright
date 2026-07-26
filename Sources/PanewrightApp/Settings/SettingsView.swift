@@ -15,7 +15,6 @@ struct SettingsView: View {
         case keys = "Keybindings"
         case layout = "Layout"
         case appearance = "Appearance"
-        case bar = "Status Bar"
 
         var id: String { rawValue }
 
@@ -25,7 +24,6 @@ struct SettingsView: View {
             case .keys: "keyboard"
             case .layout: "square.grid.2x2"
             case .appearance: "paintpalette"
-            case .bar: "menubar.rectangle"
             }
         }
     }
@@ -87,7 +85,7 @@ struct SettingsView: View {
         switch target {
         case .modifier: .general
         case .binding: .keys
-        case .widgets: .bar
+        case .widgets: .appearance
         case .layout: .layout
         case .appearance: .appearance
         case .keybindings: .keys
@@ -120,8 +118,6 @@ struct SettingsView: View {
                 borderSection.id("appearance")
                 Divider()
                 barAppearanceSection
-            case .bar:
-                barSection
                 Divider()
                 widgetsSection.id("widgets")
                 Divider()
@@ -212,21 +208,13 @@ struct SettingsView: View {
         }
     }
 
-    private var barSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Toggle(isOn: bind(\.statusBar.enabled)) {
-                Text("Status Bar").font(.headline)
-            }
-            Text("Appearance lives in the Appearance tab.")
-                .font(.caption).foregroundStyle(.secondary)
-        }
-    }
-
     /// Bar theme and accent. `bar.accent-color` was supported by the config
     /// and the emitter but reachable from nothing — you had to hand-write it.
     private var barAppearanceSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Status Bar").font(.headline)
+            Toggle(isOn: bind(\.statusBar.enabled)) {
+                Text("Status Bar").font(.headline)
+            }
             Picker("Theme", selection: bind(\.statusBar.theme)) {
                 Text("Native (vibrancy, SF Pro)").tag(PanewrightConfig.StatusBar.Theme.native)
                 Text("Technical (square, monospace)")

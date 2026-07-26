@@ -33,8 +33,8 @@ final class SettingsModel {
     enum Target: Equatable {
         case modifier
         case binding(key: String)
-        /// The Status Bar tab, which absorbed the old standalone Widgets
-        /// window rather than duplicating every toggle in two places.
+        /// The widget toggles, which live on the Appearance tab with the
+        /// rest of the bar — one tab for everything the bar looks like.
         case widgets
         case layout
         case appearance
