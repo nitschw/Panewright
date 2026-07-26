@@ -227,7 +227,10 @@ final class WindowFitController {
                     // therefore sticks forever and keeps forcing evictions on
                     // layouts that would fit. Eviction is destructive enough
                     // to be worth one round of proving the constraint first.
-                    if await retestFloors(windows: windows, separation: separation, cli: cli) {
+                    if await retestFloors(
+                        windows: windows, separation: separation,
+                        usable: CGFloat(config.fitting.minimumUsable), cli: cli)
+                    {
                         DragLog.log("fitting: a floor was wrong — resizing instead of evicting")
                         continue
                     }
@@ -299,8 +302,21 @@ final class WindowFitController {
     /// Returns true if any of them complied, which means that floor was too
     /// high and the layout may be fixable after all. Only windows with a
     /// neighbour to trade with are asked — the rest can't move regardless.
+    ///
+    /// Never below a size worth having, and that bound is what stops this
+    /// running away. Most apps' true minimum is far smaller than anything
+    /// useful — iTerm will go to 87 points — so a window asked to prove its
+    /// floor essentially always complies. That reads as "the floor was wrong",
+    /// which skips the eviction and shrinks instead, and the next round asks
+    /// again from the new smaller size. Six windows on one workspace drove
+    /// iTerm from 228 points to 87 that way, in a couple of seconds, and the
+    /// eviction the workspace genuinely needed never happened: there was
+    /// always one more point to give. A window already down at the usable size
+    /// has nothing left to prove, and asking only manufactures the evidence
+    /// that blocks the eviction.
     private func retestFloors(
-        windows: [WindowFitting.Window], separation: CGFloat, cli: AeroSpaceCLI
+        windows: [WindowFitting.Window], separation: CGFloat, usable: CGFloat,
+        cli: AeroSpaceCLI
     ) async -> Bool {
         var improved = false
         for window in windows {
@@ -316,8 +332,13 @@ final class WindowFitController {
                         window, among: windows, along: axis, separation: separation)
                 else { continue }
                 let before = axis.extent(window.frame)
+                // Ask only for what keeps it at a usable size, and don't ask at
+                // all once there's nothing left worth reclaiming.
+                let ask = min(CGFloat(40), before - usable)
+                guard ask >= 8 else { continue }
                 try? cli.run([
-                    "resize", "--window-id", "\(window.id)", axis.resizeDimension, "-40",
+                    "resize", "--window-id", "\(window.id)", axis.resizeDimension,
+                    "-\(Int(ask))",
                 ])
                 try? await Task.sleep(for: .milliseconds(25))
                 guard
