@@ -456,3 +456,32 @@ import Testing
     }
 }
 
+/// The right-side order authority must be serialized and self-healing.
+///
+/// Every item-adding plugin triggers a reorder when its count changes, and at
+/// startup they all fire at once. Unserialized, two reorders raced: the one
+/// that started earliest — having never seen its peers' items — could apply
+/// last, stranding whichever group it missed. The bar came up in a different
+/// order every launch.
+@Suite struct ReorderSerializationTests {
+    private func files() throws -> SketchyBarConfigEmitter.Files {
+        var config = PanewrightConfig.default
+        config.modules.brewUpdates = true
+        return try SketchyBarConfigEmitter.emit(config)
+    }
+
+    @Test func reorderRunsUnderALatestWinsLock() throws {
+        let plugin = try files().reorderPlugin
+        #expect(plugin.contains("mkdir \"$LOCK\""))
+        // A request during a run loops the runner rather than being dropped —
+        // the final pass has to see the complete bar.
+        #expect(plugin.contains("$LOCK/again"))
+        #expect(plugin.contains("trap 'rm -rf \"$LOCK\"' EXIT"))
+    }
+
+    @Test func widgetsDriverHealsOrderDrift() throws {
+        let widgets = try files().widgetsPlugin
+        #expect(widgets.contains(".widgets-order"))
+        #expect(widgets.contains("panewright_reorder.sh"))
+    }
+}

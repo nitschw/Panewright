@@ -538,6 +538,7 @@ public enum SketchyBarConfigEmitter {
             # widget. All data is no-sudo, no-SIP.
             BAR="$(command -v sketchybar)"
             A=/opt/homebrew/bin/aerospace
+            PLUGINS_DIR="$HOME/.config/sketchybar/plugins"
             STATE="$HOME/.config/panewright/.widget-state"
             # Which widgets are on is read at RUNTIME from this file, not baked
             # into the script — so toggling one is a config write plus a
@@ -762,6 +763,26 @@ public enum SketchyBarConfigEmitter {
 
             [ ${#ARGS[@]} -gt 0 ] && "$BAR" "${ARGS[@]}"
 
+            # Self-heal the right-side order. Reorders race at startup (each
+            # item-adding plugin triggers one), and the serialized authority
+            # closes most of that — this closes the rest: if the bar's actual
+            # order (which --query reflects, verified) drifts from the desired
+            # one, re-run the authority. Runs every driver tick, so no
+            # disorder outlives five seconds.
+            DESIRED=$({
+              while read -r w; do [ -n "$w" ] && echo "$w"; done < "$HOME/.config/panewright/.widgets-order" 2>/dev/null
+              for i in $(seq 0 19); do echo todo.item.$i; done
+              echo todo
+              for i in $(seq 0 5); do echo integration.$i; done
+            })
+            "$BAR" --query bar 2>/dev/null | /usr/bin/python3 -c '
+            import json, sys
+            desired = [w for w in sys.argv[1].split() if w]
+            items = json.load(sys.stdin).get("items", [])
+            present = [w for w in desired if w in items]
+            actual = [i for i in items if i in present]
+            sys.exit(1 if actual != present else 0)
+            ' "$DESIRED" || "$PLUGINS_DIR/panewright_reorder.sh"
             exit 0
             """
 
@@ -777,6 +798,27 @@ public enum SketchyBarConfigEmitter {
             # then integrations.
             BAR="$(command -v sketchybar)"
             ORDERFILE="$HOME/.config/panewright/.widgets-order"
+            # Serialized, latest-wins. The plugins that add items each trigger
+            # this when their count changes, and at startup they all fire at
+            # once — so two reorders raced, and the one that started earliest
+            # (having never seen its peers' items) could apply *last*, leaving
+            # whichever group it missed stranded mid-bar. The order came up
+            # different every launch. One runner at a time; a request that
+            # arrives mid-run marks "again" and the runner loops, so the final
+            # pass always sees the complete bar. (mkdir is the lock because
+            # macOS ships no flock.)
+            LOCK="$HOME/.config/panewright/.reorder.lock"
+            if ! mkdir "$LOCK" 2>/dev/null; then
+              # A runner older than 10s is a corpse, not a peer — steal.
+              if [ -n "$(find "$LOCK" -maxdepth 0 -mmin +0.17 2>/dev/null)" ]; then
+                rm -rf "$LOCK"; mkdir "$LOCK" 2>/dev/null || { touch "$LOCK/again" 2>/dev/null; exit 0; }
+              else
+                touch "$LOCK/again" 2>/dev/null; exit 0
+              fi
+            fi
+            trap 'rm -rf "$LOCK"' EXIT
+            while :; do
+            rm -f "$LOCK/again"
             LEFT=""
             for i in $(seq 0 9); do
               "$BAR" --query pill.$i >/dev/null 2>&1 && LEFT="$LEFT pill.$i"
@@ -798,6 +840,10 @@ public enum SketchyBarConfigEmitter {
               "$BAR" --query integration.$i >/dev/null 2>&1 && ORDER="$ORDER integration.$i"
             done
             [ -n "$ORDER" ] && "$BAR" --reorder $ORDER
+            # Someone asked again while we were working — their items may not
+            # have existed when this pass queried. Go around.
+            [ -e "$LOCK/again" ] || break
+            done
             """
 
         return Files(
