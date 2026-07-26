@@ -617,11 +617,32 @@ public enum SketchyBarConfigEmitter {
             # The app refreshes this cache hourly. Running `brew` here instead
             # returned 0: SketchyBar's spawn environment makes brew produce
             # nothing, though the identical command works in a normal shell.
-            BREWN=$(cat "$BREWC" 2>/dev/null | tr -dc '0-9')
+            # One package name per line. Count is the number of lines, so the
+            # chip and the list it opens can never disagree.
+            BREWN=$(grep -c . "$BREWC" 2>/dev/null || echo 0)
             if [ "${BREWN:-0}" -gt 0 ] 2>/dev/null; then
               ARGS+=(--set w.brew drawing=on label="⬆ ${BREWN}" label.color=\(accent))
+              ARGS+=(--set w.brew.tip label="$BREWN outdated · click Upgrade All to update")
+              i=1
+              while [ "$i" -le 10 ]; do
+                PKG=$(sed -n "${i}p" "$BREWC" 2>/dev/null)
+                if [ -n "$PKG" ]; then
+                  ARGS+=(--set w.brew.$i drawing=on label="$PKG")
+                else
+                  ARGS+=(--set w.brew.$i drawing=off)
+                fi
+                i=$((i+1))
+              done
+              if [ "$BREWN" -gt 10 ]; then
+                ARGS+=(--set w.brew.more drawing=on label="+$((BREWN - 10)) more")
+              else
+                ARGS+=(--set w.brew.more drawing=off)
+              fi
+              ARGS+=(--set w.brew.upgrade drawing=on)
             else
               ARGS+=(--set w.brew drawing=off)
+              for i in $(seq 1 10); do ARGS+=(--set w.brew.$i drawing=off); done
+              ARGS+=(--set w.brew.more drawing=off --set w.brew.upgrade drawing=off)
             fi
             else
               ARGS+=(--set w.brew drawing=off)
@@ -821,6 +842,47 @@ public enum SketchyBarConfigEmitter {
             }
             lines.append("$BAR --subscribe w.ports mouse.entered mouse.exited")
         }
+        /// Homebrew unfurls the actual package list. A count you can't act on
+        /// is a nag; the previous click just opened an empty Terminal and left
+        /// you to remember the command.
+        func brewChip() {
+            let disable = "open 'panewright://widgets/disable/brew-updates'"
+            lines.append(
+                "$BAR --add item w.brew right --set w.brew label=\"…\" drawing=off"
+                    + " label.font=\"\(palette.font)\" label.padding_left=8 label.padding_right=8"
+                    + " background.corner_radius=6 background.height=20"
+                    + " popup.background.corner_radius=8 popup.background.border_width=1"
+                    + " popup.background.color=0xf01a1a22 popup.background.border_color=0x44ffffff"
+                    + " popup.horizontal=off popup.align=right popup.y_offset=-6"
+                    + " click_script=\"if [ \\\\\\\"$BUTTON\\\\\\\" = \\\\\\\"right\\\\\\\" ]; then \(disable);"
+                    + " else $BAR --set w.brew popup.drawing=toggle; fi\"")
+            lines.append(
+                "$BAR --add item w.brew.tip popup.w.brew --set w.brew.tip"
+                    + " label=\"Homebrew\" label.font=\"\(palette.font)\""
+                    + " label.color=\(accent) label.padding_left=10 label.padding_right=10")
+            for i in 1...10 {
+                lines.append(
+                    "$BAR --add item w.brew.\(i) popup.w.brew --set w.brew.\(i) label=\"…\""
+                        + " drawing=off label.font=\"\(palette.font)\" label.padding_left=10"
+                        + " label.padding_right=10 label.color=\(palette.dim)")
+            }
+            lines.append(
+                "$BAR --add item w.brew.more popup.w.brew --set w.brew.more label=\"\""
+                    + " drawing=off label.font=\"\(palette.font)\" label.padding_left=10"
+                    + " label.padding_right=10 label.color=\(palette.dim)")
+            // Runs the upgrade in a visible Terminal rather than silently:
+            // brew asks questions, and an upgrade that hangs invisibly waiting
+            // for an answer is worse than one you can see.
+            let upgrade =
+                "osascript -e 'tell application \\\"Terminal\\\" to do script"
+                + " \\\"brew upgrade\\\"' -e 'tell application \\\"Terminal\\\" to activate'"
+            lines.append(
+                "$BAR --add item w.brew.upgrade popup.w.brew --set w.brew.upgrade"
+                    + " label=\"Upgrade All…\" drawing=off label.font=\"\(palette.font)\""
+                    + " label.color=\(accent) label.padding_left=10 label.padding_right=10"
+                    + " click_script=\"$BAR --set w.brew popup.drawing=off; \(upgrade)\"")
+        }
+
         // Emitted in the user's configured order. SketchyBar stacks `right`
         // items leftward, so the list is reversed: the first configured widget
         // ends up leftmost, matching what the picker shows top to bottom.
@@ -832,7 +894,6 @@ public enum SketchyBarConfigEmitter {
             "focus-mode": ("w.focus", "Focus · Do Not Disturb state", nil),
             "keyboard-layout": ("w.kbd", "Keyboard · input source", nil),
             "vpn": ("w.vpn", "VPN · tunnel status", nil),
-            "brew-updates": ("w.brew", "Homebrew · outdated packages", "open -a Terminal"),
             "volume": (
                 "w.vol", "Volume · click to mute",
                 "osascript -e 'set volume output muted (not (output muted of (get volume settings)))'"),
@@ -847,6 +908,8 @@ public enum SketchyBarConfigEmitter {
         for key in modules.resolvedOrder.reversed() {
             if key == "ports" {
                 portsChip()
+            } else if key == "brew-updates" {
+                brewChip()
             } else if let spec = specs[key] {
                 chip(spec.item, key, spec.tip, click: spec.click)
             }

@@ -868,7 +868,16 @@ final class AppModel {
             .appending(path: ".config/panewright/.brew-outdated")
         // Rate-limit on the file's own mtime — no shared state, so this is
         // safe to call from the detached health-check task.
-        if let attrs = try? FileManager.default.attributesOfItem(atPath: cache.path),
+        // Older builds cached a bare count. Refresh those immediately rather
+        // than showing "1 outdated package called 19" for up to an hour.
+        let existing = (try? String(contentsOf: cache, encoding: .utf8)) ?? ""
+        let looksLegacy =
+            !existing.isEmpty
+            && existing.split(separator: "\n").count == 1
+            && existing.trimmingCharacters(in: .whitespacesAndNewlines)
+                .allSatisfy(\.isNumber)
+        if !looksLegacy,
+            let attrs = try? FileManager.default.attributesOfItem(atPath: cache.path),
             let modified = attrs[.modificationDate] as? Date,
             Date().timeIntervalSince(modified) < 3600
         {
@@ -886,11 +895,16 @@ final class AppModel {
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
             guard process.terminationStatus == 0 else { return }
-            let count = String(decoding: data, as: UTF8.self)
-                .split(separator: "\n").filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-                .count
-            DragLog.log("brew: \(count) outdated")
-            try? "\(count)".write(to: cache, atomically: true, encoding: .utf8)
+            // The names, not the tally. "19 packages are out of date" tells
+            // you nothing you can act on; knowing *which* is the whole point
+            // of the indicator.
+            let names = String(decoding: data, as: UTF8.self)
+                .split(separator: "\n")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+            DragLog.log("brew: \(names.count) outdated")
+            try? names.joined(separator: "\n").write(
+                to: cache, atomically: true, encoding: .utf8)
             return
         }
     }

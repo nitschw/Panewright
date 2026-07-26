@@ -313,3 +313,44 @@ import Testing
     }
 }
 
+
+/// The count on its own is a nag. Clicking it used to open an empty Terminal
+/// and leave you to remember the command.
+@Suite struct BrewWidgetTests {
+    private func rcWithBrew() throws -> String {
+        var config = PanewrightConfig.default
+        config.modules.brewUpdates = true
+        return try SketchyBarConfigEmitter.emit(config).sketchybarrc
+    }
+
+    @Test func clickingUnfurlsTheListInsteadOfOpeningATerminal() throws {
+        let rc = try rcWithBrew()
+        #expect(rc.contains("--add item w.brew right"))
+        #expect(rc.contains("w.brew popup.drawing=toggle"))
+        // The old behaviour, which told you nothing.
+        #expect(!rc.contains("w.brew") || !rc.contains("label=\"⬆\" click_script=\"open -a Terminal\""))
+    }
+
+    @Test func thePopupHasRowsForPackagesAndAnUpgradeAction() throws {
+        let rc = try rcWithBrew()
+        #expect(rc.contains("w.brew.1 popup.w.brew"))
+        #expect(rc.contains("w.brew.10 popup.w.brew"))
+        // A long list is truncated with a count rather than running off screen.
+        #expect(rc.contains("w.brew.more popup.w.brew"))
+        #expect(rc.contains("Upgrade All"))
+        // Visible Terminal: brew asks questions, and an upgrade hanging
+        // invisibly on a prompt is worse than one you can see.
+        #expect(rc.contains("brew upgrade"))
+    }
+
+    @Test func theCountComesFromTheSameListThePopupShows() throws {
+        let plugin = try SketchyBarConfigEmitter.emit({
+            var c = PanewrightConfig.default
+            c.modules.brewUpdates = true
+            return c
+        }()).widgetsPlugin
+        // Counting lines of the cache means the chip and the list it opens
+        // can't disagree — they're the same data.
+        #expect(plugin.contains("grep -c . \"$BREWC\""))
+    }
+}
