@@ -444,11 +444,30 @@ final class WindowFitController {
             + (config.statusBar.enabled
                 ? CGFloat(
                     SketchyBarConfigEmitter.reservedTopGap(for: config.statusBar.theme)) : 0)
+        // visibleFrame is the screen minus what the system has already claimed:
+        // the menu bar, and the Dock on whichever edge it happens to live. It
+        // is the only way to be right for all four placements — there is no
+        // "where is the Dock" API, and its thickness moves with the tile size
+        // and magnification setting anyway.
+        //
+        // Using the full frame here meant this believed it had 1728 points of
+        // a 1728pt display while AeroSpace was tiling into 1679 of it, because
+        // AeroSpace does respect the Dock. Every deficit was under-measured by
+        // the width of the Dock, and every "but the display is Npt" in the log
+        // named a display that wasn't there.
+        let full = screen.frame
+        let visible = screen.visibleFrame
+        let insetLeft = visible.minX - full.minX
+        let insetRight = full.maxX - visible.maxX
+        // AppKit measures from the bottom-left, CGWindowList from the top-left,
+        // and every frame compared against these bounds comes from the latter.
+        let insetTop = full.maxY - visible.maxY
+        let insetBottom = visible.minY - full.minY
         return CGRect(
-            x: screen.frame.minX + outer,
-            y: outer,
-            width: screen.frame.width - outer * 2,
-            height: screen.frame.height - outer - bottom)
+            x: full.minX + insetLeft + outer,
+            y: insetTop + outer,
+            width: full.width - insetLeft - insetRight - outer * 2,
+            height: full.height - insetTop - insetBottom - outer - bottom)
     }
 
     /// Identity of a layout: which windows, and roughly where. Rounded so
