@@ -916,3 +916,55 @@ private func window(
         #expect(id == 1)
     }
 }
+
+/// The pair rule a drop and a fit have to share.
+///
+/// Geometry here is copied from a real failure on a 1728pt display: Safari and
+/// Discord side by side, overlapping by 83 points because Discord would not
+/// shrink below 800. Dropping either onto the other's top zone did nothing at
+/// all — twice — because the drop executor measured the distance between their
+/// facing edges with `abs`, read the 83-point overlap as 83 points *apart*,
+/// and went looking for a neighbour the window was already touching.
+@Suite struct NeighbouringTests {
+    let safari = CGRect(x: 652, y: 36, width: 574, height: 1037)
+    let discord = CGRect(x: 1143, y: 36, width: 800, height: 1037)
+
+    @Test func overlappingColumnsAreStillHorizontalNeighbours() {
+        #expect(WindowFitting.neighbouring(safari, discord) == .horizontal)
+        // And the answer cannot depend on which one is named first.
+        #expect(WindowFitting.neighbouring(discord, safari) == .horizontal)
+    }
+
+    @Test func cleanlySeparatedColumnsAreHorizontalNeighbours() {
+        let left = CGRect(x: 0, y: 36, width: 600, height: 1037)
+        let right = CGRect(x: 608, y: 36, width: 600, height: 1037)
+        #expect(WindowFitting.neighbouring(left, right, separation: 8) == .horizontal)
+    }
+
+    @Test func stackedWindowsAreVerticalNeighbours() {
+        let top = CGRect(x: 0, y: 36, width: 600, height: 512)
+        let bottom = CGRect(x: 0, y: 556, width: 600, height: 512)
+        #expect(WindowFitting.neighbouring(top, bottom, separation: 8) == .vertical)
+    }
+
+    /// Overlapping on *both* axes is exactly what a side-by-side pair looks
+    /// like once one of them refuses to shrink, so the tie has to break toward
+    /// the axis they overlap on least — the way they were laid out.
+    @Test func theLayoutAxisIsTheOneTheyOverlapLeastOn() {
+        #expect(WindowFitting.neighbouring(safari, discord) != .vertical)
+        let stackedAndOverlapping = CGRect(x: 652, y: 900, width: 574, height: 1037)
+        #expect(WindowFitting.neighbouring(safari, stackedAndOverlapping) == .vertical)
+    }
+
+    @Test func windowsWithSomethingBetweenThemAreNotNeighbours() {
+        let far = CGRect(x: 1400, y: 36, width: 300, height: 1037)
+        let near = CGRect(x: 0, y: 36, width: 300, height: 1037)
+        #expect(WindowFitting.neighbouring(near, far) == nil)
+    }
+
+    @Test func clippingACornerIsNotNeighbouring() {
+        let a = CGRect(x: 0, y: 0, width: 500, height: 500)
+        let b = CGRect(x: 500, y: 480, width: 500, height: 500)
+        #expect(WindowFitting.neighbouring(a, b) == nil)
+    }
+}

@@ -348,6 +348,38 @@ public enum WindowFitting {
         .min { $0.missing < $1.missing }
     }
 
+    /// Which axis two frames are laid out along, if they are neighbours at all.
+    ///
+    /// `nil` means they aren't a pair: too far apart along their layout axis,
+    /// or meeting only at a corner.
+    ///
+    /// Overlap counts as adjacency, and that is the entire point. Two windows
+    /// drawn on top of each other are *more* certainly a pair than two with a
+    /// clean gap — overlap is what happens when an app refuses to shrink, and
+    /// it is the state a caller is usually trying to fix. Measuring the
+    /// distance between their facing edges as `abs(gap)` reads an 83-point
+    /// overlap as 83 points *apart*, and sends the caller off hunting for a
+    /// neighbour it is already touching.
+    ///
+    /// - Parameter tolerance: how far apart the facing edges may be and still
+    ///   count as meeting. Deliberately one-sided — overlap is unbounded,
+    ///   because no amount of it stops these two being laid out along this
+    ///   axis.
+    public static func neighbouring(
+        _ a: CGRect, _ b: CGRect, separation: CGFloat = 0, tolerance: CGFloat = 30
+    ) -> Axis? {
+        guard let (axis, missing) = neighbourAxis(a, b, separation: separation) else { return nil }
+        // `missing` is the separation they lack: positive when crowded or
+        // overlapping, negative when they sit further apart than asked for.
+        guard missing >= -tolerance else { return nil }
+        // Clipping a corner isn't neighbouring. Require a real shared edge —
+        // more than half the smaller window's extent across the axis — or a
+        // window diagonally opposite would read as adjacent to everything.
+        let cross = axis.cross
+        let shared = min(cross.end(a), cross.end(b)) - max(cross.start(a), cross.start(b))
+        return shared > min(cross.extent(a), cross.extent(b)) / 2 ? axis : nil
+    }
+
     /// Whether this window has anyone to trade space with along `axis`.
     ///
     /// A window alone in its column cannot give up height: there is no

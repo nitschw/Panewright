@@ -96,7 +96,7 @@ struct DropExecutor: Sendable {
             return "drag-to-tile: couldn't reach the target to swap"
         }
         let direction =
-            Self.adjacentHorizontally(d, t)
+            Self.neighbourAxis(d, t) == .horizontal
             ? Self.horizontalDirection(from: d, to: t)
             : Self.verticalDirection(from: d, to: t)
         guard (try? cli.run(["swap", "--window-id", "\(dragged)", direction])) != nil else {
@@ -114,7 +114,7 @@ struct DropExecutor: Sendable {
         guard let (d, t) = walkToNeighbor(dragged: dragged, targetID: targetID) else {
             return "drag-to-tile: couldn't reach the target"
         }
-        if Self.adjacentVertically(d, t) {
+        if Self.neighbourAxis(d, t) == .vertical {
             let toward = Self.verticalDirection(from: d, to: t)
             // The tree shape matters here and isn't visible from the frames:
             // joining two windows that are the only children of a container
@@ -147,7 +147,7 @@ struct DropExecutor: Sendable {
         guard let (d, t) = walkToNeighbor(dragged: dragged, targetID: targetID) else {
             return "drag-to-tile: couldn't reach the target"
         }
-        if Self.adjacentHorizontally(d, t) {
+        if Self.neighbourAxis(d, t) == .horizontal {
             let toward = Self.horizontalDirection(from: d, to: t)
             DragLog.log(
                 "executor: join-with \(toward) to form vertical pair"
@@ -211,7 +211,7 @@ struct DropExecutor: Sendable {
                 DragLog.log("executor: lost a window at step \(step)")
                 return nil
             }
-            if Self.adjacentHorizontally(d, t) || Self.adjacentVertically(d, t) {
+            if Self.neighbourAxis(d, t) != nil {
                 return (d, t)
             }
             if visited.contains(where: {
@@ -264,18 +264,18 @@ struct DropExecutor: Sendable {
         min(aMax, bMax) - max(aMin, bMin)
     }
 
-    /// Sharing a vertical edge: x-gap within tolerance and at least half the
-    /// smaller window's height in common — a real neighbor, not a corner graze.
-    static func adjacentHorizontally(_ a: CGRect, _ b: CGRect, tolerance: CGFloat = 30) -> Bool {
-        let touch = abs(a.maxX - b.minX) <= tolerance || abs(b.maxX - a.minX) <= tolerance
-        return touch
-            && overlap(a.minY, a.maxY, b.minY, b.maxY) > min(a.height, b.height) / 2
-    }
-
-    static func adjacentVertically(_ a: CGRect, _ b: CGRect, tolerance: CGFloat = 30) -> Bool {
-        let touch = abs(a.maxY - b.minY) <= tolerance || abs(b.maxY - a.minY) <= tolerance
-        return touch
-            && overlap(a.minX, a.maxX, b.minX, b.maxX) > min(a.width, b.width) / 2
+    /// Which axis these two are laid out along, or nil if they aren't a pair.
+    ///
+    /// Deferred to ``WindowFitting/neighbouring(_:_:separation:tolerance:)``
+    /// rather than measured here, because a drop and a fit have to agree about
+    /// what "next to" means. They didn't: this asked whether the facing edges
+    /// were within 30 points, using `abs`, so a side-by-side pair overlapping
+    /// by 83 — the ordinary crowded workspace, and the reason someone reaches
+    /// for a vertical stack in the first place — registered as neither
+    /// horizontal nor vertical neighbours. The walk then swapped them back and
+    /// forth until the oscillation guard gave up, and the drop did nothing.
+    static func neighbourAxis(_ a: CGRect, _ b: CGRect) -> WindowFitting.Axis? {
+        WindowFitting.neighbouring(a, b)
     }
 
     /// CG coordinates: +y is down, so "up" means decreasing y.
