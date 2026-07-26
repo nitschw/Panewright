@@ -19,18 +19,23 @@ cask "panewright" do
 
   depends_on macos: :sonoma
 
-  # The whole point of the one-liner: Panewright supervises these three, and
-  # without them it starts up with nothing to manage.
-  #
-  # The tiling engine comes from Panewright's own fork of AeroSpace — upstream
-  # plus two patches Panewright relies on (dock-aware window hiding, hideable
-  # menu bar icon). Anyone who already runs stock AeroSpace hits the conflict
-  # declared in that cask rather than a silent double-install.
-  depends_on cask: "nitschw/tap/aerospace-panewright"
+  # The tiling engine (Panewright's build of AeroSpace) ships INSIDE the app
+  # and runs as a child process under Panewright's own permissions — it is
+  # not a dependency any more. Only the visual layer comes from brew.
   depends_on formula: "felixkratz/formulae/borders"
   depends_on formula: "felixkratz/formulae/sketchybar"
 
+  # A separately installed AeroSpace would fight the embedded engine for the
+  # same windows (and this cask links the same `aerospace` binary name).
+  conflicts_with cask: [
+    "nikitabobko/tap/aerospace",
+    "nikitabobko/tap/aerospace-dev",
+    "nitschw/tap/aerospace-panewright",
+  ]
+
   app "Panewright.app"
+  # The engine's CLI, version-locked to the embedded engine.
+  binary "#{appdir}/Panewright.app/Contents/Helpers/aerospace-cli", target: "aerospace"
 
   # Panewright generates the aerospace and sketchybar configs, so uninstalling
   # should offer to take them back out. Its own config, saved profiles and the
@@ -54,10 +59,10 @@ cask "panewright" do
       Your existing aerospace and sketchybar configs are copied to
       ~/.config/panewright/backups/ before Panewright writes its own.
 
-      If AeroSpace is already installed WITHOUT Homebrew (a manually
-      downloaded app), Homebrew will refuse to install over it. Remove it,
-      or adopt it first and then replace it:
-        brew install --cask --adopt nitschw/tap/aerospace-panewright
+      The tiling engine is built in — if you have AeroSpace installed
+      separately (any flavor), uninstall it first; two engines fight over
+      the same windows. Upgrading from an earlier Panewright:
+        brew uninstall --cask aerospace-panewright
     EOS
   end
 end

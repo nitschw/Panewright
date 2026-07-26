@@ -19,10 +19,18 @@ public struct AeroSpaceCLI: Sendable {
         self.executableURL = executableURL
     }
 
-    public static let defaultSearchPaths = [
-        "/opt/homebrew/bin/aerospace",
-        "/usr/local/bin/aerospace",
-    ]
+    /// The bundled CLI first: when the engine ships inside Panewright, the
+    /// CLI beside it is version-locked to that engine, while whatever brew
+    /// linked may be older, newer, or stock. Falling back to the brew paths
+    /// keeps a bundle-less dev build working.
+    public static var defaultSearchPaths: [String] {
+        [
+            Bundle.main.bundleURL
+                .appending(path: "Contents/Helpers/aerospace-cli").path,
+            "/opt/homebrew/bin/aerospace",
+            "/usr/local/bin/aerospace",
+        ]
+    }
 
     public static func locate(fileManager: FileManager = .default) -> AeroSpaceCLI? {
         for path in defaultSearchPaths where fileManager.isExecutableFile(atPath: path) {

@@ -152,21 +152,20 @@
   <h2 id="install">Install &amp; permissions</h2>
   <pre>brew trust nitschw/tap                <span class="c"># Homebrew requires this for third-party casks</span>
 brew install nitschw/tap/panewright   <span class="c"># Panewright + the tiling engine, borders, status bar</span></pre>
-  <p>That's the whole install: the cask pulls in the tiling engine (Panewright's build of AeroSpace, patched so hidden workspaces never peek out around a Dock), focus borders, and the status bar. Launch <b>Panewright.app</b> and the <b>setup checklist</b> (menu bar icon → Setup…) walks through the permissions below.</p>
-  <p>Already running AeroSpace? A brew-installed one conflicts loudly and the message explains itself. A manually downloaded one has to be removed or adopted first: <code>brew install --cask --adopt nitschw/tap/aerospace-panewright</code>.</p>
+  <p>That's the whole install: the tiling engine is <b>built into Panewright</b> (a patched build of AeroSpace that runs under Panewright's own permissions), and the cask pulls in focus borders and the status bar. Launch <b>Panewright.app</b> and the <b>setup checklist</b> (menu bar icon → Setup…) walks through the permissions below.</p>
+  <p>Already running AeroSpace, any flavor? Uninstall it first — two engines fight over the same windows.</p>
   <details>
   <summary>Installing the pieces by hand instead</summary>
-  <pre>brew install --cask nitschw/tap/aerospace-panewright   <span class="c"># tiling engine (required)</span>
-brew install FelixKratz/formulae/borders        <span class="c"># focus borders (optional)</span>
+  <pre>brew install FelixKratz/formulae/borders        <span class="c"># focus borders (optional)</span>
 brew install FelixKratz/formulae/sketchybar     <span class="c"># status bar (optional)</span>
 brew install --cask karabiner-elements          <span class="c"># Caps Lock as $mod (optional)</span></pre>
-  <p>Then drop <b>Panewright.app</b> (from the <a href="#releases">releases table</a>) into Applications and launch it.</p>
+  <p>Then drop <b>Panewright.app</b> (from the <a href="#releases">releases table</a>) into Applications and launch it. The engine and its <code>aerospace</code> CLI are inside the app.</p>
   </details>
   <table>
     <tr><th>Who</th><th>Permission</th><th>Why</th></tr>
-    <tr><td>AeroSpace</td><td>Accessibility</td><td>Moving and resizing windows. <b>Restart AeroSpace after granting</b> — grants only take effect at launch.</td></tr>
-    <tr><td>Panewright</td><td>Accessibility + Input Monitoring</td><td>The drag-to-tile event tap and focus-follows-mouse. Quit and reopen Panewright after granting.</td></tr>
+    <tr><td>Panewright</td><td>Accessibility + Input Monitoring</td><td>Window management (the built-in tiling engine runs under Panewright's own grant), the drag-to-tile event tap, and focus-follows-mouse. Quit and reopen Panewright after granting.</td></tr>
   </table>
+  <p>That's the only permissions row — the tiling engine is a child process of Panewright, so macOS attributes its window control to Panewright and it never appears in System Settings separately.</p>
 
   <h2 id="concepts">How it works</h2>
   <p>Panewright is an orchestrator: it reads your one config file and generates/supervises the configs of AeroSpace, JankyBorders, and SketchyBar. Save your config and everything downstream reloads within a second.</p>

@@ -105,9 +105,7 @@ install_formula() {
     fi
 }
 
-# AeroSpace does the tiling; without it there is no window manager at all.
-install_formula "AeroSpace" /opt/homebrew/bin/aerospace \
-    --cask nikitabobko/tap/aerospace
+# The tiling engine ships inside Panewright.app itself — nothing to install.
 # JankyBorders draws the focus ring.
 install_formula "JankyBorders" /opt/homebrew/bin/borders \
     FelixKratz/formulae/borders

@@ -28,10 +28,14 @@ cp Assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # Accessibility grant covers the whole product. Skipped when the fork build
 # isn't present — the app then falls back to launching /Applications/AeroSpace.
 ENGINE="$HOME/src/AeroSpace-patched/.build/apple/Products/Release/AeroSpaceApp"
+CLI_BIN="$HOME/src/AeroSpace-patched/.build/apple/Products/Release/aerospace"
 if [ -f "$ENGINE" ]; then
     mkdir -p "$APP/Contents/Helpers"
     cp "$ENGINE" "$APP/Contents/Helpers/AeroSpace"
-    echo "embedded engine from $ENGINE"
+    # Named aerospace-cli, not aerospace: APFS is case-insensitive by
+    # default, so "aerospace" beside "AeroSpace" would be the same file.
+    [ -f "$CLI_BIN" ] && cp "$CLI_BIN" "$APP/Contents/Helpers/aerospace-cli"
+    echo "embedded engine + CLI from fork build"
 else
     echo "note: no fork build at $ENGINE — engine not embedded"
 fi
@@ -60,6 +64,10 @@ if [ -n "${IDENTITY:-}" ]; then
     if [ -f "$APP/Contents/Helpers/AeroSpace" ]; then
         codesign --force --options runtime --sign "$IDENTITY" \
             "$APP/Contents/Helpers/AeroSpace"
+    fi
+    if [ -f "$APP/Contents/Helpers/aerospace-cli" ]; then
+        codesign --force --options runtime --sign "$IDENTITY" \
+            "$APP/Contents/Helpers/aerospace-cli"
     fi
     codesign --force --options runtime --sign "$IDENTITY" "$APP"
     echo "signed with: $IDENTITY"

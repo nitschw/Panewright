@@ -15,27 +15,6 @@ struct OnboardingView: View {
             Divider()
 
             SetupRow(
-                done: model.aerospaceInstalled,
-                working: model.installing.contains("AeroSpace"),
-                title: "Tiling engine",
-                detail: model.aerospaceInstalled
-                    ? "Installed"
-                    : "Installs via Homebrew. No password needed.",
-                actionLabel: "Install"
-            ) {
-                model.installAeroSpace()
-            }
-
-            SetupRow(
-                done: model.status == .running,
-                title: "Tiling engine running with Accessibility",
-                detail: aerospaceDetail,
-                actionLabel: aerospaceActionLabel
-            ) {
-                model.launchOrRestartAeroSpace()
-            }
-
-            SetupRow(
                 done: model.dragToTileActive,
                 title: "Drag-to-Tile permissions",
                 detail: model.dragToTileActive
