@@ -39,7 +39,7 @@ final class WindowFitController {
     /// mid-gesture means fighting the person doing the resizing.
     private var lastInteraction = Date.distantPast
 
-    private static let maxAttempts = 6
+    private static let maxAttempts = 5
     /// How long to leave a workspace alone after moving a window out of it.
     ///
     /// Evicting changes the problem: the windows that remain have more room,
@@ -172,8 +172,11 @@ final class WindowFitController {
                 converging = false
                 consecutiveOverlaps = 0
             }
+            // Fetched once per round and carried forward: the frames read
+            // back after a resize are the same frames the next decision needs,
+            // and querying twice was most of the time this loop spent.
+            var windows = currentWindows(cli: cli)
             for attempt in 1...Self.maxAttempts {
-                let windows = currentWindows(cli: cli)
                 guard windows.count > 1 else { return }
                 let verdict = WindowFitting.nextStep(
                     for: windows, minimums: minimums.minimums, bounds: bounds,
@@ -245,8 +248,9 @@ final class WindowFitController {
                     ])
                     // Let the resize land before reading it back, or we learn
                     // a minimum from a frame that hadn't updated yet.
-                    try? await Task.sleep(for: .milliseconds(25))
-                    learn(from: target, requested: by, axis: axis, cli: cli)
+                    try? await Task.sleep(for: .milliseconds(15))
+                    windows = currentWindows(cli: cli)
+                    learn(from: target, requested: by, axis: axis, in: windows)
                 case .adjusting(.settle):
                     return
                 }
@@ -258,7 +262,7 @@ final class WindowFitController {
             // impossible and then sat on the finding — four windows left
             // visibly overlapping, one of them off the edge of the screen,
             // with eviction never considered.
-            let windows = currentWindows(cli: cli)
+            windows = currentWindows(cli: cli)
             DragLog.log(
                 "fitting: out of resize steps after "
                     + "\(Int(Date().timeIntervalSince(started) * 1000))ms")
@@ -329,11 +333,9 @@ final class WindowFitController {
     /// what it was asked for is the only signal macOS offers about its floor.
     private func learn(
         from target: WindowFitting.Window, requested: Int, axis: WindowFitting.Axis,
-        cli: AeroSpaceCLI
+        in windows: [WindowFitting.Window]
     ) {
-        guard let now = currentWindows(cli: cli).first(where: { $0.id == target.id }) else {
-            return
-        }
+        guard let now = windows.first(where: { $0.id == target.id }) else { return }
         // An app's width floor and its height floor are unrelated numbers, so
         // each is measured along the axis it was actually asked about.
         guard
