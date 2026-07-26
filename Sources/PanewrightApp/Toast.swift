@@ -57,10 +57,14 @@ final class Toast {
 
     /// Show a message for `duration`, replacing any message already showing.
     ///
+    /// Three seconds: long enough to notice something moved, read which window
+    /// and where it went, and look up at the workspace it names. A second was
+    /// enough to see that *something* had appeared and not much else.
+    ///
     /// Replacing rather than queueing: two evictions in quick succession
     /// should leave the second one's text on screen, not make you wait through
     /// the first.
-    static func show(_ text: String, duration: TimeInterval = 1.0) {
+    static func show(_ text: String, duration: TimeInterval = 3.0) {
         current?.close()
         let toast = Toast(text: text)
         current = toast
