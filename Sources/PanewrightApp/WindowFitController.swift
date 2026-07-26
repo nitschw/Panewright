@@ -136,7 +136,7 @@ final class WindowFitController {
             }
         }
         if corrected { minimums.save() }
-        let bounds = displayBounds()
+        let bounds = displayBounds(config)
         let separation = CGFloat(config.gaps.inner)
         let broken = WindowFitting.Axis.allCases.contains {
             WindowFitting.deficit(
@@ -349,13 +349,34 @@ final class WindowFitController {
 
     /// The visible bounds of the display the focused workspace is on. A window
     /// pushed past this edge overlaps nothing and is still plainly broken.
-    private func displayBounds() -> CGRect? {
+    /// The region AeroSpace actually tiles into, in CGWindowList's top-left
+    /// coordinates.
+    ///
+    /// Not the whole screen. AeroSpace insets the workspace by the outer gaps,
+    /// and by the bar's reserved space at the bottom — so a window can be
+    /// pushed below the tiled area, still be on screen, and be plainly wrong
+    /// while a screen-sized bounds check calls it fine. That's exactly the
+    /// "partially outside the tiled area" case a vertical resize leaves behind.
+    ///
+    /// The flip used not to matter, because only the horizontal extent was
+    /// compared and it's identical in both coordinate systems. Now that height
+    /// is fitted too, using NSScreen's bottom-left rect directly would put the
+    /// insets on the wrong ends.
+    private func displayBounds(_ config: PanewrightConfig) -> CGRect? {
         guard let screen = NSScreen.main else { return nil }
-        // CGWindowList is top-left origin; NSScreen is bottom-left. Only the
-        // horizontal extent is compared, so the flip doesn't matter here.
+        let outer = CGFloat(config.gaps.outer)
+        // The bar sits at the bottom, and the emitter adds its reserved height
+        // to the bottom outer gap — mirror that rather than re-deriving it.
+        let bottom =
+            outer
+            + (config.statusBar.enabled
+                ? CGFloat(
+                    SketchyBarConfigEmitter.reservedTopGap(for: config.statusBar.theme)) : 0)
         return CGRect(
-            x: screen.frame.minX, y: screen.frame.minY,
-            width: screen.frame.width, height: screen.frame.height)
+            x: screen.frame.minX + outer,
+            y: outer,
+            width: screen.frame.width - outer * 2,
+            height: screen.frame.height - outer - bottom)
     }
 
     /// Identity of a layout: which windows, and roughly where. Rounded so
@@ -422,7 +443,7 @@ final class WindowFitController {
             // in your face — the toast only has to answer "where did my window
             // go".
             Toast.show("\(name) moved to workspace \(destination) — it wouldn't fit")
-            if let bounds = displayBounds() {
+            if let bounds = (try? Orchestrator().loadConfig()).flatMap({ displayBounds($0) }) {
                 let capacity = WindowFitting.capacity(
                     of: windows, minimums: minimums.minimums, bounds: bounds,
                     separation: CGFloat((try? Orchestrator().loadConfig())?.gaps.inner ?? 0))
@@ -471,7 +492,10 @@ final class WindowFitController {
         }
         guard !cachedBundleIDs.isEmpty else { return [] }
         let now = Date()
-        let visible = displayBounds()
+        // The raw screen here, not the tiled area: this only rejects windows
+        // parked far off-screen, and a window legitimately overlapping the bar
+        // must still be seen so it can be corrected.
+        let visible = NSScreen.main?.frame
         fullscreenIDs = []
         var windows: [WindowFitting.Window] = []
         for window in onScreen {

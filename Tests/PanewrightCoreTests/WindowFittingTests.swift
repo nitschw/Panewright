@@ -800,3 +800,40 @@ private func window(
         #expect(capacity.known.first?.name == "Discord")
     }
 }
+
+/// A window can sit inside the screen and outside the region AeroSpace tiles
+/// into — below the workspace but above the bottom of the display. Judged
+/// against the screen it looks fine; judged against the tiled area it's the
+/// "partially outside the tiles" a vertical resize leaves behind.
+@Suite struct TiledAreaBoundsTests {
+    private let screen = CGRect(x: 0, y: 0, width: 1728, height: 1117)
+    /// Outer gap 8, plus 40 reserved for the bar at the bottom.
+    private let tiled = CGRect(x: 8, y: 8, width: 1712, height: 1069)
+
+    @Test func aWindowBelowTheTiledAreaIsNoticed() {
+        let windows = [
+            window(1, "a", x: 8, width: 800),
+            WindowFitting.Window(
+                id: 2, bundleID: "b",
+                // Ends at 1100: inside the 1117 screen, past the 1077 tiled area.
+                frame: CGRect(x: 820, y: 600, width: 800, height: 500),
+                arrived: Date()),
+        ]
+        #expect(
+            WindowFitting.deficit(in: windows, bounds: screen, axis: .vertical) == 0,
+            "the screen calls this fine, which is the bug")
+        #expect(WindowFitting.deficit(in: windows, bounds: tiled, axis: .vertical) > 0)
+    }
+
+    @Test func aWindowInsideTheTiledAreaIsStillFine() {
+        let windows = [
+            WindowFitting.Window(
+                id: 1, bundleID: "a", frame: CGRect(x: 8, y: 8, width: 800, height: 1069),
+                arrived: Date()),
+            WindowFitting.Window(
+                id: 2, bundleID: "b", frame: CGRect(x: 816, y: 8, width: 800, height: 1069),
+                arrived: Date()),
+        ]
+        #expect(WindowFitting.deficit(in: windows, bounds: tiled, axis: .vertical) == 0)
+    }
+}
