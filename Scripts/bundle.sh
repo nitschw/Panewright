@@ -23,6 +23,19 @@ cp ".build/$CONFIGURATION/panewright" "$APP/Contents/MacOS/panewright"
 cp Assets/logo.png "$APP/Contents/Resources/logo.png"
 cp Assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
+# Embed the tiling engine (the patched AeroSpace fork) as a helper
+# executable. A direct child inherits Panewright's TCC responsibility, so one
+# Accessibility grant covers the whole product. Skipped when the fork build
+# isn't present — the app then falls back to launching /Applications/AeroSpace.
+ENGINE="$HOME/src/AeroSpace-patched/.build/apple/Products/Release/AeroSpaceApp"
+if [ -f "$ENGINE" ]; then
+    mkdir -p "$APP/Contents/Helpers"
+    cp "$ENGINE" "$APP/Contents/Helpers/AeroSpace"
+    echo "embedded engine from $ENGINE"
+else
+    echo "note: no fork build at $ENGINE — engine not embedded"
+fi
+
 # Embed Sparkle (SwiftPM links it from build artifacts; ship a copy).
 SPARKLE_FW="$(find .build/artifacts -name "Sparkle.framework" -type d | head -1)"
 if [ -n "$SPARKLE_FW" ]; then
@@ -43,6 +56,10 @@ if [ -n "${IDENTITY:-}" ]; then
     if [ -d "$APP/Contents/Frameworks/Sparkle.framework" ]; then
         codesign --force --options runtime --deep --sign "$IDENTITY" \
             "$APP/Contents/Frameworks/Sparkle.framework"
+    fi
+    if [ -f "$APP/Contents/Helpers/AeroSpace" ]; then
+        codesign --force --options runtime --sign "$IDENTITY" \
+            "$APP/Contents/Helpers/AeroSpace"
     fi
     codesign --force --options runtime --sign "$IDENTITY" "$APP"
     echo "signed with: $IDENTITY"

@@ -898,6 +898,31 @@ public struct Orchestrator: Sendable {
     }
 
     public func launchAeroSpace() throws {
+        // When the engine ships inside the app bundle, spawn it as a direct
+        // child rather than through Launch Services. The difference is who
+        // macOS bills for its Accessibility use: a child process inherits the
+        // parent's TCC responsibility, so the engine runs under *Panewright's*
+        // grant and never appears in System Settings at all — one app, one
+        // set of permissions. (`open` would launch it as its own responsible
+        // process and put a second row back in the permissions table.)
+        //
+        // Named "AeroSpace" so the process name matches what teardown,
+        // restart and the health checks already pkill/pgrep for.
+        let embedded = Bundle.main.bundleURL
+            .appending(path: "Contents/Helpers/AeroSpace")
+        if FileManager.default.isExecutableFile(atPath: embedded.path) {
+            let engine = Process()
+            engine.executableURL = embedded
+            engine.standardOutput = FileHandle.nullDevice
+            engine.standardError = FileHandle.nullDevice
+            // Reap on exit; nothing holds the handle. Termination is pkill's
+            // job (teardown), not ours — and an orphaned engine surviving a
+            // Panewright crash keeps the user's windows managed, which is a
+            // feature, not a leak.
+            engine.terminationHandler = { _ in }
+            try engine.run()
+            return
+        }
         try runTool("/usr/bin/open", ["-a", "AeroSpace"])
     }
 
