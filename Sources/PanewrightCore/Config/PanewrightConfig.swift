@@ -34,8 +34,10 @@ public struct PanewrightConfig: Equatable, Sendable {
         /// windows are broken tiling, so fixing it is the right default as
         /// long as we always say we did.
         public var overflow: Bool
-        /// Points to ask for per shrink attempt. Large enough to make progress
-        /// in a few passes, small enough not to overshoot a fitting layout.
+        /// Ceiling on a single shrink request. A safety rail against one
+        /// correction yanking a window dramatically — not a pace. The fitter
+        /// asks for what's actually missing, so a small ceiling just turns one
+        /// correction into several visible ones.
         public var step: Int
         /// Keep floating windows above tiled ones.
         ///
@@ -46,7 +48,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         public var floatOnTop: Bool
 
         public init(
-            enabled: Bool = true, overflow: Bool = true, step: Int = 60,
+            enabled: Bool = true, overflow: Bool = true, step: Int = 240,
             floatOnTop: Bool = true
         ) {
             self.enabled = enabled

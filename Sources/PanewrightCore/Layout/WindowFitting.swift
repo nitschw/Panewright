@@ -191,7 +191,7 @@ public enum WindowFitting {
         minimums: Minimums,
         bounds: CGRect? = nil,
         separation: CGFloat = 0,
-        step: Int = 60,
+        step: Int = 240,
         overflowEnabled: Bool = true
     ) -> Verdict {
         let worst = Axis.allCases
@@ -199,7 +199,7 @@ public enum WindowFitting {
                 in: windows, bounds: bounds, separation: separation, axis: $0)) }
             .max { $0.need < $1.need }
         guard let worst, worst.need > 0 else { return .fits }
-        let ask = clamp(worst.need, step: step)
+        let need = worst.need
 
         // Take the space from whichever window has the most *slack* — room
         // above the floor its app will actually honor, in this direction.
@@ -225,9 +225,19 @@ public enum WindowFitting {
                 hasNeighbour($0, among: windows, along: worst.axis, separation: separation)
             }
             .map { (window: $0, slack: slack(of: $0, minimums: minimums, axis: worst.axis)) }
-            .filter { $0.slack >= CGFloat(ask) }
+            // Any usable room counts, not only enough to close the whole gap
+            // alone. Requiring a single window to absorb the entire ask meant
+            // three windows with fifty points of room each were all discarded
+            // and something got evicted instead — the layout was fixable and
+            // nothing was even asked.
+            .filter { $0.slack >= Self.smallestUsefulAsk }
             .sorted { $0.slack > $1.slack }
         if let target = candidates.first {
+            // Take as much as this window can actually give toward the
+            // deficit. Asking for a fixed step when it has more to spare is
+            // what made this crawl: a 300pt gap became five round trips
+            // through AeroSpace instead of one.
+            let ask = clamp(min(need, target.slack), step: step)
             return .adjusting(.shrink(id: target.window.id, by: ask, axis: worst.axis))
         }
         guard overflowEnabled, let newest = windows.max(by: { $0.arrived < $1.arrived })
@@ -240,8 +250,11 @@ public enum WindowFitting {
     /// instead of solving it. Rounded up with a small margin for fractional
     /// frames, floored at something worth a round trip, capped by the step.
     private static func clamp(_ need: CGFloat, step: Int) -> Int {
-        min(step, max(8, Int((need + 4).rounded(.up))))
+        min(step, max(Int(smallestUsefulAsk), Int((need + 4).rounded(.up))))
     }
+
+    /// Below this, a resize round trip costs more than the space it recovers.
+    static let smallestUsefulAsk: CGFloat = 8
 
     /// Which axis two windows are neighbours along, if any.
     ///

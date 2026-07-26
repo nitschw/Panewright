@@ -670,3 +670,61 @@ private func window(
                 separation: 5) == .fits)
     }
 }
+
+/// Reported: sending a third window to a workspace evicted one of the two
+/// already there without resizing anything first.
+@Suite struct PartialSlackTests {
+    private let screen = CGRect(x: 0, y: 0, width: 1728, height: 1117)
+
+    @Test func windowsWithSomeRoomAreAskedBeforeAnythingIsEvicted() {
+        // Three windows, each with 30pt above its floor: 90pt collectively,
+        // more than enough. None can absorb a 60pt step alone, and requiring
+        // that of a single window discarded all three and evicted instead —
+        // the layout was fixable and nothing was even asked.
+        let windows = [
+            window(1, "a", x: 0, width: 600, arrived: 100),
+            window(2, "b", x: 590, width: 600, arrived: 200),
+            window(3, "c", x: 1180, width: 600, arrived: 300),
+        ]
+        let minimums = WindowFitting.Minimums(widths: ["a": 570, "b": 570, "c": 570])
+        let verdict = WindowFitting.nextStep(
+            for: windows, minimums: minimums, bounds: screen, separation: 5, step: 240)
+        guard case .adjusting(.shrink) = verdict else {
+            Issue.record("expected a shrink, got \(verdict)")
+            return
+        }
+    }
+
+    @Test func aWindowIsAskedForWhatItCanActuallyGive() {
+        // Asking a fixed step when it has more to spare is what made this
+        // crawl: a large gap became several round trips instead of one.
+        let windows = [
+            window(1, "roomy", x: 0, width: 1200, arrived: 100),
+            window(2, "pinned", x: 900, width: 600, arrived: 200),
+        ]
+        guard
+            case .adjusting(.shrink(_, let by, _)) = WindowFitting.nextStep(
+                for: windows, minimums: WindowFitting.Minimums(widths: ["pinned": 600]),
+                bounds: screen, separation: 5, step: 240)
+        else {
+            Issue.record("expected a shrink")
+            return
+        }
+        // The overlap is 300pt; one ask should close most of it, not 60pt of it.
+        #expect(by > 60)
+    }
+
+    @Test func evictionStillHappensWhenNothingHasAnyRoom() {
+        // The rule only relaxes who counts as a candidate — a layout where
+        // every window is genuinely on its floor still can't be resized.
+        let windows = [
+            window(1, "a", x: 0, width: 900, arrived: 100),
+            window(2, "b", x: 890, width: 900, arrived: 200),
+        ]
+        let minimums = WindowFitting.Minimums(widths: ["a": 900, "b": 900])
+        let verdict = WindowFitting.nextStep(
+            for: windows, minimums: minimums, bounds: CGRect(x: 0, y: 0, width: 1000, height: 1000),
+            separation: 5, step: 240)
+        #expect(verdict == .adjusting(.evict(id: 2)))
+    }
+}

@@ -205,7 +205,7 @@ final class WindowFitController {
                     ])
                     // Let the resize land before reading it back, or we learn
                     // a minimum from a frame that hadn't updated yet.
-                    try? await Task.sleep(for: .milliseconds(90))
+                    try? await Task.sleep(for: .milliseconds(45))
                     learn(from: target, requested: by, axis: axis, cli: cli)
                 case .adjusting(.settle):
                     return
