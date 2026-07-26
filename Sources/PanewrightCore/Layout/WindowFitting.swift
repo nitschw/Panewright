@@ -349,7 +349,7 @@ public enum WindowFitting {
     /// drawn on top of each other share both spans, so a side-by-side pair
     /// registered as vertical neighbours, got asked to give up height they had
     /// no way to give, and recorded floors equal to the full screen height.
-    private static func hasNeighbour(
+    public static func hasNeighbour(
         _ window: Window, among windows: [Window], along axis: Axis, separation: CGFloat
     ) -> Bool {
         windows.contains { other in

@@ -52,6 +52,9 @@ final class WindowFitController {
     /// genuinely too full still resolves without being touched again.
     private static let settleAfterInteraction: TimeInterval = 3
     private var lastEviction = Date.distantPast
+    /// The window set at the moment of the last eviction. Nothing else moves
+    /// until this differs from what's actually on screen.
+    private var evictedFrom: Set<UInt32> = []
 
     /// Cached workspace membership, refreshed only when the on-screen window
     /// set changes — see currentWindows.
@@ -179,6 +182,10 @@ final class WindowFitController {
                     settled = signature(of: windows)
                     return
                 case .adjusting(.evict(let id)):
+                    guard evictedFrom != Set(windows.map(\.id)) else {
+                        DragLog.log("fitting: waiting for the last eviction to take effect")
+                        return
+                    }
                     // Before moving anyone's window to another workspace,
                     // check that the floors saying it's impossible are real.
                     //
@@ -189,7 +196,7 @@ final class WindowFitController {
                     // therefore sticks forever and keeps forcing evictions on
                     // layouts that would fit. Eviction is destructive enough
                     // to be worth one round of proving the constraint first.
-                    if await retestFloors(windows: windows, cli: cli) {
+                    if await retestFloors(windows: windows, separation: separation, cli: cli) {
                         DragLog.log("fitting: a floor was wrong — resizing instead of evicting")
                         continue
                     }
@@ -239,13 +246,20 @@ final class WindowFitController {
     /// high and the layout may be fixable after all. Only windows with a
     /// neighbour to trade with are asked — the rest can't move regardless.
     private func retestFloors(
-        windows: [WindowFitting.Window], cli: AeroSpaceCLI
+        windows: [WindowFitting.Window], separation: CGFloat, cli: AeroSpaceCLI
     ) async -> Bool {
         var improved = false
         for window in windows {
             for axis in WindowFitting.Axis.allCases {
                 guard let floor = minimums.minimum(for: window.bundleID, axis: axis),
-                    axis.extent(window.frame) <= floor + 4
+                    axis.extent(window.frame) <= floor + 4,
+                    // Same rule the planner uses: a window alone in its column
+                    // cannot give up height, so asking can only be refused —
+                    // and that refusal gets misread as a floor. Re-testing was
+                    // generating exactly the phantom measurements the planner
+                    // already knows to avoid.
+                    WindowFitting.hasNeighbour(
+                        window, among: windows, along: axis, separation: separation)
                 else { continue }
                 let before = axis.extent(window.frame)
                 try? cli.run([
@@ -351,6 +365,12 @@ final class WindowFitController {
                 "move-node-to-workspace", "--window-id", "\(id)", destination,
             ])
             lastEviction = Date()
+            // Wait for the window set to actually change before considering
+            // another. Evicting removes a window, which frees space for the
+            // ones left — deciding again off geometry that hasn't re-tiled is
+            // how one necessary eviction became two, on a workspace that fit
+            // perfectly well once the first window had gone.
+            evictedFrom = Set(windows.map(\.id))
             // Say why, with the numbers. A window relocating with no
             // explanation reads as a bug; the arithmetic makes it a decision.
             var reason = "it wouldn't fit"
