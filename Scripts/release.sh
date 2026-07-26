@@ -106,9 +106,38 @@ git commit -m "Release $VERSION"
 git tag "v$VERSION"
 git push && git push --tags
 
+# Push the cask to the tap.
+#
+# The tap is a separate repository, so a release that only updates the copy in
+# this repo leaves `brew install` pointing at the previous version and a
+# sha256 that no longer matches — which fails the download rather than
+# installing something stale, but fails it for everyone until someone notices.
+sync_tap() {
+    local tap_dir
+    tap_dir="$(mktemp -d)"
+    if ! git clone -q git@github.com:nitschw/homebrew-tap.git "$tap_dir" 2>/dev/null; then
+        echo "note: couldn't reach the tap — update it by hand:"
+        echo "      cp Casks/panewright.rb <tap>/Casks/panewright.rb"
+        rm -rf "$tap_dir"
+        return
+    fi
+    cp Casks/panewright.rb "$tap_dir/Casks/panewright.rb"
+    if git -C "$tap_dir" diff --quiet; then
+        echo "tap: already up to date"
+    else
+        git -C "$tap_dir" add Casks/panewright.rb
+        git -C "$tap_dir" commit -q -m "panewright $VERSION"
+        git -C "$tap_dir" push -q origin HEAD
+        echo "tap: published $VERSION"
+    fi
+    rm -rf "$tap_dir"
+}
+
 if command -v gh >/dev/null 2>&1; then
     gh release create "v$VERSION" "$ZIP" "$DMG" \
         --title "Panewright $VERSION" --generate-notes
+    # After the release exists, so the cask never points at a missing asset.
+    sync_tap
 else
     echo
     echo "gh not installed — create the release manually:"
