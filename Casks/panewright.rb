@@ -17,7 +17,7 @@ cask "panewright" do
     strategy :github_latest
   end
 
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   # The whole point of the one-liner: Panewright supervises these three, and
   # without them it starts up with nothing to manage.
