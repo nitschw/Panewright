@@ -302,6 +302,7 @@ final class AppModel {
     private var cheatSheetWindowController: CheatSheetWindowController?
     private var settingsWindowController: SettingsWindowController?
     private var conflictsWindowController: ConflictsWindowController?
+    private var profilesWindowController: ProfilesWindowController?
     private var windowFitController: WindowFitController?
     private let shortcutOverride = ShortcutOverrideTap()
     /// Deliberately not persisted: a tap that swallows keystrokes must always
@@ -475,6 +476,23 @@ final class AppModel {
         } else {
             shortcutOverride.stop()
             lastMessage = "System shortcuts released"
+        }
+    }
+
+    func openProfiles() {
+        let controller = profilesWindowController ?? ProfilesWindowController()
+        profilesWindowController = controller
+        controller.show(appModel: self)
+    }
+
+    /// Kept in sync when a profile is renamed or deleted, so the checkmark
+    /// doesn't point at a name that no longer exists.
+    func setActiveProfile(_ name: String?) {
+        activeProfile = name
+        if let name {
+            UserDefaults.standard.set(name, forKey: "activeProfile")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "activeProfile")
         }
     }
 
@@ -942,58 +960,47 @@ final class AppModel {
 struct PanewrightMenu: View {
     let model: AppModel
 
+    /// Grouped by what you came here to do, with a divider between groups:
+    /// what's wrong, what you're configuring, what you're working on, the
+    /// environment itself, and the app. It grew item by item before this,
+    /// which is how "Add Task" ended up next to "Launch at Login".
     var body: some View {
+        status
+        Divider()
+        attention
+        configure
+        Divider()
+        work
+        environment
+        Divider()
+        about
+    }
+
+    // MARK: What's going on
+
+    @ViewBuilder
+    private var status: some View {
         if !model.competingTools.isEmpty {
             Text("⚠ Another window manager is running")
             ForEach(model.competingTools) { tool in
                 Text("  \(tool.name) — \(tool.note)")
             }
             Button("Start Anyway") { model.startAnywayDespiteCompetition() }
-            Divider()
-        }
-        if model.awaitingPermissions {
+        } else if model.awaitingPermissions {
             Text("Waiting for permissions…")
-            Button("Grant Permissions…") {
-                model.finishDragToTileSetup()
-            }
-            Divider()
-        }
-        Text(statusLine)
-        if model.status == .unresponsive {
-            Text("Grant Accessibility in System Settings, then restart AeroSpace")
-        }
-        Divider()
-        Menu("Profiles") {
-            ForEach(model.profiles, id: \.self) { name in
-                Button(name == model.activeProfile ? "✓ \(name)" : name) {
-                    model.activateProfile(name)
-                }
-            }
-            if !model.profiles.isEmpty {
-                Divider()
-            }
-            Button("Save Current as Profile…") {
-                model.saveCurrentAsProfile()
+            Button("Grant Permissions…") { model.finishDragToTileSetup() }
+        } else {
+            Text("AeroSpace: \(model.status.description)")
+            if model.status == .unresponsive {
+                Text("Grant Accessibility in System Settings, then restart AeroSpace")
             }
         }
-        Button("Add Task…") {
-            model.openTodoEditor(index: nil)
-        }
-        if !model.integrations.services.isEmpty {
-            Button("Work Items…") {
-                model.openIntegrations(service: nil)
-            }
-        }
-        if model.confluenceEnabled {
-            Button("Confluence…") {
-                model.openConfluence()
-            }
-        }
-        Button("Settings…") {
-            model.openSettings()
-        }
-        // ⌘, is where every Mac user reaches for this without looking.
-        .keyboardShortcut(",")
+    }
+
+    /// Only ever shown when there's something to act on, so an ordinary menu
+    /// has no warnings in it at all and a warning means something.
+    @ViewBuilder
+    private var attention: some View {
         if model.conflictCount > 0 {
             Button("⚠ Keybinding Conflicts (\(model.conflictCount))…") {
                 model.openConflicts()
@@ -1005,80 +1012,92 @@ struct PanewrightMenu: View {
                 model.toggleShortcutOverride()
             }
         }
-        Button("Edit Config File…") {
-            model.openConfig()
+        if model.setupIncomplete {
+            Button("⚠ Finish Setup…") { model.openSetup() }
         }
-        Button(model.setupIncomplete ? "⚠ Setup…" : "Setup…") {
-            model.openSetup()
+        if model.needsDragSetup {
+            Button("⚠ Finish Drag-to-Tile Setup…") { model.finishDragToTileSetup() }
         }
         if model.pendingCrashReport != nil {
-            Button("Report Last Crash…") {
-                model.reportPendingCrash()
-            }
+            Button("⚠ Report Last Crash…") { model.reportPendingCrash() }
         }
+        if model.conflictCount > 0 || model.setupIncomplete || model.needsDragSetup
+            || model.pendingCrashReport != nil
+        {
+            Divider()
+        }
+    }
+
+    // MARK: Configuring
+
+    @ViewBuilder
+    private var configure: some View {
+        Button("Settings…") { model.openSettings() }
+            .keyboardShortcut(",")
+        Button("Profiles…") { model.openProfiles() }
+        Button("Cheat Sheet") { model.openCheatSheet() }
+        Button("Edit Config File…") { model.openConfig() }
+        if !model.setupIncomplete {
+            Button("Setup…") { model.openSetup() }
+        }
+    }
+
+    // MARK: Work items — only when a service is configured
+
+    @ViewBuilder
+    private var work: some View {
+        if !model.integrations.services.isEmpty {
+            Button("Work Items…") { model.openIntegrations(service: nil) }
+        }
+        if model.confluenceEnabled {
+            Button("Confluence…") { model.openConfluence() }
+        }
+        if !model.integrations.services.isEmpty || model.confluenceEnabled {
+            Divider()
+        }
+    }
+
+    // MARK: The running environment
+
+    @ViewBuilder
+    private var environment: some View {
         Button(model.isBootstrapping ? "Restarting Environment…" : "Restart Environment") {
             model.bootstrapEnvironment()
         }
         .disabled(model.isBootstrapping)
-        Button("Apply Config Now") {
-            model.apply()
-        }
+        Button("Apply Config Now") { model.apply() }
+        // The status bar has no toggle here: it's how you see workspaces,
+        // to-dos and conflicts, so turning it off from a menu is a good way
+        // to lose the interface by accident. Settings still has it.
         if model.bordersInfo == "not installed" {
-            Text("Borders: not installed")
+            Text("Focus Borders: not installed")
         } else {
             Toggle(
                 "Focus Borders",
                 isOn: Binding(
                     get: { model.bordersEnabled },
-                    set: { model.setBordersEnabled($0) }
-                ))
-        }
-        if model.barInfo == "not installed" {
-            Text("Status Bar: not installed")
-        } else {
-            Toggle(
-                "Status Bar",
-                isOn: Binding(
-                    get: { model.barEnabled },
-                    set: { model.setBarEnabled($0) }
-                ))
-        }
-        if model.needsDragSetup {
-            Button("Finish Drag-to-Tile setup…") {
-                model.finishDragToTileSetup()
-            }
+                    set: { model.setBordersEnabled($0) }))
         }
         if model.isBundled {
             Toggle(
                 "Launch at Login",
                 isOn: Binding(
                     get: { model.launchAtLogin },
-                    set: { model.setLaunchAtLogin($0) }
-                ))
+                    set: { model.setLaunchAtLogin($0) }))
         }
-        if !model.lastMessage.isEmpty {
-            Divider()
-            Text(model.lastMessage)
-        }
-        Divider()
-        Button("Cheat Sheet") {
-            model.openCheatSheet()
-        }
-        Button("About Panewright") {
-            model.openAbout()
-        }
+    }
+
+    // MARK: The app
+
+    @ViewBuilder
+    private var about: some View {
+        Button("About Panewright") { model.openAbout() }
         if model.canCheckForUpdates {
-            Button("Check for Updates…") {
-                model.checkForUpdates()
-            }
+            Button("Check for Updates…") { model.checkForUpdates() }
         }
-        Button("Quit Panewright") {
-            NSApp.terminate(nil)
-        }
-        .keyboardShortcut("q")
-        .onAppear {
-            model.refreshStatus()
-        }
+        Button("Quit Panewright") { NSApp.terminate(nil) }
+            .keyboardShortcut("q")
+            .onAppear { model.refreshStatus() }
     }
 
     private var statusLine: String {

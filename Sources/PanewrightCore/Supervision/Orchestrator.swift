@@ -791,6 +791,33 @@ public struct Orchestrator: Sendable {
             atomically: true, encoding: .utf8)
     }
 
+    /// Validate a profile name the same way for every operation that takes
+    /// one. A name with a slash escapes the profiles directory, and an empty
+    /// one produces a file called ".toml" that lists as a profile with no name.
+    private func profileURL(for name: String) throws -> URL {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty, !trimmed.contains("/"), !trimmed.hasPrefix(".") else {
+            throw ConfigError.invalidProfileName(name)
+        }
+        return profilesDirectory.appending(path: "\(trimmed).toml")
+    }
+
+    public func deleteProfile(named name: String) throws {
+        try FileManager.default.removeItem(at: try profileURL(for: name))
+    }
+
+    /// Rename in place. Refuses to overwrite an existing profile — silently
+    /// replacing a saved config with a different one is not a rename.
+    public func renameProfile(from oldName: String, to newName: String) throws {
+        let source = try profileURL(for: oldName)
+        let destination = try profileURL(for: newName)
+        guard source != destination else { return }
+        guard !FileManager.default.fileExists(atPath: destination.path) else {
+            throw ConfigError.invalidProfileName("\(newName) already exists")
+        }
+        try FileManager.default.moveItem(at: source, to: destination)
+    }
+
     public func activateProfile(named name: String) throws {
         let url = profilesDirectory.appending(path: "\(name).toml")
         let toml = try String(contentsOf: url, encoding: .utf8)

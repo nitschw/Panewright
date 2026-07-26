@@ -186,3 +186,59 @@ import Testing
         }
     }
 }
+
+/// Profiles are saved configs, so losing or silently overwriting one loses
+/// work that can't be reconstructed.
+@Suite struct ProfileManagementTests {
+    private func orchestrator() throws -> (Orchestrator, URL) {
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "panewright-profiles-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let paths = PanewrightPaths(
+            panewrightConfigFile: root.appending(path: "panewright.toml"),
+            aerospaceConfigFile: root.appending(path: "aerospace.toml"),
+            sketchybarConfigDirectory: root.appending(path: "sketchybar"))
+        return (Orchestrator(paths: paths), root)
+    }
+
+    @Test func aProfileCanBeSavedListedAndDeleted() throws {
+        let (orchestrator, root) = try orchestrator()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try orchestrator.saveProfile(named: "work")
+        #expect(orchestrator.listProfiles() == ["work"])
+        try orchestrator.deleteProfile(named: "work")
+        #expect(orchestrator.listProfiles().isEmpty)
+    }
+
+    @Test func renamingKeepsTheProfileAndDropsTheOldName() throws {
+        let (orchestrator, root) = try orchestrator()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try orchestrator.saveProfile(named: "work")
+        try orchestrator.renameProfile(from: "work", to: "office")
+        #expect(orchestrator.listProfiles() == ["office"])
+    }
+
+    @Test func renamingOverAnExistingProfileIsRefused() throws {
+        // Silently replacing a saved config with a different one isn't a
+        // rename, it's losing the other profile.
+        let (orchestrator, root) = try orchestrator()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try orchestrator.saveProfile(named: "work")
+        try orchestrator.saveProfile(named: "home")
+        #expect(throws: (any Error).self) {
+            try orchestrator.renameProfile(from: "work", to: "home")
+        }
+        #expect(orchestrator.listProfiles() == ["home", "work"])
+    }
+
+    @Test func namesThatEscapeTheProfilesDirectoryAreRefused() throws {
+        let (orchestrator, root) = try orchestrator()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try orchestrator.saveProfile(named: "work")
+        // "../panewright" would delete the live config rather than a profile.
+        #expect(throws: (any Error).self) {
+            try orchestrator.deleteProfile(named: "../panewright")
+        }
+        #expect(throws: (any Error).self) { try orchestrator.deleteProfile(named: "  ") }
+    }
+}

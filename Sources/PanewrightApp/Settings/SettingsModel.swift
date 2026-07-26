@@ -112,30 +112,8 @@ final class SettingsModel {
         recomputeConflicts()
     }
 
-    /// Bindings in the order they're easiest to find in.
-    ///
-    /// Config order is authoring order — whatever the importer or the defaults
-    /// happened to emit — which makes scanning fifty rows for one key a hunt.
-    /// Sorted, a key is where you'd look for it.
-    ///
-    /// Digits before letters, and numbers compared as numbers so 10 follows 9
-    /// rather than sitting between 1 and 2. A modifier prefix sorts with the
-    /// key it modifies (shift-h next to h) rather than collecting every
-    /// shift- binding into one block, since what you're looking for is the
-    /// key, not the modifier.
-    static func sortKey(_ key: String) -> (Int, String, Int, String) {
-        let lowered = key.lowercased()
-        let separator = lowered.lastIndex(of: "-")
-        let modifier = separator.map { String(lowered[lowered.startIndex..<$0]) } ?? ""
-        let base = separator.map { String(lowered[lowered.index(after: $0)...]) } ?? lowered
-        let digits = Int(base)
-        // Digits first, then by numeric value or by name, then the bare key
-        // ahead of its modified variants.
-        return (digits == nil ? 1 : 0, digits == nil ? base : "", digits ?? 0, modifier)
-    }
-
     private static func sorted(_ rows: [BindingRow]) -> [BindingRow] {
-        rows.sorted { sortKey($0.key) < sortKey($1.key) }
+        rows.sorted { BindingOrder.before($0.key, $1.key) }
     }
 
     /// Re-sort in place — used after an edit changes a key, so a renamed

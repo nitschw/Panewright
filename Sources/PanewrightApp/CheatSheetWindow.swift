@@ -46,12 +46,16 @@ struct CheatSheetView: View {
         return ForEach(Category.allCases, id: \.self) { cat in
             if let bindings = groups[cat], !bindings.isEmpty {
                 section(cat.rawValue) {
-                    ForEach(Array(bindings.enumerated()), id: \.offset) { _, binding in
+                    ForEach(Array(BindingOrder.sorted(bindings).enumerated()), id: \.offset) {
+                        _, binding in
                         row(prettyKey(binding.key), describe(binding.actions))
                     }
                     if cat == .modes {
                         ForEach(config.modes, id: \.name) { mode in
-                            ForEach(Array(mode.bindings.enumerated()), id: \.offset) { _, b in
+                            ForEach(
+                                Array(BindingOrder.sorted(mode.bindings).enumerated()),
+                                id: \.offset
+                            ) { _, b in
                                 row(
                                     "\(mode.name) → \(prettyKey(b.key))",
                                     describe(b.actions))
