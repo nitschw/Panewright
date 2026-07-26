@@ -235,6 +235,7 @@ final class AppModel {
             self?.startPermissionWatch()
             self?.startBarHealthCheck()
             self?.startWindowFitting()
+            self?.appSwitchRouter.start()
             MonitorMap.observe()
         }
         Task.detached(priority: .userInitiated) {
@@ -305,6 +306,7 @@ final class AppModel {
     private var profilesWindowController: ProfilesWindowController?
     private var windowFitController: WindowFitController?
     private let shortcutOverride = ShortcutOverrideTap()
+    private let appSwitchRouter = AppSwitchRouter()
     /// Deliberately not persisted: a tap that swallows keystrokes must always
     /// be off after a restart, so quitting Panewright is a guaranteed way out
     /// of a keyboard that's misbehaving.

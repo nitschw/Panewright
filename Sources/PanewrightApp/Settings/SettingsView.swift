@@ -156,6 +156,13 @@ struct SettingsView: View {
                     .frame(width: 220)
             }
             Toggle("Focus follows mouse (hover to focus, no click)", isOn: bind(\.focusFollowsMouse))
+            Toggle(
+                "Switching apps follows their windows", isOn: bind(\.followAppSwitch))
+            Text(
+                "Cmd+Tab to a window parked in the bar summons it; to one on another "
+                    + "workspace, goes there."
+            )
+            .font(.caption).foregroundStyle(.secondary)
         }
     }
 

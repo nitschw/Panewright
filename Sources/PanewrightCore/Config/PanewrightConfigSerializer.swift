@@ -12,6 +12,8 @@ public enum PanewrightConfigSerializer {
         // your key is silently the default again.
         lines.append("leader-key = \"\(config.leaderKey)\"")
         lines.append("focus-follows-mouse = \(config.focusFollowsMouse)")
+        lines.append("# Cmd+Tab lands you where the app's window actually is.")
+        lines.append("follow-app-switch = \(config.followAppSwitch)")
         // EVERY top-level key must be emitted before the first table header.
         // TOML scopes bare keys to the table above them, so a `floating-apps`
         // written after `[hooks]` is read back as `hooks.floating-apps` and

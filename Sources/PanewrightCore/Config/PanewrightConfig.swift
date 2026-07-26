@@ -357,6 +357,11 @@ public struct PanewrightConfig: Equatable, Sendable {
     /// i3's `focus_follows_mouse` — hover moves focus, no click. Implemented
     /// by Panewright's event tap (AeroSpace has no native support).
     public var focusFollowsMouse: Bool
+    /// Make switching to an app land you where its window is: summon it if
+    /// it's parked in the bar, follow it if it's on another workspace.
+    /// Cmd+Tab knows nothing about workspaces, so without this it raises an
+    /// app whose window isn't on screen.
+    public var followAppSwitch: Bool
     public var statusBar: StatusBar
     public var gaps: Gaps
     public var fitting: Fitting
@@ -396,6 +401,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         modules: Modules = Modules(),
         integrations: IntegrationsConfig = IntegrationsConfig(),
         focusFollowsMouse: Bool = false,
+        followAppSwitch: Bool = true,
         statusBar: StatusBar = StatusBar(),
         gaps: Gaps = Gaps(),
         fitting: Fitting = Fitting(),
@@ -416,6 +422,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         self.modules = modules
         self.integrations = integrations
         self.focusFollowsMouse = focusFollowsMouse
+        self.followAppSwitch = followAppSwitch
         self.statusBar = statusBar
         self.gaps = gaps
         self.fitting = fitting
