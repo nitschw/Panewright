@@ -413,16 +413,23 @@ final class WindowFitController {
             recentlyEvicted = recentlyEvicted.filter {
                 Date().timeIntervalSince($0.value) < Self.reEvictionGuard * 2
             }
-            // Say why, with the numbers. A window relocating with no
-            // explanation reads as a bug; the arithmetic makes it a decision.
-            var reason = "it wouldn't fit"
+            // On screen for a moment, and the reasoning in the log.
+            //
+            // A system notification is the wrong weight: it persists in
+            // Notification Center and asks to be dismissed, for something that
+            // stops being relevant the moment it's read. The arithmetic that
+            // justified the move is worth keeping, but in the log rather than
+            // in your face — the toast only has to answer "where did my window
+            // go".
+            Toast.show("\(name) moved to workspace \(destination) — it wouldn't fit")
             if let bounds = displayBounds() {
                 let capacity = WindowFitting.capacity(
                     of: windows, minimums: minimums.minimums, bounds: bounds,
                     separation: CGFloat((try? Orchestrator().loadConfig())?.gaps.inner ?? 0))
-                if !capacity.explanation.isEmpty { reason = capacity.explanation }
+                if !capacity.explanation.isEmpty {
+                    DragLog.log("fitting: \(capacity.explanation)")
+                }
             }
-            notify("\(name) moved to workspace \(destination) — \(reason)")
             DragLog.log("fitting: evicted \(name) (\(id)) to workspace \(destination)")
             reset()
         } catch {
