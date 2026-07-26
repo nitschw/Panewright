@@ -17,7 +17,7 @@ struct OnboardingView: View {
             SetupRow(
                 done: model.aerospaceInstalled,
                 working: model.installing.contains("AeroSpace"),
-                title: "AeroSpace — the tiling engine",
+                title: "Tiling engine",
                 detail: model.aerospaceInstalled
                     ? "Installed"
                     : "Installs via Homebrew. No password needed.",
@@ -28,7 +28,7 @@ struct OnboardingView: View {
 
             SetupRow(
                 done: model.status == .running,
-                title: "AeroSpace is running with Accessibility",
+                title: "Tiling engine running with Accessibility",
                 detail: aerospaceDetail,
                 actionLabel: aerospaceActionLabel
             ) {
@@ -49,7 +49,7 @@ struct OnboardingView: View {
             SetupRow(
                 done: model.bordersInstalled,
                 working: model.installing.contains("JankyBorders"),
-                title: "JankyBorders — focus borders (optional)",
+                title: "Focus borders (optional)",
                 detail: model.bordersInstalled ? "Installed" : "Colored border around the focused window.",
                 actionLabel: "Install"
             ) {
@@ -59,7 +59,7 @@ struct OnboardingView: View {
             SetupRow(
                 done: model.sketchybarInstalled,
                 working: model.installing.contains("SketchyBar"),
-                title: "SketchyBar — status bar (optional)",
+                title: "Status bar (optional)",
                 detail: model.sketchybarInstalled
                     ? "Installed"
                     : "Workspace numbers, mode badge, clock.",
@@ -112,14 +112,14 @@ struct OnboardingView: View {
         case .notRunning: "Installed but not running."
         case .unresponsive:
             "Grant Accessibility to AeroSpace in System Settings → Privacy & Security, then restart it."
-        case .notInstalled: "Install AeroSpace first."
+        case .notInstalled: "Install the tiling engine first."
         }
     }
 
     private var aerospaceActionLabel: String? {
         switch model.status {
         case .notRunning: "Launch"
-        case .unresponsive: "Restart AeroSpace"
+        case .unresponsive: "Restart Engine"
         case .running, .notInstalled: nil
         }
     }

@@ -820,10 +820,10 @@ final class AppModel {
         do {
             if status == .notRunning {
                 try orchestrator.launchAeroSpace()
-                lastMessage = "AeroSpace launched"
+                lastMessage = "Tiling engine started"
             } else {
                 try orchestrator.restartAeroSpace()
-                lastMessage = "AeroSpace restarted"
+                lastMessage = "Tiling engine restarted"
             }
             // Self-heal the layouts a restart scrambles.
             let orchestrator = orchestrator
@@ -854,14 +854,14 @@ final class AppModel {
 
     private func startBarHealthCheck() {
         Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
+            // Read on the main actor before handing off: NSScreen is not for
+            // background threads, and this timer already runs on main.
             // A wake makes AeroSpace report zero managed windows and the bar
             // read as down, for a second or two, because neither has finished
             // coming back. Both checks below then "recover" a system that was
             // never broken — restarting AeroSpace and rebuilding the bar every
             // time the lid opens.
             guard !WakeGuard.isSettling else { return }
-            // Read on the main actor before handing off: NSScreen is not for
-            // background threads, and this timer already runs on main.
             let insets = MainActor.assumeIsolated { (DockInset.bottom, DockInset.sides) }
             Task.detached(priority: .utility) {
                 let orchestrator = Orchestrator()
@@ -956,8 +956,11 @@ final class AppModel {
         aeroStallNotified = true
         DragLog.log("aerospace health: still stalled after restart — notifying")
         notify(
-            "Window tiling stopped responding. AeroSpace lost Accessibility access — "
-                + "toggle it off and on in System Settings → Privacy & Security → Accessibility.")
+            // "AeroSpace" appears here because that is the row's literal name in
+            // the System Settings Accessibility table — an instruction naming a
+            // component we otherwise never mention beats one the user can't follow.
+            "Window tiling lost its Accessibility permission — in System Settings "
+                + "→ Privacy & Security → Accessibility, toggle “AeroSpace” off and on.")
     }
 
     /// Menu-bar/overlay owners that legitimately have no AeroSpace-managed
@@ -1024,9 +1027,11 @@ struct PanewrightMenu: View {
             Text("Waiting for permissions…")
             Button("Grant Permissions…") { model.finishDragToTileSetup() }
         } else {
-            Text("AeroSpace: \(model.status.description)")
+            Text("Tiling: \(model.status.description)")
             if model.status == .unresponsive {
-                Text("Grant Accessibility in System Settings, then restart AeroSpace")
+                // The engine keeps its real name here only because System Settings
+                // lists it as "AeroSpace" — the user has to find that row.
+                Text("Toggle “AeroSpace” in System Settings → Accessibility, then Restart Environment")
             }
         }
     }
@@ -1135,7 +1140,7 @@ struct PanewrightMenu: View {
     }
 
     private var statusLine: String {
-        "AeroSpace: \(model.status.description)"
+        "Tiling: \(model.status.description)"
     }
 
 }

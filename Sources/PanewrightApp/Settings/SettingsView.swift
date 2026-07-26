@@ -151,7 +151,7 @@ struct SettingsView: View {
             }
             .labelsHidden()
             if model.config.modifier == .leader {
-                TextField("Leader key (AeroSpace syntax)", text: bind(\.leaderKey))
+                TextField("Leader key (e.g. alt, ctrl-cmd)", text: bind(\.leaderKey))
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 220)
             }

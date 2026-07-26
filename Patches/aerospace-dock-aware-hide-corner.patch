@@ -1,0 +1,27 @@
+diff --git a/Sources/AppBundle/layout/refresh.swift b/Sources/AppBundle/layout/refresh.swift
+index d33f291..f2f1424 100644
+--- a/Sources/AppBundle/layout/refresh.swift
++++ b/Sources/AppBundle/layout/refresh.swift
+@@ -179,9 +179,20 @@ private func layoutWorkspaces() async throws {
+         func contains(_ monitor: Monitor, _ point: CGPoint) -> Int { monitor.rect.contains(point) ? 1 : 0 }
+         let important = 10
+ 
++        // A Dock on the left or right edge shrinks visibleRect away from that
++        // physical edge. Windows hide at visibleRect corners (hideInCorner),
++        // and macOS clamps them to stay a point inside the visible area — so a
++        // corner obstructed by the Dock leaves hidden windows rendered in the
++        // strip between the visible edge and the physical screen edge, peeking
++        // out from around the Dock (#66). Weigh an obstructed corner like a
++        // corner bleeding onto another monitor, so hiding prefers the corner
++        // that still touches the physical edge of the screen.
++        let blcDockObstructed = monitor.visibleRect.minX > monitor.rect.minX + 2 ? important : 0
++        let brcDockObstructed = monitor.visibleRect.maxX < monitor.rect.maxX - 2 ? important : 0
++
+         let corner: OptimalHideCorner =
+-            monitors.sumOfInt { contains($0, blc1) + contains($0, blc2) + important * contains($0, blc3) } <
+-            monitors.sumOfInt { contains($0, brc1) + contains($0, brc2) + important * contains($0, brc3) }
++            monitors.sumOfInt { contains($0, blc1) + contains($0, blc2) + important * contains($0, blc3) } + blcDockObstructed <
++            monitors.sumOfInt { contains($0, brc1) + contains($0, brc2) + important * contains($0, brc3) } + brcDockObstructed
+             ? .bottomLeftCorner
+             : .bottomRightCorner
+         monitorToOptimalHideCorner[monitor.rect.topLeftCorner] = corner
