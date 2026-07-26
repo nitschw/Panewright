@@ -205,7 +205,15 @@ final class WindowFitController {
                         DragLog.log("fitting: \(id) was just moved — not moving it again")
                         return
                     }
-                    guard evictedFrom != Set(windows.map(\.id)) else {
+                    // Unchanged window set means the last eviction hasn't
+                    // landed yet — but only for as long as landing plausibly
+                    // takes. Without the time bound this deadlocks: move the
+                    // same windows back onto the workspace and the set matches
+                    // the one we evicted from, so it waits forever for a
+                    // change that already happened and was undone.
+                    guard evictedFrom != Set(windows.map(\.id))
+                        || Date().timeIntervalSince(lastEviction) >= Self.evictionCooldown
+                    else {
                         DragLog.log("fitting: waiting for the last eviction to take effect")
                         return
                     }
