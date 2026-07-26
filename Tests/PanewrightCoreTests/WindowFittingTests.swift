@@ -842,33 +842,61 @@ private func window(
 @Suite struct UsableMinimumTests {
     private let screen = CGRect(x: 0, y: 0, width: 1728, height: 1117)
 
-    @Test func aWindowIsNotCrushedBelowSomethingUsable() {
-        // The reported case: iTerm accepts 87pt wide, so it always had "room"
-        // and was shrunk a little more with every window added, while eviction
-        // was never reached because something always looked shrinkable.
+    @Test func aWindowWithRoomToSpareIsPreferredOverOneAlreadyCramped() {
+        // The usable floor decides who gets asked first, not who may ever be
+        // asked. Safari has room above a size worth having; iTerm only has
+        // room below one. Safari pays, which is what stops the terminal being
+        // shaved narrower every time a window is added.
         let windows = [
-            window(1, "claude", x: 52, width: 600, arrived: 100),
-            window(2, "safari", x: 559, width: 574, arrived: 200),
-            window(3, "discord", x: 1063, width: 800, arrived: 300),
-            window(4, "iterm", x: 1568, width: 156, arrived: 400),
+            window(1, "safari", x: 0, width: 900, arrived: 100),
+            window(2, "iterm", x: 850, width: 380, arrived: 200),
         ]
-        let minimums = WindowFitting.Minimums(widths: [
-            "claude": 600, "safari": 574, "discord": 800, "iterm": 87,
-        ])
-        // With no usable floor, the terminal keeps being the victim.
+        let minimums = WindowFitting.Minimums(widths: ["safari": 574, "iterm": 87])
         guard
-            case .adjusting(.shrink(let victim, _, _)) = WindowFitting.nextStep(
-                for: windows, minimums: minimums, bounds: screen, separation: 5, usable: 0)
+            case .adjusting(.shrink(let id, _, _)) = WindowFitting.nextStep(
+                for: windows, minimums: minimums, bounds: CGRect(x: 0, y: 0, width: 1728, height: 1117),
+                separation: 5, usable: 360)
         else {
             Issue.record("expected a shrink")
             return
         }
-        #expect(victim == 4)
+        #expect(id == 1)
+    }
 
-        // With one, nothing has usable room and the workspace is admitted full.
-        let verdict = WindowFitting.nextStep(
-            for: windows, minimums: minimums, bounds: screen, separation: 5, usable: 360)
-        #expect(verdict == .adjusting(.evict(id: 4)))
+    @Test func aCrampedWindowIsStillPreferredOverEvictingOne() {
+        // Everything is under the usable floor, so the choice is a narrow
+        // window or a window that disappears to another workspace. A cramped
+        // terminal is annoying; a window vanishing interrupts what you were
+        // doing — so eviction stays genuinely last, not second-to-last.
+        let windows = [
+            window(1, "discord", x: 0, width: 800, arrived: 100),
+            window(2, "iterm", x: 780, width: 356, arrived: 200),
+        ]
+        let minimums = WindowFitting.Minimums(widths: ["discord": 800, "iterm": 87])
+        guard
+            case .adjusting(.shrink(let id, _, _)) = WindowFitting.nextStep(
+                for: windows, minimums: minimums, bounds: CGRect(x: 0, y: 0, width: 1728, height: 1117),
+                separation: 5, usable: 360)
+        else {
+            Issue.record("expected a shrink rather than an eviction")
+            return
+        }
+        // iTerm is the only one with anywhere left to go, below usable or not.
+        #expect(id == 2)
+    }
+
+    @Test func evictionArrivesOnlyWhenNothingCanGiveAtAll() {
+        // Both genuinely on their floors: no amount of cramping helps.
+        let windows = [
+            window(1, "a", x: 0, width: 900, arrived: 100),
+            window(2, "b", x: 890, width: 900, arrived: 200),
+        ]
+        let minimums = WindowFitting.Minimums(widths: ["a": 900, "b": 900])
+        #expect(
+            WindowFitting.nextStep(
+                for: windows, minimums: minimums,
+                bounds: CGRect(x: 0, y: 0, width: 1000, height: 1000),
+                separation: 5, usable: 360) == .adjusting(.evict(id: 2)))
     }
 
     @Test func aWindowWellAboveTheUsableFloorStillGivesSpace() {

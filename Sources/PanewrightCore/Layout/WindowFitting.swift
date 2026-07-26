@@ -221,28 +221,37 @@ public enum WindowFitting {
         // display, so if no window has slack, the minimums genuinely exceed
         // the screen and no arrangement exists. That — and only that — is when
         // something has to leave.
-        let candidates =
-            windows
-            .filter {
-                hasNeighbour($0, among: windows, along: worst.axis, separation: separation)
+        // Two passes, in order of preference.
+        //
+        // First, windows with room to spare above a size worth having. That's
+        // the ordinary case, and stopping there is what keeps a terminal from
+        // being shaved a little narrower every time a window is added.
+        //
+        // Then, if that isn't enough, windows with room above their actual
+        // floor — accepting a cramped window rather than moving one to another
+        // workspace. A narrow terminal is annoying; a window that vanishes to
+        // workspace 3 interrupts what you were doing. Eviction has to be the
+        // genuinely last resort, not the second-to-last.
+        for floorPreference in [usable, 0] {
+            let candidates =
+                windows
+                .filter {
+                    hasNeighbour($0, among: windows, along: worst.axis, separation: separation)
+                }
+                .map {
+                    (
+                        window: $0,
+                        slack: slack(
+                            of: $0, minimums: minimums, axis: worst.axis,
+                            usable: floorPreference)
+                    )
+                }
+                .filter { $0.slack >= Self.smallestUsefulAsk }
+                .sorted { $0.slack > $1.slack }
+            if let target = candidates.first {
+                let ask = clamp(min(need, target.slack), step: step)
+                return .adjusting(.shrink(id: target.window.id, by: ask, axis: worst.axis))
             }
-            .map {
-                (window: $0, slack: slack(of: $0, minimums: minimums, axis: worst.axis, usable: usable))
-            }
-            // Any usable room counts, not only enough to close the whole gap
-            // alone. Requiring a single window to absorb the entire ask meant
-            // three windows with fifty points of room each were all discarded
-            // and something got evicted instead — the layout was fixable and
-            // nothing was even asked.
-            .filter { $0.slack >= Self.smallestUsefulAsk }
-            .sorted { $0.slack > $1.slack }
-        if let target = candidates.first {
-            // Take as much as this window can actually give toward the
-            // deficit. Asking for a fixed step when it has more to spare is
-            // what made this crawl: a 300pt gap became five round trips
-            // through AeroSpace instead of one.
-            let ask = clamp(min(need, target.slack), step: step)
-            return .adjusting(.shrink(id: target.window.id, by: ask, axis: worst.axis))
         }
         guard overflowEnabled, let newest = windows.max(by: { $0.arrived < $1.arrived })
         else { return .cannotFit(count: windows.count) }
