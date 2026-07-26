@@ -179,6 +179,20 @@ final class WindowFitController {
                     settled = signature(of: windows)
                     return
                 case .adjusting(.evict(let id)):
+                    // Before moving anyone's window to another workspace,
+                    // check that the floors saying it's impossible are real.
+                    //
+                    // A floor is only ever lowered by seeing a window smaller
+                    // than it — and we never ask a window to go below its
+                    // recorded floor, so it never gets seen smaller. One
+                    // pessimistic measurement (an app mid-animation, or busy)
+                    // therefore sticks forever and keeps forcing evictions on
+                    // layouts that would fit. Eviction is destructive enough
+                    // to be worth one round of proving the constraint first.
+                    if await retestFloors(windows: windows, cli: cli) {
+                        DragLog.log("fitting: a floor was wrong — resizing instead of evicting")
+                        continue
+                    }
                     // Never move a window out from under someone who was just
                     // resizing. Shrinking is recoverable by dragging back;
                     // eviction sends the window to another workspace, which
@@ -217,6 +231,44 @@ final class WindowFitController {
             DragLog.log("fitting: giving up after \(Self.maxAttempts) steps")
             settled = signature(of: windows)
         }
+    }
+
+    /// Ask windows sitting on their recorded floor to shrink anyway.
+    ///
+    /// Returns true if any of them complied, which means that floor was too
+    /// high and the layout may be fixable after all. Only windows with a
+    /// neighbour to trade with are asked — the rest can't move regardless.
+    private func retestFloors(
+        windows: [WindowFitting.Window], cli: AeroSpaceCLI
+    ) async -> Bool {
+        var improved = false
+        for window in windows {
+            for axis in WindowFitting.Axis.allCases {
+                guard let floor = minimums.minimum(for: window.bundleID, axis: axis),
+                    axis.extent(window.frame) <= floor + 4
+                else { continue }
+                let before = axis.extent(window.frame)
+                try? cli.run([
+                    "resize", "--window-id", "\(window.id)", axis.resizeDimension, "-40",
+                ])
+                try? await Task.sleep(for: .milliseconds(45))
+                guard
+                    let now = currentWindows(cli: cli).first(where: { $0.id == window.id })
+                else { continue }
+                let after = axis.extent(now.frame)
+                if after < before - 1 {
+                    // It moved, so the recorded floor was wrong. Record what
+                    // it actually reached.
+                    minimums.record(bundleID: window.bundleID, axis: axis, minimum: after)
+                    minimums.save()
+                    DragLog.log(
+                        "fitting: \(window.bundleID) went below its recorded floor"
+                            + " — now \(Int(after))pt \(axis.rawValue)")
+                    improved = true
+                }
+            }
+        }
+        return improved
     }
 
     /// Compare a window against itself after a resize: what it gave up versus
