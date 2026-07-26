@@ -728,3 +728,75 @@ private func window(
         #expect(verdict == .adjusting(.evict(id: 2)))
     }
 }
+
+/// There's no cross-process API for a window's minimum size — AX reports the
+/// current size, not the constraint — so this reasons only about apps whose
+/// floor has been learned by asking them to shrink.
+@Suite struct CapacityTests {
+    private let screen = CGRect(x: 0, y: 0, width: 1728, height: 1117)
+
+    @Test func theRealCaseIsCorrectlyCalledImpossible() {
+        // Measured on a live machine: Discord genuinely stops at 800pt wide.
+        // 800 + 600 + 574 + gaps is more than 1728, so no arrangement works
+        // and the eviction was right.
+        let windows = [
+            window(1, "com.hnc.Discord", x: 0, width: 800),
+            window(2, "com.anthropic.claudefordesktop", x: 810, width: 600),
+            window(3, "com.apple.Safari", x: 1420, width: 574),
+        ]
+        let minimums = WindowFitting.Minimums(widths: [
+            "com.hnc.Discord": 800, "com.anthropic.claudefordesktop": 600,
+            "com.apple.Safari": 574,
+        ])
+        let capacity = WindowFitting.capacity(
+            of: windows, minimums: minimums, bounds: screen, separation: 5)
+        #expect(!capacity.fits)
+        #expect(capacity.required == 1984)  // 1974 + two 5pt gaps
+        // The message has to carry the numbers: "it doesn't fit" invites an
+        // argument, the arithmetic ends it.
+        #expect(capacity.explanation.contains("Discord 800"))
+        #expect(capacity.explanation.contains("1728"))
+    }
+
+    @Test func aRoomyLayoutIsNotCalledImpossible() {
+        let windows = [
+            window(1, "com.apple.Safari", x: 0, width: 574),
+            window(2, "com.googlecode.iterm2", x: 600, width: 412),
+        ]
+        let minimums = WindowFitting.Minimums(widths: [
+            "com.apple.Safari": 574, "com.googlecode.iterm2": 412,
+        ])
+        #expect(
+            WindowFitting.capacity(
+                of: windows, minimums: minimums, bounds: screen, separation: 5).fits)
+    }
+
+    @Test func unknownAppsMakeThisAnUnderEstimate() {
+        // An app we've never made refuse contributes nothing to the total, so
+        // this can say a layout is impossible but never that one is fine.
+        let windows = [
+            window(1, "com.hnc.Discord", x: 0, width: 800),
+            window(2, "com.example.unmeasured", x: 810, width: 600),
+        ]
+        let capacity = WindowFitting.capacity(
+            of: windows, minimums: WindowFitting.Minimums(widths: ["com.hnc.Discord": 800]),
+            bounds: screen, separation: 5)
+        #expect(capacity.unknown == 1)
+        #expect(capacity.required == 805)  // only the known floor plus the gap
+        #expect(capacity.fits)
+    }
+
+    @Test func theBiggestOffenderIsNamedFirst() {
+        let windows = [
+            window(1, "com.apple.Safari", x: 0, width: 574),
+            window(2, "com.hnc.Discord", x: 600, width: 800),
+        ]
+        let capacity = WindowFitting.capacity(
+            of: windows,
+            minimums: WindowFitting.Minimums(widths: [
+                "com.apple.Safari": 574, "com.hnc.Discord": 800,
+            ]),
+            bounds: screen, separation: 5)
+        #expect(capacity.known.first?.name == "Discord")
+    }
+}

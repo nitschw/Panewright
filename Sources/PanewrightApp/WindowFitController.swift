@@ -351,7 +351,16 @@ final class WindowFitController {
                 "move-node-to-workspace", "--window-id", "\(id)", destination,
             ])
             lastEviction = Date()
-            notify("\(name) moved to workspace \(destination) — it wouldn't fit")
+            // Say why, with the numbers. A window relocating with no
+            // explanation reads as a bug; the arithmetic makes it a decision.
+            var reason = "it wouldn't fit"
+            if let bounds = displayBounds() {
+                let capacity = WindowFitting.capacity(
+                    of: windows, minimums: minimums.minimums, bounds: bounds,
+                    separation: CGFloat((try? Orchestrator().loadConfig())?.gaps.inner ?? 0))
+                if !capacity.explanation.isEmpty { reason = capacity.explanation }
+            }
+            notify("\(name) moved to workspace \(destination) — \(reason)")
             DragLog.log("fitting: evicted \(name) (\(id)) to workspace \(destination)")
             reset()
         } catch {

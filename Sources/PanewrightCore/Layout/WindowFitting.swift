@@ -245,6 +245,67 @@ public enum WindowFitting {
         return .adjusting(.evict(id: newest.id))
     }
 
+    /// Whether a set of windows can share a display at all, and why not.
+    ///
+    /// There is no API that reports a window's minimum size across processes —
+    /// AX exposes the current size, not the constraint — so this can only
+    /// reason about apps whose floor has already been learned by asking them
+    /// to shrink. Unknown apps are counted as "no known floor", which makes
+    /// this an under-estimate of the space needed: it can say a layout is
+    /// impossible, never that one is fine.
+    public struct Capacity: Equatable, Sendable {
+        /// Space the known floors demand, gaps included.
+        public let required: CGFloat
+        /// Space the display has.
+        public let available: CGFloat
+        /// Apps whose floor is known, largest first, for the explanation.
+        public let known: [(name: String, floor: CGFloat)]
+        /// How many windows we know nothing about.
+        public let unknown: Int
+
+        public var fits: Bool { required <= available }
+
+        public static func == (a: Capacity, b: Capacity) -> Bool {
+            a.required == b.required && a.available == b.available
+                && a.unknown == b.unknown && a.known.map(\.name) == b.known.map(\.name)
+        }
+
+        /// A sentence naming the arithmetic. "It doesn't fit" invites an
+        /// argument; the numbers end it.
+        public var explanation: String {
+            guard !known.isEmpty else { return "" }
+            let parts = known.prefix(3).map { "\($0.name) \(Int($0.floor))" }
+            let tail = known.count > 3 ? " +\(known.count - 3) more" : ""
+            return "needs \(Int(required))pt (\(parts.joined(separator: ", "))\(tail))"
+                + " but the display is \(Int(available))pt"
+        }
+    }
+
+    /// Can these windows share the display, given what we know about them?
+    public static func capacity(
+        of windows: [Window], minimums: Minimums, bounds: CGRect,
+        separation: CGFloat, axis: Axis = .horizontal
+    ) -> Capacity {
+        var known: [(name: String, floor: CGFloat)] = []
+        var unknown = 0
+        var total: CGFloat = 0
+        for window in windows {
+            if let floor = minimums.floor(window.bundleID, axis) {
+                known.append(
+                    (window.bundleID.split(separator: ".").last.map(String.init)
+                        ?? window.bundleID, floor))
+                total += floor
+            } else {
+                unknown += 1
+            }
+        }
+        // The gaps between them count against the display just as the windows do.
+        total += separation * CGFloat(max(0, windows.count - 1))
+        return Capacity(
+            required: total, available: axis.extent(bounds),
+            known: known.sorted { $0.floor > $1.floor }, unknown: unknown)
+    }
+
     /// Ask for what's missing, not a fixed step. Overshooting makes AeroSpace
     /// redistribute more than the layout needed, which relocates the problem
     /// instead of solving it. Rounded up with a small margin for fractional
