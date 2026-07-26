@@ -1067,3 +1067,77 @@ private func window(
                 == 400)
     }
 }
+
+/// When to cram a window and when to admit the workspace is full.
+///
+/// Numbers are from a 1728pt display (1722pt tiled). Six windows — Discord
+/// 800, Messages 660, Claude 600 and three terminals — cannot share it at any
+/// size. The cramping pass shrank all three terminals from 300 points to 87
+/// anyway, because a terminal's true minimum really is 87, and then evicted a
+/// window regardless. The survivors were unusable and the eviction happened
+/// either way.
+@Suite struct CrampingTests {
+    let bounds = CGRect(x: 0, y: 36, width: 1722, height: 1037)
+
+    func window(_ id: UInt32, _ bundle: String, width: CGFloat) -> WindowFitting.Window {
+        WindowFitting.Window(
+            id: id, bundleID: bundle,
+            frame: CGRect(x: 0, y: 36, width: width, height: 1037),
+            arrived: Date(timeIntervalSince1970: TimeInterval(id)))
+    }
+
+    /// Two windows that fit once cramped: shrink, don't evict. This is the
+    /// behaviour cramping exists for and it has to survive.
+    @Test func aWindowIsCrammedRatherThanEvictedWhenThatResolvesIt() {
+        let windows = [
+            window(1, "com.googlecode.iterm2", width: 900),
+            window(2, "com.hnc.Discord", width: 900),
+        ]
+        let minimums = WindowFitting.Minimums(widths: [
+            "com.googlecode.iterm2": 200, "com.hnc.Discord": 800,
+        ])
+        let verdict = WindowFitting.nextStep(
+            for: windows, minimums: minimums, bounds: bounds, usable: 360)
+        if case .adjusting(.evict) = verdict {
+            Issue.record("evicted a window that cramming would have fitted")
+        }
+    }
+
+    /// The same call on a workspace where no arrangement exists must not crush
+    /// everything first.
+    @Test func nothingIsCrushedWhenNoArrangementFits() {
+        let windows = [
+            window(1, "com.hnc.Discord", width: 500),
+            window(2, "com.apple.MobileSMS", width: 500),
+            window(3, "com.anthropic.claudefordesktop", width: 400),
+            window(4, "com.googlecode.iterm2", width: 322),
+        ]
+        let minimums = WindowFitting.Minimums(widths: [
+            "com.hnc.Discord": 800, "com.apple.MobileSMS": 660,
+            "com.anthropic.claudefordesktop": 600, "com.googlecode.iterm2": 87,
+        ])
+        let verdict = WindowFitting.nextStep(
+            for: windows, minimums: minimums, bounds: bounds, usable: 360)
+        guard case .adjusting(.evict) = verdict else {
+            Issue.record("kept shrinking a workspace that cannot fit: \(verdict)")
+            return
+        }
+    }
+
+    /// Without bounds there is nothing to compare against, so cramming stays
+    /// available — the pass must not silently switch itself off.
+    @Test func withoutBoundsCrammingIsStillAllowed() {
+        let windows = [
+            window(1, "com.googlecode.iterm2", width: 900),
+            window(2, "com.hnc.Discord", width: 900),
+        ]
+        let minimums = WindowFitting.Minimums(widths: [
+            "com.googlecode.iterm2": 87, "com.hnc.Discord": 800,
+        ])
+        let verdict = WindowFitting.nextStep(
+            for: windows, minimums: minimums, bounds: nil, separation: 0, usable: 360)
+        if case .adjusting(.evict) = verdict {
+            Issue.record("evicted with no bounds to justify it")
+        }
+    }
+}

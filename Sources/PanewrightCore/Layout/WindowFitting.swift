@@ -236,7 +236,27 @@ public enum WindowFitting {
         // workspace. A narrow terminal is annoying; a window that vanishes to
         // workspace 3 interrupts what you were doing. Eviction has to be the
         // genuinely last resort, not the second-to-last.
-        for floorPreference in [usable, 0] {
+        //
+        // But only where cramping can actually resolve the layout. Most apps'
+        // true minimum is far below anything usable — iTerm will go to 87
+        // points — so this pass will always find something to shrink, and on a
+        // workspace that cannot fit at any size it shrinks everything, to
+        // nothing, and then evicts anyway. Six windows on one display drove
+        // three terminals from 300 points to 87 that way before giving up. The
+        // windows that survived were unusable and one left regardless.
+        //
+        // So ask first whether an arrangement exists at all. Unknown floors
+        // count as zero, which makes this an under-estimate of the space
+        // needed — it errs toward cramping and away from eviction, which is
+        // the right way for it to be wrong.
+        let crampingCanResolve =
+            bounds.map {
+                capacity(
+                    of: windows, minimums: minimums, bounds: $0,
+                    separation: separation, axis: worst.axis
+                ).fits
+            } ?? true
+        for floorPreference in crampingCanResolve ? [usable, 0] : [usable] {
             let candidates =
                 windows
                 .filter {
