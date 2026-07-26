@@ -10,6 +10,12 @@ import PanewrightCore
 struct DropExecutor: Sendable {
     let cli: AeroSpaceCLI
     private static let settleMicroseconds: UInt32 = 180_000
+    /// Reshaping the tree settles more slowly than sliding windows around
+    /// within it, and the reported container layout lags the frames by longer
+    /// still — a `join-with` read back after a second still named the old
+    /// parent. Only `containerShape` reads that field, and it is diagnostic
+    /// only, but a log line that contradicts the screen costs an hour.
+    private static let restructureMicroseconds: UInt32 = 350_000
     private static let maxSteps = 8
 
     func execute(
@@ -51,9 +57,11 @@ struct DropExecutor: Sendable {
         case .center:
             return swap(dragged: dragged, targetID: target.id)
         case .left, .right:
-            return placeBeside(dragged: dragged, targetID: target.id, zone: target.zone)
+            return place(
+                dragged: dragged, targetID: target.id, zone: target.zone, axis: .horizontal)
         case .top, .bottom:
-            return stack(dragged: dragged, targetID: target.id, zone: target.zone)
+            return place(
+                dragged: dragged, targetID: target.id, zone: target.zone, axis: .vertical)
         }
     }
 
@@ -105,67 +113,104 @@ struct DropExecutor: Sendable {
         return "drag-to-tile: swapped with target"
     }
 
-    /// Left/right zones: end state is a horizontal pair. Same-stack neighbors
-    /// get joined (orientation change); same-row neighbors just need the
-    /// correct side.
-    private func placeBeside(
-        dragged: CGWindowID, targetID: CGWindowID, zone: DropZone
+    /// Realize a drop as a pair along `axis`, dragged window on the side the
+    /// zone names.
+    ///
+    /// One implementation for all four edge zones, because the two directions
+    /// are the same operation with the coordinates swapped — and a bug proved
+    /// it. Building a row out of a column failed in exactly the way building a
+    /// column out of a row failed, one axis apart, because each direction had
+    /// its own copy of this and only one of them could be fixed at a time.
+    ///
+    /// Three shapes the drop can start from, and the third was missing:
+    ///
+    /// 1. Neighbours on the *cross* axis — a row when a column is wanted. One
+    ///    `join-with` flips the pair's orientation.
+    /// 2. Neighbours on the right axis, already siblings. Nothing structural
+    ///    to do; at most a swap to land on the requested side.
+    /// 3. Neighbours on the right axis but *not* siblings. The dragged window
+    ///    is touching the outside of the container the target lives in — a
+    ///    full-height window beside a stacked pair, say. The frames look
+    ///    finished, so this used to report success and do nothing at all.
+    ///    It needs `move`, which descends into the neighbouring container
+    ///    rather than swapping past it, and then a `join-with` to pair with
+    ///    the target once they're at the same level.
+    private func place(
+        dragged: CGWindowID, targetID: CGWindowID, zone: DropZone,
+        axis: WindowFitting.Axis
     ) -> String {
         guard let (d, t) = walkToNeighbor(dragged: dragged, targetID: targetID) else {
             return "drag-to-tile: couldn't reach the target"
         }
-        if Self.neighbourAxis(d, t) == .vertical {
-            let toward = Self.verticalDirection(from: d, to: t)
+        if Self.neighbourAxis(d, t) == axis.cross {
+            let toward = Self.direction(from: d, to: t, along: axis.cross)
             // The tree shape matters here and isn't visible from the frames:
             // joining two windows that are the only children of a container
             // flips that container, but joining inside a deeper nest can
             // leave the orientation untouched. Record what we were acting on
             // so a drop that lands wrong can be diagnosed from the log.
             DragLog.log(
-                "executor: join-with \(toward) to form horizontal pair"
+                "executor: join-with \(toward) to form \(axis) pair"
                     + " — \(containerShape(dragged: dragged, target: targetID))")
             guard (try? cli.run(["join-with", "--window-id", "\(dragged)", toward])) != nil
             else {
                 return "drag-to-tile: join-with \(toward) failed"
             }
-            usleep(Self.settleMicroseconds)
+            usleep(Self.restructureMicroseconds)
+        } else if !WindowFitting.siblings(d, t, along: axis) {
+            guard descend(dragged: dragged, targetID: targetID, axis: axis) else {
+                return "drag-to-tile: couldn't join the target's container"
+            }
         }
+        // Whatever the route here, the pair now exists; only the order within
+        // it might be wrong.
+        let wantsLeading = zone == .left || zone == .top
         if let (d2, t2) = frames(dragged, targetID),
-            (zone == .left) != (d2.midX < t2.midX) {
-            let direction = Self.horizontalDirection(from: d2, to: t2)
+            wantsLeading != (axis.start(d2) < axis.start(t2)) {
+            let direction = Self.direction(from: d2, to: t2, along: axis)
             try? cli.run(["swap", "--window-id", "\(dragged)", direction])
         }
         DragLog.log(
             "executor: settled — \(containerShape(dragged: dragged, target: targetID))")
-        return "drag-to-tile: placed \(zone.rawValue) of target"
+        return axis == .horizontal
+            ? "drag-to-tile: placed \(zone.rawValue) of target"
+            : "drag-to-tile: stacked \(zone.rawValue) of target"
     }
 
-    /// Top/bottom zones: end state is a vertical pair — the mirror image.
-    private func stack(
-        dragged: CGWindowID, targetID: CGWindowID, zone: DropZone
-    ) -> String {
-        guard let (d, t) = walkToNeighbor(dragged: dragged, targetID: targetID) else {
-            return "drag-to-tile: couldn't reach the target"
-        }
-        if Self.neighbourAxis(d, t) == .horizontal {
-            let toward = Self.horizontalDirection(from: d, to: t)
-            DragLog.log(
-                "executor: join-with \(toward) to form vertical pair"
-                    + " — \(containerShape(dragged: dragged, target: targetID))")
-            guard (try? cli.run(["join-with", "--window-id", "\(dragged)", toward])) != nil
-            else {
-                return "drag-to-tile: join-with \(toward) failed"
-            }
-            usleep(Self.settleMicroseconds)
-        }
-        if let (d2, t2) = frames(dragged, targetID),
-            (zone == .top) != (d2.midY < t2.midY) {
-            let direction = Self.verticalDirection(from: d2, to: t2)
-            try? cli.run(["swap", "--window-id", "\(dragged)", direction])
-        }
+    /// Move the dragged window into the container the target lives in, then
+    /// pair the two.
+    ///
+    /// `move` is the primitive that makes this possible and `swap` is not:
+    /// swapping exchanges two windows wherever they sit, so a window outside a
+    /// nested container can swap with one inside it forever without ever
+    /// getting in. `move` descends — given a neighbouring container it inserts
+    /// the window into it rather than stepping over it.
+    ///
+    /// That lands the window in the target's container but stacked the wrong
+    /// way (it joins the container's own axis), so the `join-with` afterwards
+    /// pulls it alongside the target on the cross axis. Both directions are
+    /// taken from freshly read frames rather than assumed, because where
+    /// `move` inserts the window is AeroSpace's decision, not ours.
+    private func descend(
+        dragged: CGWindowID, targetID: CGWindowID, axis: WindowFitting.Axis
+    ) -> Bool {
+        guard let (d, t) = frames(dragged, targetID) else { return false }
+        let inward = Self.direction(from: d, to: t, along: axis)
         DragLog.log(
-            "executor: settled — \(containerShape(dragged: dragged, target: targetID))")
-        return "drag-to-tile: stacked \(zone.rawValue) of target"
+            "executor: move \(inward) into the target's container"
+                + " — \(containerShape(dragged: dragged, target: targetID))")
+        guard (try? cli.run(["move", "--window-id", "\(dragged)", inward])) != nil else {
+            return false
+        }
+        usleep(Self.restructureMicroseconds)
+        guard let (d2, t2) = frames(dragged, targetID) else { return false }
+        let toward = Self.direction(from: d2, to: t2, along: axis.cross)
+        DragLog.log("executor: join-with \(toward) to pair inside the container")
+        guard (try? cli.run(["join-with", "--window-id", "\(dragged)", toward])) != nil else {
+            return false
+        }
+        usleep(Self.restructureMicroseconds)
+        return true
     }
 
     /// The parent container layout of both windows, which is what decides
@@ -276,6 +321,16 @@ struct DropExecutor: Sendable {
     /// forth until the oscillation guard gave up, and the drop did nothing.
     static func neighbourAxis(_ a: CGRect, _ b: CGRect) -> WindowFitting.Axis? {
         WindowFitting.neighbouring(a, b)
+    }
+
+    /// The AeroSpace direction word pointing from one frame toward another
+    /// along `axis` — the only place a zone's axis turns back into a word.
+    static func direction(
+        from: CGRect, to: CGRect, along axis: WindowFitting.Axis
+    ) -> String {
+        axis == .horizontal
+            ? horizontalDirection(from: from, to: to)
+            : verticalDirection(from: from, to: to)
     }
 
     /// CG coordinates: +y is down, so "up" means decreasing y.

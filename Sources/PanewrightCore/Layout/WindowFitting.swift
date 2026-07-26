@@ -40,10 +40,14 @@ public enum WindowFitting {
         /// The axis windows are laid out along when they compete on this one.
         /// Two windows only contest width if they share rows, and only contest
         /// height if they share columns.
-        var cross: Axis { self == .horizontal ? .vertical : .horizontal }
+        public var cross: Axis { self == .horizontal ? .vertical : .horizontal }
 
-        func start(_ rect: CGRect) -> CGFloat { self == .horizontal ? rect.minX : rect.minY }
-        func end(_ rect: CGRect) -> CGFloat { self == .horizontal ? rect.maxX : rect.maxY }
+        public func start(_ rect: CGRect) -> CGFloat {
+            self == .horizontal ? rect.minX : rect.minY
+        }
+        public func end(_ rect: CGRect) -> CGFloat {
+            self == .horizontal ? rect.maxX : rect.maxY
+        }
         /// Public because callers measuring a resize's effect have to measure
         /// along the same axis they asked about.
         public func extent(_ rect: CGRect) -> CGFloat {
@@ -378,6 +382,29 @@ public enum WindowFitting {
         let cross = axis.cross
         let shared = min(cross.end(a), cross.end(b)) - max(cross.start(a), cross.start(b))
         return shared > min(cross.extent(a), cross.extent(b)) / 2 ? axis : nil
+    }
+
+    /// Whether two frames are siblings in one container, as opposed to merely
+    /// touching across a boundary between levels of the tree.
+    ///
+    /// AeroSpace exposes no tree. `list-windows` reports a window's parent
+    /// container *layout* and nothing else — never its identity — so "do these
+    /// two share a parent" cannot be asked directly. It can be read off the
+    /// geometry, though, because siblings divide their container along one
+    /// axis and each take the whole of it across the other: siblings have
+    /// matching cross-axis spans.
+    ///
+    /// A window touching the outside of a nested pair covers only part of that
+    /// span, and that mismatch is the tell. It is the difference between a
+    /// drop that needs no work and one that has to move a window into another
+    /// container, which look identical from the frames alone until you compare
+    /// the spans.
+    public static func siblings(
+        _ a: CGRect, _ b: CGRect, along axis: Axis, tolerance: CGFloat = 4
+    ) -> Bool {
+        let cross = axis.cross
+        return abs(cross.start(a) - cross.start(b)) <= tolerance
+            && abs(cross.end(a) - cross.end(b)) <= tolerance
     }
 
     /// Whether this window has anyone to trade space with along `axis`.

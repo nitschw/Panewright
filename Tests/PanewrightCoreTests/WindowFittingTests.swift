@@ -968,3 +968,41 @@ private func window(
         #expect(WindowFitting.neighbouring(a, b) == nil)
     }
 }
+
+/// Telling a sibling from a window that merely touches a container's edge.
+///
+/// Frames are from workspace 2 on a 1728pt display: a two-window column on the
+/// left, one full-height window on the right. Dropping the right-hand window
+/// onto the right edge of the column's *top* window reported success and did
+/// nothing, because the two really are horizontal neighbours — just not at the
+/// same level of the tree. The spans are what give that away.
+@Suite struct SiblingTests {
+    let topOfColumn = CGRect(x: 52, y: 36, width: 835, height: 477)
+    let fullHeight = CGRect(x: 890, y: 36, width: 835, height: 1037)
+
+    @Test func touchingTheOutsideOfAColumnIsNotBeingItsSibling() {
+        #expect(WindowFitting.neighbouring(topOfColumn, fullHeight) == .horizontal)
+        #expect(!WindowFitting.siblings(topOfColumn, fullHeight, along: .horizontal))
+    }
+
+    @Test func windowsSharingAContainerAreSiblings() {
+        let left = CGRect(x: 52, y: 36, width: 835, height: 478)
+        let right = CGRect(x: 890, y: 36, width: 835, height: 477)
+        #expect(WindowFitting.siblings(left, right, along: .horizontal))
+    }
+
+    @Test func stackedSiblingsMatchAcrossTheirColumn() {
+        let upper = CGRect(x: 52, y: 36, width: 835, height: 478)
+        let lower = CGRect(x: 52, y: 518, width: 835, height: 555)
+        #expect(WindowFitting.siblings(upper, lower, along: .vertical))
+        #expect(!WindowFitting.siblings(upper, lower, along: .horizontal))
+    }
+
+    /// Fractional frames are everywhere — the pair above differs by a point.
+    @Test func aPointOfDriftIsStillSiblinghood() {
+        let a = CGRect(x: 0, y: 36, width: 800, height: 1037)
+        let b = CGRect(x: 808, y: 37, width: 800, height: 1035)
+        #expect(WindowFitting.siblings(a, b, along: .horizontal))
+    }
+}
+
