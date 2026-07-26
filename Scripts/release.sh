@@ -122,6 +122,11 @@ sync_tap() {
         return
     fi
     cp Casks/panewright.rb "$tap_dir/Casks/panewright.rb"
+    # A fresh clone has no identity — Will's lives in per-repo config, so
+    # without these the commit dies with "Author identity unknown" and the
+    # tap silently keeps shipping the previous release.
+    git -C "$tap_dir" config user.email "$(git config user.email)"
+    git -C "$tap_dir" config user.name "$(git config user.name)"
     if git -C "$tap_dir" diff --quiet; then
         echo "tap: already up to date"
     else
