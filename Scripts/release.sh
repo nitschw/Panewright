@@ -3,7 +3,8 @@
 #
 #   Scripts/release.sh 0.1.0
 #
-# Bumps versions, tests, bundles, zips, notarizes (when a 'panewright-notary'
+# Bumps versions, tests, bundles, zips, builds a signed disk image, notarizes
+# (when a 'panewright-notary'
 # keychain profile exists — requires the paid Apple Developer program),
 # signs the update for Sparkle, appends the appcast entry, tags, pushes,
 # and creates the GitHub release (when `gh` is installed and authed).
@@ -33,6 +34,21 @@ else
     echo "      (Requires the paid Apple Developer program; set up with:"
     echo "       xcrun notarytool store-credentials panewright-notary)"
 fi
+
+# The disk image is built *after* stapling, so the .app inside carries its
+# notarization ticket and works offline. Homebrew Cask installs from this;
+# Sparkle keeps using the zip, which it extracts correctly.
+DMG="build/Panewright-$VERSION.dmg"
+Scripts/make-dmg.sh "$VERSION"
+
+if xcrun notarytool history --keychain-profile panewright-notary >/dev/null 2>&1; then
+    echo "notarizing disk image…"
+    xcrun notarytool submit "$DMG" --keychain-profile panewright-notary --wait
+    xcrun stapler staple "$DMG"
+fi
+
+DMG_SHA="$(shasum -a 256 "$DMG" | awk '{print $1}')"
+echo "dmg sha256: $DMG_SHA"
 
 SIGN_UPDATE="$(find .build/artifacts -name sign_update -type f | head -1)"
 ED_ATTRS="$("$SIGN_UPDATE" "$ZIP" | tr -d '\n')"
@@ -74,17 +90,29 @@ open(path, "w").write(content)
 print(f"docs: release table row added for {version}")
 EOF
 
-git add Support/Info.plist appcast.xml docs/docs.html
+python3 - "$VERSION" "$DMG_SHA" << 'EOF'
+import re, sys
+version, sha = sys.argv[1:3]
+path = "Casks/panewright.rb"
+cask = open(path).read()
+cask = re.sub(r'version "[^"]*"', f'version "{version}"', cask, count=1)
+cask = re.sub(r'sha256 "[^"]*"', f'sha256 "{sha}"', cask, count=1)
+open(path, "w").write(cask)
+print(f"cask: updated to {version}")
+EOF
+
+git add Support/Info.plist appcast.xml docs/docs.html Casks/panewright.rb
 git commit -m "Release $VERSION"
 git tag "v$VERSION"
 git push && git push --tags
 
 if command -v gh >/dev/null 2>&1; then
-    gh release create "v$VERSION" "$ZIP" --title "Panewright $VERSION" --generate-notes
+    gh release create "v$VERSION" "$ZIP" "$DMG" \
+        --title "Panewright $VERSION" --generate-notes
 else
     echo
     echo "gh not installed — create the release manually:"
     echo "  brew install gh && gh auth login"
-    echo "  gh release create v$VERSION $ZIP --title 'Panewright $VERSION' --generate-notes"
+    echo "  gh release create v$VERSION $ZIP $DMG --title 'Panewright $VERSION' --generate-notes"
     echo "(The appcast points at that release URL; updates go live when it exists.)"
 fi
