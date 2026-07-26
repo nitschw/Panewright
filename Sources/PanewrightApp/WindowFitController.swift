@@ -34,6 +34,10 @@ final class WindowFitController {
     /// windows were present, so the corrector stayed given-up and appeared to
     /// need poking before it would do anything.
     private var settled: String?
+    /// When the mouse was last held down. A manual resize or drag passes
+    /// through overlapping states on its way somewhere, and correcting them
+    /// mid-gesture means fighting the person doing the resizing.
+    private var lastInteraction = Date.distantPast
 
     private static let maxAttempts = 8
     /// How long to leave a workspace alone after moving a window out of it.
@@ -43,6 +47,10 @@ final class WindowFitController {
     /// hasn't re-tiled yet — is how one necessary eviction became three, and
     /// split a workspace that only ever needed to lose a single window.
     private static let evictionCooldown: TimeInterval = 4
+    /// How long after letting go of the mouse before a window may be evicted.
+    /// Long enough to cover a pause mid-adjustment, short enough that a layout
+    /// genuinely too full still resolves without being touched again.
+    private static let settleAfterInteraction: TimeInterval = 3
     private var lastEviction = Date.distantPast
 
     /// Cached workspace membership, refreshed only when the on-screen window
@@ -88,6 +96,14 @@ final class WindowFitController {
             let cli = AeroSpaceCLI.locate(),
             let config = try? Orchestrator().loadConfig(), config.fitting.enabled
         else { return }
+        // Any button held means a drag or a resize is in progress. Cheap,
+        // synchronous, and needs no permission — and it's the difference
+        // between a helper and something that undoes your work as you do it.
+        if NSEvent.pressedMouseButtons != 0 {
+            lastInteraction = Date()
+            consecutiveOverlaps = 0
+            return
+        }
         let windows = currentWindows(cli: cli)
         prune(to: windows)
         if config.fitting.floatOnTop { raiseFloaters() }
@@ -163,6 +179,16 @@ final class WindowFitController {
                     settled = signature(of: windows)
                     return
                 case .adjusting(.evict(let id)):
+                    // Never move a window out from under someone who was just
+                    // resizing. Shrinking is recoverable by dragging back;
+                    // eviction sends the window to another workspace, which
+                    // during hands-on layout work reads as losing it.
+                    guard
+                        Date().timeIntervalSince(lastInteraction) >= Self.settleAfterInteraction
+                    else {
+                        DragLog.log("fitting: not evicting — you were just resizing")
+                        return
+                    }
                     guard Date().timeIntervalSince(lastEviction) >= Self.evictionCooldown
                     else {
                         // Let the previous eviction land and the layout re-tile
