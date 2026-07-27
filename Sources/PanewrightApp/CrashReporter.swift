@@ -65,6 +65,24 @@ enum CrashReporter {
                 of: home + "/Library/Logs/Panewright.log",
                 lines: 40, maxCharacters: maxCharacters)
         else { return "" }
+        // The engine's log rides along: an engine that dies on every launch
+        // writes its reason (and its dying words) there and nowhere else —
+        // the one report that needed it most arrived without it.
+        let engineTail = LogTail.tail(
+            of: home + "/Library/Logs/PanewrightEngine.log",
+            lines: 20, maxCharacters: 1500)
+        let engineSection = engineTail.map {
+            """
+
+
+            <details><summary>Engine log</summary>
+
+            ```
+            \($0)
+            ```
+            </details>
+            """
+        } ?? ""
         return """
 
 
@@ -74,6 +92,7 @@ enum CrashReporter {
             \(tail)
             ```
             </details>
+            \(engineSection)
 
             _Full logs: `~/Library/Logs/Panewright.log` and `PanewrightEngine.log` — drag them onto this issue if asked._
             """
