@@ -1015,7 +1015,36 @@ final class AppModel {
     /// server silent — the signature of an engine waiting for Accessibility.
     private var engineWaitingTicks = 0
     private var engineWaitingNotified = false
-    private func checkAeroSpaceHealth(_ orchestrator: Orchestrator) async {
+    /// One immediate recovery pass, fired by the display-settle event
+    /// instead of waiting for the periodic machinery. An undock used to
+    /// recover passively — 20s tick cadence, three 20s zombie probes, an 8s
+    /// engine-recovery hold — and the guards, each right alone, stacked
+    /// into a forty-second wait. Post-settle the ambiguity they protect
+    /// against is over: one silent bar probe is proof, and the engine check
+    /// needs no further quiet.
+    func displaySettled() {
+        let insets = (DockInset.bottom, DockInset.sides)
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let orchestrator = Orchestrator()
+            if let config = try? orchestrator.loadConfig(), config.statusBar.enabled,
+                let bar = SketchyBarSupervisor.locate()
+            {
+                if !bar.isRunning() {
+                    DragLog.log("settle: bar is down — restarting")
+                    try? orchestrator.applyBar(
+                        config, dockInsetBottom: insets.0, dockInsetSides: insets.1)
+                } else if !bar.isResponsive() {
+                    DragLog.log("settle: bar is a zombie — killing and restarting")
+                    bar.kill()
+                    try? orchestrator.applyBar(
+                        config, dockInsetBottom: insets.0, dockInsetSides: insets.1)
+                }
+            }
+            await self?.checkAeroSpaceHealth(orchestrator, force: true)
+        }
+    }
+
+    private func checkAeroSpaceHealth(_ orchestrator: Orchestrator, force: Bool = false) async {
         // A dead engine first, and separately from a stalled one. The stall
         // path exists for a *running* engine that lost Accessibility; before
         // the engine was embedded, a dead AeroSpace was Launch Services'
@@ -1029,7 +1058,7 @@ final class AppModel {
         let displaysSettling = await MainActor.run {
             Date().timeIntervalSince(MonitorMap.lastDisplayEvent) < 8
         }
-        guard !displaysSettling else { return }
+        guard force || !displaysSettling else { return }
         let alreadyRecovering = await MainActor.run { () -> Bool in
             if engineRecoveryInFlight { return true }
             engineRecoveryInFlight = true

@@ -204,6 +204,7 @@ enum MonitorMap {
                     DragLog.log("display change settled: \(currentFingerprint())")
                     refreshMap()
                     redistribute()
+                    AppDelegate.model?.displaySettled()
                 }
             }
         }

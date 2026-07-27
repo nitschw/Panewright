@@ -5,6 +5,16 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- Undocking and redocking recover in seconds instead of the better part of
+  a minute. Recovery was passive — the 20-second health cadence, three
+  20-second zombie probes, and an engine-recovery hold all queued up behind
+  a display change. The display-settle event now fires one immediate,
+  decisive recovery pass: post-settle, a single silent bar probe is proof
+  enough to replace a zombied bar, and the engine check runs right away
+  (issue #7: the bar zombies on every display transition on some machines,
+  and used to stay a grey stripe for ~60 seconds after replugging).
+
 ## [0.6.13] — 2026-07-27
 
 ### Fixed
