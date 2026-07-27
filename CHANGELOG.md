@@ -50,7 +50,14 @@ the `Unreleased` section becomes the next release's notes.
   nothing duplicates. `[[bar.monitor]]` blocks override per display, matched
   by name fragment or class (`builtin`, `portrait`, `external`, `*`): pick a
   widget subset, or hide a display's bar entirely. Re-applies automatically
-  as displays come and go.
+  as displays come and go — and editable in Settings → Appearance → "Bar
+  per monitor".
+- **Orphan windows get adopted.** A window the engine never learned about —
+  born during an engine restart, or an app whose windows misreport their
+  type until touched (Steam) — used to lurk outside the tiling and snap
+  into the grid the first time it was clicked. A background sweep now spots
+  windows that belong to no workspace and nudges them into adoption (an AX
+  raise — no focus theft); resisters are logged and left alone.
 - Hidden windows (including pills) park at the cheapest corner of the whole
   arrangement — with a second display, its far corner — so the primary
   display's corners stay completely clean.
@@ -71,6 +78,11 @@ the `Unreleased` section becomes the next release's notes.
   another monitor" above "this corner is behind the Dock" when parking).
 - A floating window that can't be raised above the tiling (cross-app
   z-order) is asked once per situation instead of four times a second.
+- Plugging or unplugging a monitor no longer rebuilds the bar three times:
+  the bar reloads only when the monitor map actually changed, and the
+  zombie-bar check needs three silent probes (a bar busy re-laying-out for
+  a new display is not a zombie — killing it mid-transition was most of
+  the 15-second settle).
 
 ## [0.5.1] — 2026-07-26
 

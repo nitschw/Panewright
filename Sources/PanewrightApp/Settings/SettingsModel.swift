@@ -105,6 +105,23 @@ final class SettingsModel {
     var modeRows: [ModeRow] = []
     var workspaceMonitorRows: [MappingRow] = []
     var appWorkspaceRows: [MappingRow] = []
+    var barMonitorRows: [BarMonitorRow] = []
+
+    /// One [[bar.monitor]] rule. `widgets` is the user's comma list, kept as
+    /// text so half-typed keys don't get eaten by a round-trip.
+    struct BarMonitorRow: Identifiable {
+        let id = UUID()
+        var match: String
+        var mode: WidgetMode
+        var widgets: String
+        var hidden: Bool
+
+        enum WidgetMode: String, CaseIterable {
+            case all = "All widgets"
+            case none = "Strip only"
+            case custom = "These:"
+        }
+    }
 
     init(appModel: AppModel) {
         self.appModel = appModel
@@ -148,6 +165,15 @@ final class SettingsModel {
             .map { MappingRow(key: "\($0.key)", value: $0.value) }
         appWorkspaceRows = config.appWorkspaces.sorted { $0.key < $1.key }
             .map { MappingRow(key: $0.key, value: "\($0.value)") }
+        barMonitorRows = config.statusBar.monitorProfiles.map { profile in
+            BarMonitorRow(
+                match: profile.match,
+                mode: profile.hidden
+                    ? .all
+                    : profile.widgets == nil ? .all : profile.widgets!.isEmpty ? .none : .custom,
+                widgets: (profile.widgets ?? []).joined(separator: ", "),
+                hidden: profile.hidden)
+        }
     }
 
     /// Recomputed on every config change so a row goes red the moment its key
@@ -235,6 +261,26 @@ final class SettingsModel {
             monitors[workspace] = monitor
         }
         config.workspaceMonitors = monitors
+        configChanged()
+    }
+
+    /// [[bar.monitor]] rules. A rule with an empty match is half-typed and
+    /// skipped, never dropped from the editor.
+    func barMonitorRowsChanged() {
+        config.statusBar.monitorProfiles = barMonitorRows.compactMap { row in
+            let match = row.match.trimmingCharacters(in: .whitespaces)
+            guard !match.isEmpty else { return nil }
+            let widgets: [String]? =
+                switch row.mode {
+                case .all: nil
+                case .none: []
+                case .custom:
+                    row.widgets.split(separator: ",")
+                        .map { $0.trimmingCharacters(in: .whitespaces) }
+                        .filter { !$0.isEmpty }
+                }
+            return .init(match: match, widgets: widgets, hidden: row.hidden)
+        }
         configChanged()
     }
 

@@ -187,6 +187,7 @@ final class AppModel {
     @MainActor static var lastEngineLaunch = Date()
     private let dockWatcher = DockWatcher()
     private let barAutoHide = BarAutoHide()
+    private let orphanAdopter = OrphanAdopter()
     var status: AeroSpaceStatus = .notInstalled
     var lastMessage = ""
     private var watcher: ConfigWatcher?
@@ -270,6 +271,7 @@ final class AppModel {
             WakeGuard.observe()
             self?.dockWatcher.start()
             self?.barAutoHide.start()
+            self?.orphanAdopter.start()
             MonitorMap.observe()
         }
         let dockBottom = DockInset.bottom
@@ -859,6 +861,9 @@ final class AppModel {
         controller.start()
     }
 
+    /// Consecutive silent bar probes — see the zombie check below.
+    @MainActor private static var barZombieStrikes = 0
+
     private func startBarHealthCheck() {
         Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
             // Read on the main actor before handing off: NSScreen is not for
@@ -890,14 +895,36 @@ final class AppModel {
                         DragLog.log("bar health: sketchybar is down — restarting")
                         try? orchestrator.applyBar(
                             config, dockInsetBottom: insets.0, dockInsetSides: insets.1)
+                        await MainActor.run { Self.barZombieStrikes = 0 }
                     } else if !bar.isResponsive() {
-                        // Alive but its socket is dead — a sleep casualty that
-                        // renders a bare grey strip and answers nothing. Only
-                        // a kill and a fresh launch bring the items back.
-                        DragLog.log("bar health: sketchybar is a zombie — killing and restarting")
-                        bar.kill()
-                        try? orchestrator.applyBar(
-                            config, dockInsetBottom: insets.0, dockInsetSides: insets.1)
+                        // Alive but its socket isn't answering. That's a sleep
+                        // casualty (bare grey strip, answers nothing, forever)
+                        // — or just a bar busy re-laying-out for a display
+                        // change, which is why one failed probe proves
+                        // nothing. Declaring zombie on the first miss killed
+                        // a healthy bar mid-plug-in and turned one visible
+                        // reload into three. Three misses in a row is a
+                        // minute of silence: transitions never last that
+                        // long, and a real zombie has all the time in the
+                        // world.
+                        let strikes = await MainActor.run { () -> Int in
+                            Self.barZombieStrikes += 1
+                            return Self.barZombieStrikes
+                        }
+                        if strikes >= 3 {
+                            DragLog.log(
+                                "bar health: sketchybar is a zombie"
+                                    + " (\(strikes) silent probes) — killing and restarting")
+                            bar.kill()
+                            try? orchestrator.applyBar(
+                                config, dockInsetBottom: insets.0, dockInsetSides: insets.1)
+                            await MainActor.run { Self.barZombieStrikes = 0 }
+                        } else {
+                            DragLog.log(
+                                "bar health: bar not answering (probe \(strikes)/3) — waiting")
+                        }
+                    } else {
+                        await MainActor.run { Self.barZombieStrikes = 0 }
                     }
                 }
                 // Re-assert each display's bar personality: reloads forget

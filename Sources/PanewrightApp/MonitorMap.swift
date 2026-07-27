@@ -34,15 +34,20 @@ enum MonitorMap {
         return monitorByName
     }
 
-    static func write() {
+    /// Returns true when the map file's content actually changed — the
+    /// caller's cue to reload the bar. Reloading on every write attempt
+    /// meant a plug/unplug rebuilt the bar three or four times (each one
+    /// visible), when the map only changed once.
+    @discardableResult
+    static func write() -> Bool {
         let monitorByName = monitorsByName()
-        guard !monitorByName.isEmpty else { return }
+        guard !monitorByName.isEmpty else { return false }
 
         // Active displays in Quartz order = SketchyBar's display-1..N.
         var count: UInt32 = 0
-        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return }
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return false }
         var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
-        guard CGGetActiveDisplayList(count, &ids, &count) == .success else { return }
+        guard CGGetActiveDisplayList(count, &ids, &count) == .success else { return false }
 
         // SketchyBar does NOT number displays in CGGetActiveDisplayList order,
         // so binding "display-N" to the N-th active display swaps monitors.
@@ -71,7 +76,7 @@ enum MonitorMap {
             // ran for hours on a one-display map and the M-badges never
             // appeared.
             DragLog.log("monitor-map: bar mid-reload — keeping previous map for now")
-            return
+            return false
         } else {
             // No bar and no map yet (first boot): fall back to list order;
             // observe() rewrites the map once the bar is up.
@@ -99,9 +104,11 @@ enum MonitorMap {
         let lines = entries
             .map { "\($0.sketchyDisplay)\t\($0.monitor)\t\(labelByDisplay[$0.sketchyDisplay] ?? $0.monitor)" }
             .sorted()
+        let content = lines.joined(separator: "\n") + (lines.isEmpty ? "" : "\n")
+        guard content != (try? String(contentsOf: url, encoding: .utf8)) else { return false }
         DragLog.log("monitor-map: \(lines.joined(separator: " "))")
-        try? (lines.joined(separator: "\n") + (lines.isEmpty ? "" : "\n"))
-            .write(to: url, atomically: true, encoding: .utf8)
+        try? content.write(to: url, atomically: true, encoding: .utf8)
+        return true
     }
 
     /// SketchyBar display index → the CG origin it reports for a full-bar item
@@ -202,8 +209,7 @@ enum MonitorMap {
     /// laid the bar out, and blocking the main thread to wait would freeze the
     /// UI.
     private static func refreshMap() {
-        write()
-        reloadBar()
+        if write() { reloadBar() }
         Task.detached(priority: .userInitiated) {
             // Wait for the bar to report geometry for *every* display, not
             // just any: right after a display change SketchyBar answers for
@@ -228,14 +234,17 @@ enum MonitorMap {
                     "monitor-map: bar never reported all \(displays) display(s)"
                         + " — writing what it has")
             }
-            await MainActor.run {
-                write()
-                reloadBar()
+            let reloaded = await MainActor.run { () -> Bool in
+                if write() {
+                    reloadBar()
+                    return true
+                }
+                return false
             }
-            // The reload rebuilt every item from the rc, forgetting their
+            // A reload rebuilds every item from the rc, forgetting their
             // per-display assignments; give it a beat to lay out, then hand
-            // each display its bar personality.
-            try? await Task.sleep(for: .seconds(3))
+            // each display its bar personality. No reload, no wait.
+            if reloaded { try? await Task.sleep(for: .seconds(3)) }
             await MainActor.run {
                 if let config = try? Orchestrator().loadConfig() {
                     BarProfiles.apply(config)
@@ -251,8 +260,7 @@ enum MonitorMap {
         Task.detached(priority: .userInitiated) {
             Orchestrator().distributeWorkspaces(primaryMonitorID: primary)
             await MainActor.run {
-                write()
-                reloadBar()
+                if write() { reloadBar() }
             }
         }
     }

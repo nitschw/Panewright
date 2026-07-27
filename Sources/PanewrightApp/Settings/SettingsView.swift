@@ -125,6 +125,8 @@ struct SettingsView: View {
                 Divider()
                 barAppearanceSection
                 Divider()
+                barMonitorsSection
+                Divider()
                 widgetsSection.id("widgets")
                 Divider()
                 companionsSection
@@ -305,6 +307,55 @@ struct SettingsView: View {
             } else {
                 Text("Follows the focus border color — one accent for the whole system.")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// [[bar.monitor]] rules: which widget chips each display carries.
+    private var barMonitorsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Bar per monitor").font(.headline)
+            Text("With no rules, the main display carries the widget chips and every other display shows a clean workspace strip. Rules match top-down, first match wins. Match a display by part of its name (\u{201C}LC32G7\u{201D}) or a class: builtin, external, portrait, landscape, main, or * for everything.")
+                .font(.caption).foregroundStyle(.secondary)
+            ForEach($model.barMonitorRows) { $row in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        TextField("builtin, portrait, name…", text: $row.match)
+                            .frame(width: 170)
+                            .onChange(of: row.match) { model.barMonitorRowsChanged() }
+                        Picker("", selection: $row.mode) {
+                            ForEach(SettingsModel.BarMonitorRow.WidgetMode.allCases, id: \.self) {
+                                Text($0.rawValue)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 120)
+                        .onChange(of: row.mode) { model.barMonitorRowsChanged() }
+                        Toggle("No bar", isOn: $row.hidden)
+                            .onChange(of: row.hidden) { model.barMonitorRowsChanged() }
+                        Spacer()
+                        Button {
+                            model.barMonitorRows.removeAll { $0.id == row.id }
+                            model.barMonitorRowsChanged()
+                        } label: {
+                            Image(systemName: "minus.circle")
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if row.mode == .custom {
+                        TextField(
+                            "battery, network, todo…", text: $row.widgets
+                        )
+                        .onChange(of: row.widgets) { model.barMonitorRowsChanged() }
+                        Text("Widget names as in the list below, plus todo and integrations.")
+                            .font(.caption2).foregroundStyle(.tertiary)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            Button("Add Rule") {
+                model.barMonitorRows.append(
+                    .init(match: "", mode: .all, widgets: "", hidden: false))
             }
         }
     }
