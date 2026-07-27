@@ -948,6 +948,7 @@ public struct Orchestrator: Sendable {
             // nothing to diagnose with. Never again.
             let log = FileManager.default.homeDirectoryForCurrentUser
                 .appending(path: "Library/Logs/PanewrightEngine.log")
+            LogTail.rotate(log.path)
             // Create, never truncate: the relaunch after a death would
             // otherwise wipe the termination line the death just wrote —
             // which is the one line the log exists to keep.
@@ -1012,11 +1013,46 @@ public struct Orchestrator: Sendable {
     /// Put every window the snapshot knows back on its workspace. Windows
     /// that closed in the meantime are skipped by the engine itself (the move
     /// fails, harmlessly); new windows stay where they landed.
-    public func restoreWorkspaces() {
-        guard let cli = AeroSpaceCLI.locate() else { return }
+    ///
+    /// Returns how many windows actually moved — callers must not report a
+    /// restore that didn't happen. The unconditional "restored" log once
+    /// fired one second after an engine launch while every window sat
+    /// un-adopted on workspace 0.
+    @discardableResult
+    public func restoreWorkspaces() -> Int {
+        guard let cli = AeroSpaceCLI.locate() else { return 0 }
         let file = paths.panewrightConfigFile.deletingLastPathComponent()
             .appending(path: ".workspace-snapshot")
-        guard let content = try? String(contentsOf: file, encoding: .utf8) else { return }
+        // A snapshot goes stale: it refreshes every 20s while the app runs
+        // and at teardown, so anything older means the app has been gone a
+        // while — and restoring an old layout over one the user has since
+        // rearranged is worse than restoring nothing. (Window ids also die
+        // with app relaunches, so ancient snapshots mostly no-op — mostly.)
+        if let attrs = try? FileManager.default.attributesOfItem(atPath: file.path),
+            let modified = attrs[.modificationDate] as? Date,
+            Date().timeIntervalSince(modified) > 600
+        {
+            return 0
+        }
+        guard let content = try? String(contentsOf: file, encoding: .utf8) else { return 0 }
+        // A freshly launched engine answers its socket before it has adopted
+        // the existing windows; moves issued in that gap no-op and the
+        // "restore" scatters nothing back. Wait until the engine can see at
+        // least one window the snapshot names (or give up after ~6s).
+        let snapshotIDs = Set(
+            content.split(separator: "\n").compactMap {
+                $0.split(separator: "\t").first.map(String.init)
+            }.filter { $0 != "FOCUSED" })
+        for _ in 0..<12 {
+            if let listing = try? cli.run(["list-windows", "--all", "--format", "%{window-id}"]),
+                listing.split(separator: "\n").contains(where: {
+                    snapshotIDs.contains($0.trimmingCharacters(in: .whitespaces))
+                })
+            {
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
         var focused: String?
         var moved = 0
         for line in content.split(separator: "\n") {
@@ -1030,13 +1066,10 @@ public struct Orchestrator: Sendable {
                 moved += 1
             }
         }
-        if let focused, !focused.isEmpty {
+        if let focused, !focused.isEmpty, moved > 0 {
             try? cli.run(["workspace", focused])
         }
-        if moved > 0 {
-            try? runTool(
-                "/bin/echo", ["restored \(moved) windows to their workspaces"])
-        }
+        return moved
     }
 
     /// Restarts scramble workspace tree roots (the accordion surprise).

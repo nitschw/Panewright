@@ -85,23 +85,6 @@ struct OnboardingView: View {
         }
     }
 
-    private var aerospaceDetail: String {
-        switch model.status {
-        case .running: "Running"
-        case .notRunning: "Installed but not running."
-        case .unresponsive:
-            "Grant Accessibility to AeroSpace in System Settings → Privacy & Security, then restart it."
-        case .notInstalled: "Install the tiling engine first."
-        }
-    }
-
-    private var aerospaceActionLabel: String? {
-        switch model.status {
-        case .notRunning: "Launch"
-        case .unresponsive: "Restart Engine"
-        case .running, .notInstalled: nil
-        }
-    }
 }
 
 struct SetupRow: View {

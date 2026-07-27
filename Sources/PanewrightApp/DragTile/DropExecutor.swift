@@ -348,6 +348,11 @@ struct DropExecutor: Sendable {
 
     /// Axis-aware step: if the windows share a column band, close the vertical
     /// distance; a row band, horizontal; diagonal, the larger gap first.
+    ///
+    /// The overlap branch here never sees a pair overlapping on BOTH axes —
+    /// walkToNeighbor returns those via `neighbourAxis` before stepping.
+    /// Don't "simplify" it back into the overlapping case; that exact shape
+    /// once sent the walk oscillating between two windows forever.
     static func step(from d: CGRect, to t: CGRect) -> String {
         let xOverlap = overlap(d.minX, d.maxX, t.minX, t.maxX)
         let yOverlap = overlap(d.minY, d.maxY, t.minY, t.maxY)

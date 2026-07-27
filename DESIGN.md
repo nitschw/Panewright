@@ -1,4 +1,4 @@
-        # Panewright — Design Document
+# Panewright — Design Document
 
 An i3-style tiling window manager experience for macOS that stays visually and
 behaviorally Mac-native.

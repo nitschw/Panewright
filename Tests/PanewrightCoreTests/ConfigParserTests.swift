@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import PanewrightCore
@@ -224,5 +225,44 @@ import Testing
     @Test func dropdownHeightIsClamped() throws {
         let parsed = try ConfigParser.parse(toml: "[dropdown]\nheight = 3.0")
         #expect(parsed.dropdown.height == 0.9)
+    }
+}
+
+/// The log machinery that feeds crash and bug reports.
+@Suite struct LogTailTests {
+    func temp(_ content: String) -> String {
+        let path = FileManager.default.temporaryDirectory
+            .appending(path: "logtail-\(UUID().uuidString)").path
+        try! content.write(toFile: path, atomically: true, encoding: .utf8)
+        return path
+    }
+
+    @Test func tailKeepsOnlyTheLastLines() {
+        let path = temp((1...100).map { "line \($0)" }.joined(separator: "\n"))
+        let tail = LogTail.tail(of: path, lines: 3, maxCharacters: 1000)
+        #expect(tail == "line 98\nline 99\nline 100")
+    }
+
+    @Test func tailRespectsTheCharacterBudget() {
+        let path = temp(String(repeating: "x", count: 500))
+        let tail = LogTail.tail(of: path, lines: 10, maxCharacters: 100)
+        #expect(tail!.count == 101)  // budget + the ellipsis
+        #expect(tail!.hasPrefix("…"))
+    }
+
+    @Test func missingOrEmptyFilesYieldNothing() {
+        #expect(LogTail.tail(of: "/nonexistent/nope") == nil)
+        #expect(LogTail.tail(of: temp("")) == nil)
+    }
+
+    @Test func rotationRetiresOversizedLogsAndKeepsOneGeneration() throws {
+        let path = temp(String(repeating: "a", count: 2000))
+        LogTail.rotate(path, limit: 1000)
+        #expect(!FileManager.default.fileExists(atPath: path))
+        #expect(FileManager.default.fileExists(atPath: path + ".1"))
+        // Under the limit: untouched.
+        let small = temp("tiny")
+        LogTail.rotate(small, limit: 1000)
+        #expect(FileManager.default.fileExists(atPath: small))
     }
 }

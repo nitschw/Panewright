@@ -18,8 +18,14 @@ import PanewrightCore
 /// actually sat 44 points up inside the tiled area, under the windows.
 @MainActor
 enum BarPlacer {
-    /// How far above the Dock (or the raw screen edge) the bar floats.
-    private static let float: CGFloat = 5
+    /// How far above the Dock (or the raw screen edge) the bar floats — the
+    /// theme's own base offset, from the same function the emitted config
+    /// uses, so the measured placement and the config can't disagree. (A
+    /// hardcoded 5 here would also have nudged the technical theme's flush
+    /// bar upward forever, since its base is 0.)
+    private static func float(for bar: PanewrightConfig.StatusBar) -> CGFloat {
+        CGFloat(SketchyBarConfigEmitter.barGeometry(for: bar.theme).yOffset)
+    }
     /// Close enough. Fractional frames and pixel alignment make exact
     /// equality unreachable.
     private static let tolerance: CGFloat = 3
@@ -32,12 +38,13 @@ enum BarPlacer {
         // The measured placement exists for the bottom edge, where the Dock
         // and the bar can collide. A top bar has no Dock to dodge (the Dock
         // can't live there) and keeps its static offset.
-        guard (try? Orchestrator().loadConfig())?.statusBar.position != .top,
+        guard let config = try? Orchestrator().loadConfig(),
+            config.statusBar.position != .top,
             let bar = SketchyBarSupervisor.locate(), bar.isRunning(),
             let screen = NSScreen.main
         else { return }
         let rawBottom = screen.frame.height
-        let target = CGFloat(DockInset.bottom) + float
+        let target = CGFloat(DockInset.bottom) + float(for: config.statusBar)
         guard let measured = barBottomInset(rawBottom: rawBottom) else { return }
         if abs(measured.inset - target) <= tolerance { return }
         // One proportional correction. Displacement is linear in y_offset

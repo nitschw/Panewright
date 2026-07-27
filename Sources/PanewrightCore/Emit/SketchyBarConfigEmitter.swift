@@ -99,10 +99,6 @@ public enum SketchyBarConfigEmitter {
         return bar.effectiveThickness + offsetAndBreathing
     }
 
-    /// The old name, kept for callers that only know the theme.
-    public static func reservedTopGap(for theme: PanewrightConfig.StatusBar.Theme) -> Int {
-        reservedGap(for: PanewrightConfig.StatusBar(theme: theme))
-    }
 
     /// - Parameter dockInsetBottom: how much of the bottom edge the Dock has
     ///   taken, measured by the caller from `NSScreen.visibleFrame`. SketchyBar

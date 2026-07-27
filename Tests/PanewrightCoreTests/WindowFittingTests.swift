@@ -88,7 +88,7 @@ private func window(
             window(2, "b", x: 868, width: 850),
         ]
         #expect(WindowFitting.deficit(in: windows, bounds: screen) == 0)
-        #expect(WindowFitting.nextStep(for: windows, minimums: WindowFitting.Minimums(), bounds: screen) == .fits)
+        #expect(WindowFitting.nextStep(for: windows, minimums: WindowFitting.Minimums(), bounds: screen, step: 60) == .fits)
     }
 
     @Test func withoutKnownBoundsOnlyOverlapCounts() {
@@ -182,7 +182,7 @@ private func window(
             window(1, "chrome", x: 0, width: 600),
             window(2, "iterm", x: 700, width: 500),
         ]
-        #expect(WindowFitting.nextStep(for: roomy, minimums: WindowFitting.Minimums()) == .fits)
+        #expect(WindowFitting.nextStep(for: roomy, minimums: WindowFitting.Minimums(), step: 60) == .fits)
     }
 
     @Test func theWindowWithTheMostSlackGivesUpTheWidth() {
@@ -675,7 +675,7 @@ private func window(
         #expect(
             WindowFitting.nextStep(
                 for: [a, b], minimums: WindowFitting.Minimums(), bounds: screen,
-                separation: 5) == .fits)
+                separation: 5, step: 60) == .fits)
     }
 }
 
@@ -864,7 +864,7 @@ private func window(
         guard
             case .adjusting(.shrink(let id, _, _)) = WindowFitting.nextStep(
                 for: windows, minimums: minimums, bounds: CGRect(x: 0, y: 0, width: 1728, height: 1117),
-                separation: 5, usable: 360)
+                separation: 5, step: 60, usable: 360)
         else {
             Issue.record("expected a shrink")
             return
@@ -885,7 +885,7 @@ private func window(
         guard
             case .adjusting(.shrink(let id, _, _)) = WindowFitting.nextStep(
                 for: windows, minimums: minimums, bounds: CGRect(x: 0, y: 0, width: 1728, height: 1117),
-                separation: 5, usable: 360)
+                separation: 5, step: 60, usable: 360)
         else {
             Issue.record("expected a shrink rather than an eviction")
             return
@@ -906,7 +906,7 @@ private func window(
             WindowFitting.nextStep(
                 for: windows, minimums: minimums,
                 bounds: CGRect(x: 0, y: 0, width: 1000, height: 1000),
-                separation: 5, usable: 360) == .adjusting(.evict(id: 2)))
+                separation: 5, step: 60, usable: 360) == .adjusting(.evict(id: 2)))
     }
 
     @Test func aWindowWellAboveTheUsableFloorStillGivesSpace() {
@@ -918,7 +918,7 @@ private func window(
         guard
             case .adjusting(.shrink(let id, _, _)) = WindowFitting.nextStep(
                 for: windows, minimums: WindowFitting.Minimums(widths: ["pinned": 600]),
-                bounds: screen, separation: 5, usable: 360)
+                bounds: screen, separation: 5, step: 60, usable: 360)
         else {
             Issue.record("expected a shrink")
             return
@@ -1107,7 +1107,7 @@ private func window(
             "com.googlecode.iterm2": 200, "com.hnc.Discord": 800,
         ])
         let verdict = WindowFitting.nextStep(
-            for: windows, minimums: minimums, bounds: bounds, usable: 360)
+            for: windows, minimums: minimums, bounds: bounds, step: 60, usable: 360)
         if case .adjusting(.evict) = verdict {
             Issue.record("evicted a window that cramming would have fitted")
         }
@@ -1128,7 +1128,7 @@ private func window(
             "com.anthropic.claudefordesktop": 600, "com.googlecode.iterm2": 87,
         ])
         let verdict = WindowFitting.nextStep(
-            for: windows, minimums: minimums, bounds: bounds, usable: 360)
+            for: windows, minimums: minimums, bounds: bounds, step: 60, usable: 360)
         switch verdict {
         case .adjusting(.stack), .adjusting(.evict): break
         default:
@@ -1147,7 +1147,7 @@ private func window(
             "com.googlecode.iterm2": 87, "com.hnc.Discord": 800,
         ])
         let verdict = WindowFitting.nextStep(
-            for: windows, minimums: minimums, bounds: nil, separation: 0, usable: 360)
+            for: windows, minimums: minimums, bounds: nil, separation: 0, step: 60, usable: 360)
         if case .adjusting(.evict) = verdict {
             Issue.record("evicted with no bounds to justify it")
         }
@@ -1189,7 +1189,7 @@ private func window(
     @Test func columnsThatCannotFitStackBeforeAnythingLeaves() {
         let verdict = WindowFitting.nextStep(
             for: handoffLayout, minimums: floors, bounds: bounds,
-            separation: 4, usable: 360)
+            separation: 4, step: 60, usable: 360)
         guard case .adjusting(.stack(let id, let with)) = verdict else {
             Issue.record("expected a stack, got \(verdict)")
             return
@@ -1207,7 +1207,7 @@ private func window(
         }
         let verdict = WindowFitting.nextStep(
             for: handoffLayout, minimums: minimums, bounds: bounds,
-            separation: 4, usable: 360)
+            separation: 4, step: 60, usable: 360)
         guard case .adjusting(.evict) = verdict else {
             Issue.record("expected eviction once stacking is impossible, got \(verdict)")
             return

@@ -199,7 +199,7 @@ public enum WindowFitting {
         minimums: Minimums,
         bounds: CGRect? = nil,
         separation: CGFloat = 0,
-        step: Int = 240,
+        step: Int,
         /// The smallest a window may be shrunk to, whatever the app accepts.
         usable: CGFloat = 0,
         overflowEnabled: Bool = true

@@ -1,4 +1,5 @@
 import AppKit
+import PanewrightCore
 import Foundation
 
 /// Consent-first crash reporting with zero infrastructure: on launch, detect
@@ -48,10 +49,51 @@ enum CrashReporter {
 
             """
         report += sections.joined(separator: "\n\n")
-        if report.count > 5500 {
-            report = String(report.prefix(5500)) + "\n… (truncated)"
+        report += logSection(maxCharacters: 2000)
+        if report.count > 6500 {
+            report = String(report.prefix(6500)) + "\n… (truncated)"
         }
         return report
+    }
+
+    /// The recent log, because "it crashed" plus the last minute of what the
+    /// app was doing is a diagnosable report; "it crashed" alone is a shrug.
+    private static func logSection(maxCharacters: Int) -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        guard
+            let tail = LogTail.tail(
+                of: home + "/Library/Logs/Panewright.log",
+                lines: 40, maxCharacters: maxCharacters)
+        else { return "" }
+        return """
+
+
+            <details><summary>Recent log</summary>
+
+            ```
+            \(tail)
+            ```
+            </details>
+
+            _Full logs: `~/Library/Logs/Panewright.log` and `PanewrightEngine.log` — drag them onto this issue if asked._
+            """
+    }
+
+    /// User-initiated bug report — same delivery as a crash report, but the
+    /// story is theirs to tell and the logs come along automatically.
+    static func bugReport() -> String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "dev"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return """
+            **Panewright** \(version) (\(build))
+            **macOS** \(ProcessInfo.processInfo.operatingSystemVersionString)
+
+            **What happened:**
+
+            **What I expected:**
+            \(logSection(maxCharacters: 3200))
+            """
     }
 
     // MARK: macOS crash reports (.ips)
@@ -159,7 +201,9 @@ enum CrashReporter {
         var components = URLComponents(string: issuesURL)!
         components.queryItems = [
             URLQueryItem(name: "title", value: title(for: report)),
-            URLQueryItem(name: "labels", value: "crash"),
+            URLQueryItem(
+                name: "labels",
+                value: report.contains("**What happened:**") ? "bug" : "crash"),
             URLQueryItem(name: "body", value: report),
         ]
         if let url = components.url {

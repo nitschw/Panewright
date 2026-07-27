@@ -576,10 +576,6 @@ final class AppModel {
 
     // MARK: Tool installation (Homebrew, no password required)
 
-    func installAeroSpace() {
-        installTool("AeroSpace", brewArguments: ["install", "--cask", "nikitabobko/tap/aerospace"])
-    }
-
     func installBorders() {
         installTool("JankyBorders", brewArguments: ["install", "FelixKratz/formulae/borders"])
     }
@@ -845,26 +841,6 @@ final class AppModel {
         NSWorkspace.shared.open(orchestrator.paths.panewrightConfigFile)
     }
 
-    func launchOrRestartAeroSpace() {
-        do {
-            if status == .notRunning {
-                try orchestrator.launchAeroSpace()
-                lastMessage = "Tiling engine started"
-            } else {
-                try orchestrator.restartAeroSpace()
-                lastMessage = "Tiling engine restarted"
-            }
-            // Self-heal the layouts a restart scrambles.
-            let orchestrator = orchestrator
-            Task.detached(priority: .utility) {
-                orchestrator.healLayoutsWhenReady()
-            }
-        } catch {
-            report(error: "\(error)")
-        }
-        refreshStatus()
-    }
-
     /// The bar has vanished before without leaving a crash report (a display
     /// sleep/wake took it down); nothing restarted it until the app was
     /// relaunched. Supervise it: if the bar should be up and isn't, bring it
@@ -1000,8 +976,11 @@ final class AppModel {
                 if let cli = AeroSpaceCLI.locate(),
                     (try? cli.run(["list-workspaces", "--focused"])) != nil
                 {
-                    orchestrator.restoreWorkspaces()
-                    DragLog.log("aerospace health: workspaces restored from snapshot")
+                    let moved = orchestrator.restoreWorkspaces()
+                    DragLog.log(
+                        moved > 0
+                            ? "aerospace health: restored \(moved) windows from snapshot"
+                            : "aerospace health: snapshot restore moved nothing (stale or empty)")
                     break
                 }
             }
@@ -1203,6 +1182,7 @@ struct PanewrightMenu: View {
 
     @ViewBuilder
     private var about: some View {
+        Button("Report a Bug…") { CrashReporter.present(report: CrashReporter.bugReport()) }
         Button("About Panewright") { model.openAbout() }
         if model.canCheckForUpdates {
             Button("Check for Updates…") { model.checkForUpdates() }

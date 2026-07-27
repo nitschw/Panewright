@@ -21,7 +21,7 @@ const AEROSPACE_PATHS = [
 
 export class PanewrightNotInstalled extends Error {
   constructor() {
-    super("AeroSpace not found. Install Panewright and run its setup first.");
+    super("Panewright's engine CLI not found. Install Panewright and launch it once.");
     this.name = "PanewrightNotInstalled";
   }
 }
