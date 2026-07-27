@@ -95,6 +95,14 @@ else
     if [ -d "$APP/Contents/Frameworks/Sparkle.framework" ]; then
         codesign --force --deep --sign - "$APP/Contents/Frameworks/Sparkle.framework"
     fi
+    # Helpers must be signed before the app that contains them, in the
+    # ad-hoc branch exactly like the identity branch — CI has no identity,
+    # always embeds panewright-cli, and an unsigned helper fails the outer
+    # signature with "code object is not signed at all".
+    for helper in "$APP/Contents/Helpers/AeroSpace" "$APP/Contents/Helpers/aerospace-cli" \
+                  "$APP/Contents/Helpers/panewright-cli"; do
+        [ -f "$helper" ] && codesign --force --sign - "$helper"
+    done
     codesign --force --sign - "$APP"
     echo "warning: no Apple Development identity found — ad-hoc signed."
     echo "         TCC permission grants to Panewright won't survive rebuilds."
