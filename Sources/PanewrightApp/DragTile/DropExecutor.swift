@@ -267,7 +267,18 @@ struct DropExecutor: Sendable {
             guard parts.count >= 2, let id = CGWindowID(parts[0]) else { continue }
             shapes[id] = parts[1]
         }
+        // Container labels alone proved misleading: a drop can end with both
+        // windows reporting v_tiles and still not be stacked on screen. The
+        // frames are the only thing that says whether it worked, so they go in
+        // the log beside the labels.
+        var geometry = ""
+        if let (d, t) = frames(dragged, target) {
+            geometry =
+                " | dragged \(Int(d.minX)),\(Int(d.minY)) \(Int(d.width))x\(Int(d.height))"
+                + " target \(Int(t.minX)),\(Int(t.minY)) \(Int(t.width))x\(Int(t.height))"
+        }
         return "dragged in \(shapes[dragged] ?? "?"), target in \(shapes[target] ?? "?")"
+            + geometry
     }
 
     // MARK: Walking
