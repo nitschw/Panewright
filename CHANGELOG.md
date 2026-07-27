@@ -5,6 +5,15 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- The dropdown terminal is one designated window, not "whichever window of
+  that app is nearby": with several iTerm windows open, `$mod+\`` used to
+  dismiss any of them on the current workspace (tiled work terminals
+  included) and summon an arbitrary other — cycling through them all. Now
+  the first window you toggle earns the job and keeps it; every other
+  window of the app is a civilian. To re-designate, focus the window you
+  want and toggle it once.
+
 ## [0.6.4] — 2026-07-27
 
 ### Fixed

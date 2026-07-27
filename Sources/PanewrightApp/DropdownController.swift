@@ -25,6 +25,17 @@ enum DropdownController {
     /// first summon; the memory holds for the rest of the app's run.
     private static var rememberedFrame: CGRect?
 
+    /// THE dropdown window. One window earns the job and keeps it: the old
+    /// any-window-of-the-app logic dismissed whatever iTerm happened to be
+    /// on the current workspace (tiled work terminals included) and
+    /// summoned an arbitrary other one — with several windows open the key
+    /// cycled through them all instead of toggling one. Adoption order when
+    /// nobody holds the job: a window already parked on S (the previous
+    /// dropdown, surviving an app restart), the focused window if it's the
+    /// right app (a deliberate "make this one the dropdown"), then the
+    /// app's frontmost window. Every other window of the app is a civilian.
+    private static var designated: UInt32?
+
     static func toggle() {
         guard let config = try? Orchestrator().loadConfig(), config.dropdown.enabled,
             let cli = AeroSpaceCLI.locate()
@@ -36,30 +47,59 @@ enum DropdownController {
         let focusedWorkspace =
             (try? cli.run(["list-workspaces", "--focused"]))?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? "1"
-        // Is a window of the app already on the focused workspace? Then this
-        // press means "away with it".
+        // Every window of the app, with its workspace.
+        var appWindows: [(id: UInt32, workspace: String)] = []
         if let listing = try? cli.run([
-            "list-windows", "--workspace", focusedWorkspace, "--format",
-            "%{window-id}|%{app-bundle-id}",
-        ]),
-            let line = listing.split(separator: "\n").first(where: {
-                $0.hasSuffix("|\(appID)")
-            }),
-            let id = UInt32(line.split(separator: "|")[0])
-        {
-            DragLog.log("dropdown: dismissing \(appID)")
-            // Capture the size on the way out — this is the moment the
-            // user's resizes are the window's truth.
-            if let frame = WindowSnapshot.frame(of: id) {
-                rememberedFrame = frame
+            "list-windows", "--all", "--format",
+            "%{window-id}|%{app-bundle-id}|%{workspace}",
+        ]) {
+            for line in listing.split(separator: "\n") {
+                let parts = line.split(separator: "|").map {
+                    $0.trimmingCharacters(in: .whitespaces)
+                }
+                if parts.count >= 3, parts[1] == appID, let id = UInt32(parts[0]) {
+                    appWindows.append((id, parts[2]))
+                }
             }
-            _ = try? cli.run(["move-node-to-workspace", "--window-id", "\(id)", "S"])
+        }
+        if let current = designated, !appWindows.contains(where: { $0.id == current }) {
+            designated = nil  // it closed; the job is open again
+        }
+        if designated == nil {
+            let focusedID = (try? cli.run([
+                "list-windows", "--focused", "--format", "%{window-id}|%{app-bundle-id}",
+            ]))
+                .flatMap { listing -> UInt32? in
+                    let parts = listing.trimmingCharacters(in: .whitespacesAndNewlines)
+                        .split(separator: "|")
+                    return parts.count >= 2 && parts[1] == appID
+                        ? UInt32(parts[0]) : nil
+                }
+            let frontmost = WindowSnapshot.capture()
+                .first { window in appWindows.contains { $0.id == window.id } }?.id
+            designated =
+                appWindows.first(where: { $0.workspace == "S" })?.id
+                ?? focusedID ?? frontmost
+            if let designated {
+                DragLog.log("dropdown: window \(designated) is now the dropdown")
+            }
+        }
+        if let id = designated, let home = appWindows.first(where: { $0.id == id }) {
+            if home.workspace == focusedWorkspace {
+                DragLog.log("dropdown: dismissing \(appID)")
+                // Capture the size on the way out — this is the moment the
+                // user's resizes are the window's truth.
+                if let frame = WindowSnapshot.frame(of: id) {
+                    rememberedFrame = frame
+                }
+                _ = try? cli.run(["move-node-to-workspace", "--window-id", "\(id)", "S"])
+            } else {
+                summon(id: id, appID: appID, to: focusedWorkspace, config: config, cli: cli)
+            }
             return
         }
-        // Summon: find any window of the app anywhere; launch if none.
-        if let id = windowID(of: appID, cli: cli) {
-            summon(id: id, appID: appID, to: focusedWorkspace, config: config, cli: cli)
-        } else {
+        // No window of the app at all: launch it.
+        do {
             DragLog.log("dropdown: launching \(appID)")
             guard
                 let url = NSWorkspace.shared.urlForApplication(
@@ -73,6 +113,8 @@ enum DropdownController {
                 for _ in 0..<20 {
                     try? await Task.sleep(for: .milliseconds(300))
                     if let id = windowID(of: appID, cli: cli) {
+                        designated = id
+                        DragLog.log("dropdown: window \(id) is now the dropdown")
                         summon(
                             id: id, appID: appID, to: focusedWorkspace,
                             config: config, cli: cli)
