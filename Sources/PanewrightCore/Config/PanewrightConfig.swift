@@ -137,6 +137,13 @@ public struct PanewrightConfig: Equatable, Sendable {
         case pillWindow
         /// Open the keybinding cheat-sheet window.
         case help
+        /// Open the fuzzy command palette (windows, apps, commands).
+        case launcher
+        /// Zoomed grid of every occupied workspace — the Mission Control
+        /// that virtual workspaces otherwise take away.
+        case overview
+        /// Summon/dismiss the dropdown (quake-style) terminal.
+        case dropdownToggle
         /// Equalize every window's size in the workspace (AeroSpace's
         /// `balance-sizes`).
         case balanceSizes
@@ -383,6 +390,23 @@ public struct PanewrightConfig: Equatable, Sendable {
     public var modifier: Modifier
     /// The prefix chord when `modifier == .leader`, in AeroSpace key syntax.
     public var leaderKey: String
+    /// The quake-style dropdown terminal: one app, summoned to the top
+    /// strip of the screen and dismissed with the same key.
+    public struct Dropdown: Equatable, Sendable {
+        public var enabled: Bool
+        /// Bundle id of the dropdown app. nil picks the first installed of
+        /// the usual terminals at runtime.
+        public var app: String?
+        /// Fraction of the screen height the dropdown covers.
+        public var height: Double
+
+        public init(enabled: Bool = true, app: String? = nil, height: Double = 0.35) {
+            self.enabled = enabled
+            self.app = app
+            self.height = height
+        }
+    }
+
     /// Parking windows into bar pills.
     public struct Pills: Equatable, Sendable {
         public var enabled: Bool
@@ -397,6 +421,7 @@ public struct PanewrightConfig: Equatable, Sendable {
 
     public var todo: TodoList
     public var pills: Pills
+    public var dropdown: Dropdown
     public var modules: Modules
     public var integrations: IntegrationsConfig
     /// i3's `focus_follows_mouse` — hover moves focus, no click. Implemented
@@ -449,6 +474,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         leaderKey: String = "cmd-backtick",
         todo: TodoList = TodoList(),
         pills: Pills = Pills(),
+        dropdown: Dropdown = Dropdown(),
         modules: Modules = Modules(),
         integrations: IntegrationsConfig = IntegrationsConfig(),
         focusFollowsMouse: Bool = false,
@@ -477,6 +503,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         self.leaderKey = leaderKey
         self.todo = todo
         self.pills = pills
+        self.dropdown = dropdown
         self.modules = modules
         self.integrations = integrations
         self.focusFollowsMouse = focusFollowsMouse
@@ -537,6 +564,9 @@ public struct PanewrightConfig: Equatable, Sendable {
         bindings.append(Binding(key: "t", action: .todoAdd))
         // $mod+p: park the focused window in the bar.
         bindings.append(Binding(key: "p", action: .pillWindow))
+        bindings.append(Binding(key: "d", action: .launcher))
+        bindings.append(Binding(key: "o", action: .overview))
+        bindings.append(Binding(key: "backtick", action: .dropdownToggle))
         // $mod+?: the cheat sheet. ($mod+shift+h is taken by "move left".)
         bindings.append(Binding(key: "shift-slash", action: .help))
 

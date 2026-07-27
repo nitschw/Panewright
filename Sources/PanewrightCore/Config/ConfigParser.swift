@@ -161,6 +161,13 @@ public enum ConfigParser {
             config.fitting.floatOnTop = fitting.floatOnTop ?? config.fitting.floatOnTop
             config.fitting.minimumUsable = fitting.minimumUsable ?? config.fitting.minimumUsable
         }
+        if let dropdown = raw.dropdown {
+            config.dropdown.enabled = dropdown.enabled ?? config.dropdown.enabled
+            config.dropdown.app = dropdown.app ?? config.dropdown.app
+            if let height = dropdown.height {
+                config.dropdown.height = max(0.15, min(0.9, height))
+            }
+        }
         if let pills = raw.pills {
             config.pills.enabled = pills.enabled ?? config.pills.enabled
             config.pills.dragToBar = pills.dragToBar ?? config.pills.dragToBar
@@ -264,6 +271,15 @@ public enum ConfigParser {
         if words == ["help"] {
             return .help
         }
+        if words == ["launcher"] {
+            return .launcher
+        }
+        if words == ["overview"] {
+            return .overview
+        }
+        if words == ["dropdown"] {
+            return .dropdownToggle
+        }
         if words == ["balance"] {
             return .balanceSizes
         }
@@ -355,11 +371,13 @@ private struct RawConfig: Codable {
     var todo: RawTodo?
     var integrations: RawIntegrations?
     var pills: RawPills?
+    var dropdown: RawDropdown?
     var modules: RawModules?
     var fitting: RawFitting?
 
     enum CodingKeys: String, CodingKey {
         case modifier, gaps, border, bar, binding, mode, hooks, todo, integrations, pills, modules
+        case dropdown
         case fitting
         case leaderKey = "leader-key"
         case focusFollowsMouse = "focus-follows-mouse"
@@ -427,6 +445,12 @@ private struct RawConfig: Codable {
             case floatOnTop = "float-on-top"
             case minimumUsable = "minimum-usable"
         }
+    }
+
+    struct RawDropdown: Codable {
+        var enabled: Bool?
+        var app: String?
+        var height: Double?
     }
 
     struct RawPills: Codable {

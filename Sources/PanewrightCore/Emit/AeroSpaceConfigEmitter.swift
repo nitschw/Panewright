@@ -259,6 +259,12 @@ public enum AeroSpaceConfigEmitter {
             "exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/pill-window.sh\""
         case .help:
             "exec-and-forget open panewright://help"
+        case .launcher:
+            "exec-and-forget open panewright://launcher"
+        case .overview:
+            "exec-and-forget open panewright://overview"
+        case .dropdownToggle:
+            "exec-and-forget open panewright://dropdown"
         case .balanceSizes: "balance-sizes"
         case .nativeFullscreen: "macos-native-fullscreen"
         case .minimize: "macos-native-minimize"

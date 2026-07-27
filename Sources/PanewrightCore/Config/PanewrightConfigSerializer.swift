@@ -100,6 +100,15 @@ public enum PanewrightConfigSerializer {
         lines.append("# Never shrink a window below this, whatever the app accepts.")
         lines.append("minimum-usable = \(config.fitting.minimumUsable)")
         lines.append("")
+        lines.append("[dropdown]")
+        lines.append("enabled = \(config.dropdown.enabled)")
+        if let app = config.dropdown.app {
+            lines.append("app = \"\(app)\"")
+        }
+        if config.dropdown.height != 0.35 {
+            lines.append("height = \(config.dropdown.height)")
+        }
+        lines.append("")
         lines.append("[pills]")
         lines.append("enabled = \(config.pills.enabled)")
         lines.append("drag-to-bar = \(config.pills.dragToBar)")
@@ -199,6 +208,9 @@ public enum PanewrightConfigSerializer {
         case .todoAdd: "todo add"
         case .pillWindow: "pill window"
         case .help: "help"
+        case .launcher: "launcher"
+        case .overview: "overview"
+        case .dropdownToggle: "dropdown"
         case .balanceSizes: "balance"
         case .nativeFullscreen: "fullscreen native"
         case .minimize: "minimize"

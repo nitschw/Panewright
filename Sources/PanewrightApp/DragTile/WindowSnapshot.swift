@@ -49,6 +49,10 @@ enum WindowSnapshot {
         capture().first { $0.id == id }?.frame
     }
 
+    static func ownerPID(of id: CGWindowID) -> pid_t? {
+        capture().first { $0.id == id }?.ownerPID
+    }
+
     /// Topmost window containing the point (the list is front-to-back).
     static func topmost(at point: CGPoint, excluding: Set<CGWindowID> = []) -> OnScreenWindow? {
         capture().first { !excluding.contains($0.id) && $0.frame.contains(point) }

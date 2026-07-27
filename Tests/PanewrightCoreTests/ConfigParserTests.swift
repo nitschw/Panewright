@@ -192,3 +192,37 @@ import Testing
         #expect(!toml.contains("[[binding]]"))
     }
 }
+
+/// The v0.5 additions: palette, overview, dropdown.
+@Suite struct PostLaunchFeatureConfigTests {
+    @Test func newActionsRoundTrip() throws {
+        for name in ["launcher", "overview", "dropdown"] {
+            let toml = "[[binding]]\nkey = \"z\"\naction = \"\(name)\""
+            let parsed = try ConfigParser.parse(toml: toml)
+            let out = PanewrightConfigSerializer.emit(parsed)
+            #expect(out.contains("action = \"\(name)\""))
+        }
+    }
+
+    @Test func newDefaultsCarryTheTrioAndEmitDeepLinks() {
+        let toml = AeroSpaceConfigEmitter.emit(.default)
+        #expect(toml.contains("alt-d = 'exec-and-forget open panewright://launcher'"))
+        #expect(toml.contains("alt-o = 'exec-and-forget open panewright://overview'"))
+        #expect(toml.contains("alt-backtick = 'exec-and-forget open panewright://dropdown'"))
+    }
+
+    @Test func dropdownConfigRoundTrips() throws {
+        var config = PanewrightConfig.default
+        config.dropdown.app = "com.mitchellh.ghostty"
+        config.dropdown.height = 0.5
+        let parsed = try ConfigParser.parse(toml: PanewrightConfigSerializer.emit(config))
+        #expect(parsed.dropdown.app == "com.mitchellh.ghostty")
+        #expect(parsed.dropdown.height == 0.5)
+        #expect(parsed.dropdown.enabled)
+    }
+
+    @Test func dropdownHeightIsClamped() throws {
+        let parsed = try ConfigParser.parse(toml: "[dropdown]\nheight = 3.0")
+        #expect(parsed.dropdown.height == 0.9)
+    }
+}

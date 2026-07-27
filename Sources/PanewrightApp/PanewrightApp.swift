@@ -44,6 +44,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     AppDelegate.model?.openConfluence(pageID: pageID)
                 case "help":
                     AppDelegate.model?.openCheatSheet()
+                case "launcher":
+                    PaletteController.shared.toggle()
+                case "overview":
+                    OverviewController.shared.toggle()
+                case "dropdown":
+                    DropdownController.toggle()
                 case "conflicts":
                     AppDelegate.model?.openConflicts()
                 case "settings":

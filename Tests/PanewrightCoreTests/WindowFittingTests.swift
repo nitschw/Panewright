@@ -1257,3 +1257,34 @@ private func window(
         #expect(!WindowFitting.siblings(top, bottom, along: .horizontal))
     }
 }
+
+/// The palette's ranking contract: predictable beats clever.
+@Suite struct PaletteScoreTests {
+    @Test func everyQueryCharacterMustAppearInOrder() {
+        #expect(PaletteScore.score(query: "xyz", candidate: "Safari") == nil)
+        #expect(PaletteScore.score(query: "fri", candidate: "Safari") != nil)
+        #expect(PaletteScore.score(query: "rfi", candidate: "Safari") == nil)
+    }
+
+    @Test func prefixesBeatScatteredMatches() {
+        let items = ["Disk Utility", "Discord"]
+        #expect(PaletteScore.rank(query: "dis", in: items, by: { $0 }).first == "Discord")
+        // "du" — word boundaries hit both words of Disk Utility.
+        #expect(PaletteScore.rank(query: "du", in: items, by: { $0 }).first == "Disk Utility")
+    }
+
+    @Test func shorterCandidatesWinTies() {
+        let items = ["Mail Importer Helper", "Mail"]
+        #expect(PaletteScore.rank(query: "mail", in: items, by: { $0 }).first == "Mail")
+    }
+
+    @Test func emptyQueryKeepsSourceOrder() {
+        let items = ["b", "a", "c"]
+        #expect(PaletteScore.rank(query: "", in: items, by: { $0 }) == items)
+    }
+
+    @Test func wordBoundariesScoreLikeInitials() {
+        let items = ["showcase", "Switch Workspace"]
+        #expect(PaletteScore.rank(query: "sw", in: items, by: { $0 }).first == "Switch Workspace")
+    }
+}

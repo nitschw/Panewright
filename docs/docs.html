@@ -110,6 +110,7 @@
       <a href="#multimonitor">Multi-monitor</a>
       <a href="#spaces">macOS Spaces</a>
       <a href="#drag">Drag-to-tile</a>
+      <a href="#palette">Palette &amp; overview</a>
       <a href="#scratchpad">Scratchpad</a>
       <a href="#rules">Per-app rules</a>
       <a href="#fitting">Overlap rescue</a>
@@ -264,6 +265,9 @@ action = "mode main"</pre>
     <tr><th>Keys</th><th>Action</th></tr>
     <tr><td><kbd>$mod 1–9 0</kbd> / <kbd>+⇧</kbd></td><td>Switch workspace / send window there</td></tr>
     <tr><td><kbd>$mod ⇥</kbd></td><td>Previous workspace (back &amp; forth)</td></tr>
+    <tr><td><kbd>$mod D</kbd></td><td>Command palette — windows, apps, commands</td></tr>
+    <tr><td><kbd>$mod O</kbd></td><td>Workspace overview</td></tr>
+    <tr><td><kbd>$mod `</kbd></td><td>Dropdown terminal</td></tr>
     <tr><td><kbd>$mod H J K L</kbd> / <kbd>+⇧</kbd></td><td>Focus / move window (vim directions)</td></tr>
     <tr><td><kbd>$mod E</kbd> / <kbd>$mod S</kbd></td><td>Tiles / accordion layout</td></tr>
     <tr><td><kbd>$mod F</kbd></td><td>Fullscreen</td></tr>
@@ -311,6 +315,15 @@ action = "mode main"</pre>
     <li><b>Nothing</b> (on the screen you started from) → cancel; the layout never changed</li>
   </ul>
   <p>All of it works <b>across monitors</b>: carry a window to another display and drop it on a window there to swap, split, or stack into that monitor's layout. Always on (it's how Panewright works); needs Panewright's two permissions from the install table.</p>
+
+  <h2 id="palette">Palette, overview &amp; dropdown</h2>
+  <p><b>The command palette</b> (<kbd>$mod D</kbd>) is dmenu for your desktop: type to fuzzy-filter across every open window (jump to it), every installed app (launch it), and Panewright's own commands — workspaces, layouts, settings. Arrows and <kbd>Return</kbd>; <kbd>Esc</kbd> dismisses and focus goes back where it was.</p>
+  <p><b>The workspace overview</b> (<kbd>$mod O</kbd>) is the Mission Control that virtual workspaces otherwise take away: one card per occupied workspace with its windows named and iconed. Click a window to focus it, a card to switch there. (Names and icons rather than thumbnails — screenshots would cost you a Screen Recording permission prompt.)</p>
+  <p><b>The dropdown terminal</b> (<kbd>$mod `</kbd>) summons one terminal to the top strip of the screen and dismisses it with the same key, quake-style. It picks the first terminal you have installed (iTerm2, Ghostty, Alacritty, kitty, Terminal) or the one you name:</p>
+  <pre>[dropdown]
+enabled = true
+app = "com.mitchellh.ghostty"   <span class="c"># optional; auto-detects your terminal</span>
+height = 0.35                   <span class="c"># fraction of the screen it covers</span></pre>
 
   <h2 id="scratchpad">Scratchpad</h2>
   <p>A hidden shelf for one-or-more windows — classically a terminal you summon anywhere.</p>
@@ -564,6 +577,9 @@ focus-changed = "python3 ~/.config/panewright/user-scripts/on-focus.py"</pre>
     <tr><th>Hook</th><th>Fires</th><th>Environment</th></tr>
     <tr><td><code>workspace-changed</code></td><td>On every workspace switch</td><td><code>WORKSPACE</code>, <code>PREV_WORKSPACE</code></td></tr>
     <tr><td><code>focus-changed</code></td><td>Whenever window focus changes</td><td><code>FOCUSED_APP</code>, <code>FOCUSED_WINDOW_ID</code>, <code>WORKSPACE</code></td></tr>
+    <tr><td><code>window-opened</code></td><td>A window appears, anywhere</td><td><code>WINDOW_ID</code>, <code>APP_NAME</code>, <code>APP_BUNDLE_ID</code></td></tr>
+    <tr><td><code>window-closed</code></td><td>A window goes away — the environment still names the app that owned it</td><td>same</td></tr>
+    <tr><td><code>mode-changed</code></td><td>Entering or leaving a binding mode</td><td><code>MODE</code></td></tr>
   </table>
   <div class="note"><code>focus-changed</code> fires <b>often</b> — on every focus change, and in bursts around system dialogs. Keep the command light (it forks a process each time); heavy work belongs in a debounced background job, not the hook itself.</div>
   <h3>Query and control from scripts</h3>
