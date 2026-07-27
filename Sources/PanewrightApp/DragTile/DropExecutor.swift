@@ -225,11 +225,26 @@ struct DropExecutor: Sendable {
         }
         usleep(Self.restructureMicroseconds)
         guard let (d2, t2) = frames(dragged, targetID) else { return false }
+        // The move often lands it as a proper sibling on its own — descending
+        // into a column puts it in that column. Joining then has nothing in
+        // the cross direction to join with, so AeroSpace exits non-zero and a
+        // drop that had already worked was reported as a failure.
+        if WindowFitting.siblings(d2, t2, along: axis) {
+            DragLog.log("executor: the move alone produced the pair")
+            return true
+        }
         let toward = Self.direction(from: d2, to: t2, along: axis.cross)
         DragLog.log("executor: join-with \(toward) to pair inside the container")
         guard (try? cli.run(["join-with", "--window-id", "\(dragged)", toward])) != nil else {
             return false
         }
+        usleep(Self.restructureMicroseconds)
+        // Same reason as the outer join: nesting inside a container inherits
+        // that container's axis unless told otherwise.
+        try? cli.run([
+            "layout", "--window-id", "\(dragged)", "tiles",
+            axis == .horizontal ? "horizontal" : "vertical",
+        ])
         usleep(Self.restructureMicroseconds)
         return true
     }
