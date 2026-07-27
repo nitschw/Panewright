@@ -142,7 +142,15 @@ struct DropExecutor: Sendable {
         guard let (d, t) = walkToNeighbor(dragged: dragged, targetID: targetID) else {
             return "drag-to-tile: couldn't reach the target"
         }
-        if Self.neighbourAxis(d, t) == axis.cross {
+        // Neighbours on the cross axis *and* genuinely a pair: they must
+        // span the same extent across that axis, which is what makes them
+        // siblings rather than a window standing beside somebody else's
+        // container. Without the second half, a full-height window next to a
+        // stacked pair looked joinable — the join then paired the wrong two
+        // nodes, reported success, and changed nothing.
+        if Self.neighbourAxis(d, t) == axis.cross,
+            WindowFitting.siblings(d, t, along: axis.cross)
+        {
             let toward = Self.direction(from: d, to: t, along: axis.cross)
             // The tree shape matters here and isn't visible from the frames:
             // joining two windows that are the only children of a container

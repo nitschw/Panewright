@@ -1228,3 +1228,32 @@ private func window(
         #expect(pair?.with != 4)
     }
 }
+
+/// Routing a drop depends on telling "these two are a pair" from "this window
+/// is standing beside somebody else's container". The frames look similar; the
+/// difference is whether they span the same extent across the axis.
+@Suite struct SiblingRoutingTests {
+    /// Two full-height windows side by side — a genuine horizontal pair, so
+    /// joining them into a column is the right move.
+    @Test func fullHeightNeighboursAreAPair() {
+        let a = CGRect(x: 0, y: 36, width: 800, height: 1037)
+        let b = CGRect(x: 810, y: 36, width: 800, height: 1037)
+        #expect(WindowFitting.siblings(a, b, along: .horizontal))
+    }
+
+    /// A full-height window beside one that lives inside a stacked pair. They
+    /// touch, but they are not siblings — joining them pairs the wrong nodes,
+    /// which reported success and changed nothing.
+    @Test func aWindowBesideSomeoneElsesContainerIsNotAPair() {
+        let full = CGRect(x: 0, y: 36, width: 800, height: 1037)
+        let halfOfAStack = CGRect(x: 810, y: 36, width: 800, height: 512)
+        #expect(!WindowFitting.siblings(full, halfOfAStack, along: .horizontal))
+    }
+
+    @Test func stackedWindowsArePairsOnTheOtherAxis() {
+        let top = CGRect(x: 0, y: 36, width: 800, height: 512)
+        let bottom = CGRect(x: 0, y: 553, width: 800, height: 512)
+        #expect(WindowFitting.siblings(top, bottom, along: .vertical))
+        #expect(!WindowFitting.siblings(top, bottom, along: .horizontal))
+    }
+}
