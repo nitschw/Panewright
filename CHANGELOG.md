@@ -5,6 +5,13 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- The engine no longer deletes its own Accessibility entry while waiting
+  for the grant (an upstream reset that, embedded, erased the very row the
+  permission prompt creates — leaving nothing to enable). The
+  waiting-for-permission notification now also covers adding the helper by
+  hand (+, ⌘⇧G, Panewright.app/Contents/Helpers/AeroSpace).
+
 ## [0.6.3] — 2026-07-27
 
 ### Fixed

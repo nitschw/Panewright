@@ -1060,8 +1060,10 @@ final class AppModel {
                         + " — likely waiting for Accessibility")
                 notify(
                     "The tiling engine is waiting for permission. In System Settings"
-                        + " → Privacy & Security → Accessibility, enable “AeroSpace”"
-                        + " — tiling starts the moment it's on.")
+                        + " → Privacy & Security → Accessibility, enable “AeroSpace” —"
+                        + " or if it isn't listed, click +, press ⌘⇧G, and add"
+                        + " /Applications/Panewright.app/Contents/Helpers/AeroSpace."
+                        + " Tiling starts the moment it's on.")
             }
             return
         }
