@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.1] — 2026-07-27
+
 ### Fixed
 - Bug and crash reports include the engine's log alongside the app's — an
   engine that dies on every launch writes its reason there and nowhere

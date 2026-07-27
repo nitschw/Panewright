@@ -1,6 +1,6 @@
 cask "panewright" do
-  version "0.6.0"
-  sha256 "a771b32b7145fb06956a292d26769e96a8a182aea3f3fbff8bc9f253a3b2c5ae"
+  version "0.6.1"
+  sha256 "ec10e7a3d7827c453c678ed0b6adc24da0b1a84edafa5604d5595303d23b8a87"
 
   url "https://github.com/nitschw/Panewright/releases/download/v#{version}/Panewright-#{version}.dmg"
   name "Panewright"
