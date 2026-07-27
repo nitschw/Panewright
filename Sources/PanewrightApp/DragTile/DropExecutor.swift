@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import PanewrightCore
@@ -203,7 +204,17 @@ struct DropExecutor: Sendable {
         dragged: CGWindowID, targetID: CGWindowID, axis: WindowFitting.Axis
     ) -> Bool {
         guard let (d, t) = frames(dragged, targetID) else { return false }
-        let inward = Self.direction(from: d, to: t, along: axis)
+        // Enter along the axis the two windows currently neighbour on — where
+        // the container actually is — not along the axis the drop wants the
+        // pair to end up on. Those coincide just often enough to be a trap: a
+        // full-height window right of a stacked column descends correctly for
+        // a left/right zone ("move left", toward the column) and used to walk
+        // straight past it for a top/bottom zone ("move up", where there is
+        // nothing but the workspace edge). The move then restructured
+        // whatever it hit, the follow-up join had nothing to pair with, and
+        // the drop failed after having already rearranged the tree.
+        let entryAxis = Self.neighbourAxis(d, t) ?? axis
+        let inward = Self.direction(from: d, to: t, along: entryAxis)
         DragLog.log(
             "executor: move \(inward) into the target's container"
                 + " — \(containerShape(dragged: dragged, target: targetID))")
@@ -264,11 +275,35 @@ struct DropExecutor: Sendable {
     // MARK: Walking
 
     private func frames(_ a: CGWindowID, _ b: CGWindowID) -> (CGRect, CGRect)? {
-        guard let fa = WindowSnapshot.frame(of: a), let fb = WindowSnapshot.frame(of: b)
-        else {
-            return nil
+        // Directions computed from parked frames are noise, so wait out any
+        // moment where the windows aren't actually on screen. AeroSpace parks
+        // hidden workspaces' windows at the screen edge with a sliver left
+        // visible, and the workspace can defocus *mid-drop*: activating the
+        // dropped window's app can pull focus, and the app-switch follower or
+        // focus-follows-mouse then swaps the whole workspace out under the
+        // executor. Every window it was reasoning about teleports to the
+        // parking corner between one read and the next — mid-diagnosis all
+        // three repro windows measured x=1727 — and the same drop then
+        // succeeds or fails depending on a race nobody can see.
+        for attempt in 0...6 {
+            guard let fa = WindowSnapshot.frame(of: a), let fb = WindowSnapshot.frame(of: b)
+            else { return nil }
+            if Self.onScreen(fa), Self.onScreen(fb) { return (fa, fb) }
+            if attempt == 0 {
+                DragLog.log("executor: windows are parked off-screen — waiting")
+            }
+            usleep(Self.restructureMicroseconds)
         }
-        return (fa, fb)
+        DragLog.log("executor: windows stayed parked — aborting rather than guessing")
+        return nil
+    }
+
+    /// More of the window on screen than the one-point sliver parking leaves.
+    private static func onScreen(_ rect: CGRect) -> Bool {
+        NSScreen.screens.contains { screen in
+            rect.intersection(screen.frame).width > 30
+                && rect.intersection(screen.frame).height > 30
+        }
     }
 
     /// Swap-steps the dragged window until it shares a real edge with the
