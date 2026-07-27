@@ -290,6 +290,18 @@ final class WindowFitController {
                 converging = false
                 state.consecutiveOverlaps = 0
             }
+            // Confirm the workspace is still on the glass, from the engine,
+            // right now — not from the roster cache. The burst that follows
+            // resizes and can evict; doing that to a workspace the user just
+            // switched away from means correcting frames that are mid-park.
+            if let fresh = try? cli.run(["list-workspaces", "--monitor", "all", "--visible"]),
+                !fresh.split(separator: "\n").map({ $0.trimmingCharacters(in: .whitespaces) })
+                    .contains(entry.workspace)
+            {
+                DragLog.log(
+                    "fitting: \(entry.workspace) left the screen — skipping the burst")
+                return
+            }
             // Fetched once per round and carried forward: the frames read
             // back after a resize are the same frames the next decision
             // needs, and querying twice was most of the time this loop spent.
@@ -870,10 +882,23 @@ final class WindowFitController {
         cli: AeroSpaceCLI, onScreen: [OnScreenWindow]
     ) -> [Monitors.VisibleWorkspace] {
         let live = Set(onScreen.map(\.id))
-        if live != visibleCacheIDs || Date().timeIntervalSince(visibleCachedAt) > 2 {
+        if live != visibleCacheIDs || Date().timeIntervalSince(visibleCachedAt) > 1 {
+            let before = Set(visibleCache.map(\.workspace))
             visibleCache = Monitors.visibleWorkspaces(cli: cli)
             visibleCacheIDs = live
             visibleCachedAt = Date()
+            // A workspace that just appeared or vanished is mid-transition:
+            // its windows are teleporting to or from the parking corner with
+            // stable ids and flying frames — which passes the membership
+            // guard while failing every assumption it protects. Rapid
+            // switching judged a half-parked workspace as "overlapping" and
+            // evicted the still-focused window to the first empty workspace,
+            // dragging the user with it. Visibility changes get the same
+            // settle window a membership change does.
+            let after = Set(visibleCache.map(\.workspace))
+            for changed in before.symmetricDifference(after) {
+                states[changed]?.lastMembershipChange = Date()
+            }
         }
         return visibleCache
     }

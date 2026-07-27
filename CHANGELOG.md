@@ -5,6 +5,16 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- Rapidly switching away from a workspace mid-render can no longer get your
+  focused window evicted (and you dragged with it to an empty workspace).
+  The fitter's visible-workspace roster could lag a switch by up to two
+  seconds, so it judged a half-parked workspace's teleporting frames as
+  overlap and "corrected" it. Visibility changes now get the same settle
+  window as membership changes, the roster refreshes twice as often, and a
+  convergence burst re-confirms its workspace is still on the glass before
+  touching anything.
+
 ## [0.6.8] — 2026-07-27
 
 ### Fixed
