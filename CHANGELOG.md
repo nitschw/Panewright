@@ -5,6 +5,14 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Changed
+- **Workspace distribution is ordinal and predictable**: when monitors
+  attach, workspace 0 homes on M1, 1 on M2, 2 on M3, and everything else
+  piles on M1 — the same keypress lands on the same glass every time,
+  instead of preserving whatever arrangement history produced.
+  `[workspace-monitors]` pins still override, and nothing is focused in the
+  process.
+
 ## [0.6.11] — 2026-07-27
 
 ### Fixed

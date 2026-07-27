@@ -160,74 +160,83 @@ public struct Orchestrator: Sendable {
         // here races AeroSpace's own startup workspace auto-assignment.
     }
 
-    /// Spreads workspaces across displays so every monitor owns at least one,
-    /// instead of AeroSpace piling them on the main display and auto-inventing
-    /// throwaway workspaces (10, 11, …) for the extras.
+    /// Deterministic, ordinal distribution: the k-th lowest workspace lives
+    /// on the k-th monitor — M-label order, primary first then left to right
+    /// — and everything past the monitor count homes on the primary.
     ///
-    /// i3's rule, ported: a new output gets the lowest *unused* workspace.
-    /// Taking `names[index]` instead — the lowest workspaces, occupied or not
-    /// — is how plugging in a monitor stole workspace 0 with the user's
-    /// windows on it and teleported them across the desk.
+    /// ws0 on M1, ws1 on M2, ws2 on M3, the rest on M1: the same keypress
+    /// lands on the same glass every time monitors attach. The previous
+    /// policy ("leave whatever a monitor shows, hand new ones the lowest
+    /// empty") was polite but path-dependent — the arrangement froze
+    /// whatever history produced it, and after a day of docking the user had
+    /// workspace 1 on M3 and 4 on M2 with no way to predict either.
     ///
-    /// Idempotent in the strong sense: a monitor already showing one of the
-    /// user's real workspaces is left completely alone. Display-change
-    /// notifications fire far more often than displays actually change, and a
-    /// "re-spread" that moves anything on a no-op event reads as the window
-    /// manager glitching. Focus is put back exactly where it was, and only if
-    /// something moved at all.
-    public func distributeWorkspaces(primaryMonitorID: Int? = nil) {
+    /// Config pins (`[workspace-monitors]`) always win over the ordinal
+    /// rule. Idempotent by determinism: re-running against a settled layout
+    /// moves nothing. No focus dance — workspaces move home without being
+    /// focused; if the user's focused workspace relocates, focus travels
+    /// with it, which on a dock event is exactly i3's behavior.
+    public func distributeWorkspaces(
+        primaryMonitorID: Int? = nil, orderedMonitorIDs: [Int]? = nil
+    ) {
         guard let cli = AeroSpaceCLI.locate(),
             let monitorOut = try? cli.run(["list-monitors"])
         else { return }
-        let monitorIDs = monitorOut.split(separator: "\n").compactMap { line -> Int? in
+        let allIDs = monitorOut.split(separator: "\n").compactMap { line -> Int? in
             Int(line.components(separatedBy: " | ")[0].trimmingCharacters(in: .whitespaces))
         }
-        guard monitorIDs.count > 1 else { return }  // single display: nothing to spread
+        guard allIDs.count > 1 else { return }  // single display: nothing to spread
 
         let config = (try? loadConfig()) ?? .default
-        let names = AeroSpaceConfigEmitter.workspaceNumbers(in: config.bindings).map(String.init)
+        let names = AeroSpaceConfigEmitter.workspaceNumbers(in: config.bindings)
+            .sorted().map(String.init)
         guard !names.isEmpty else { return }
         let persistent = Set(names)
-
-        // Prefer the caller's true main display; fall back to the busiest one.
-        let primary = (primaryMonitorID.flatMap { monitorIDs.contains($0) ? $0 : nil })
-            ?? mainMonitorID(cli) ?? monitorIDs[0]
-        let focusedBefore = (try? cli.run(["list-workspaces", "--focused"]))?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        // Workspaces pinned to a monitor in the config are the engine's to
-        // place (workspace-to-monitor-force-assignment); never second-guess.
         let pinned = Set(config.workspaceMonitors.keys.map(String.init))
-        let empty = Set(
-            ((try? cli.run(["list-workspaces", "--monitor", "all", "--empty"])) ?? "")
-                .split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) })
-        var assignable = names.filter { empty.contains($0) && !pinned.contains($0) }
-        var moved = false
-        for monitor in monitorIDs where monitor != primary {
-            // Already showing one of the user's workspaces? Then it's set up,
-            // whether by us, by the engine's force-assignments, or by hand.
-            if let visible = try? cli.run([
-                "list-workspaces", "--monitor", "\(monitor)", "--visible",
-            ]),
-                persistent.contains(visible.trimmingCharacters(in: .whitespacesAndNewlines))
-            {
-                continue
+
+        let primary = (primaryMonitorID.flatMap { allIDs.contains($0) ? $0 : nil })
+            ?? mainMonitorID(cli) ?? allIDs[0]
+        var monitors = (orderedMonitorIDs ?? []).filter { allIDs.contains($0) }
+        if !monitors.contains(primary) { monitors.insert(primary, at: 0) }
+        for id in allIDs where !monitors.contains(id) { monitors.append(id) }
+
+        // Where every workspace currently lives, one query.
+        var home: [String: Int] = [:]
+        if let listing = try? cli.run([
+            "list-workspaces", "--monitor", "all", "--format",
+            "%{workspace}|%{monitor-id}",
+        ]) {
+            for line in listing.split(separator: "\n") {
+                let parts = line.split(separator: "|").map {
+                    $0.trimmingCharacters(in: .whitespaces)
+                }
+                if parts.count >= 2, let id = Int(parts[1]) { home[parts[0]] = id }
             }
-            guard !assignable.isEmpty else { continue }
-            let workspace = assignable.removeFirst()
-            try? cli.run(["move-workspace-to-monitor", "--workspace", workspace, "\(monitor)"])
-            // AeroSpace auto-invents throwaway workspaces (10, 11, …) for extra
-            // monitors and homes their windows there. Rehome those onto the
-            // workspace we're assigning, so the monitor shows its real windows
-            // instead of an empty pill — then that throwaway workspace vanishes.
-            rehomeStrandedWindows(cli, onMonitor: monitor, to: workspace, keeping: persistent)
-            try? cli.run(["focus-monitor", "\(monitor)"])
-            try? cli.run(["workspace", workspace])
-            moved = true
         }
-        // Put focus back where the user had it — not on "the primary", which
-        // is only right when that's where they happened to be looking.
-        if moved, let focusedBefore, !focusedBefore.isEmpty {
-            try? cli.run(["workspace", focusedBefore])
+        for (index, name) in names.enumerated() where !pinned.contains(name) {
+            let target = index < monitors.count ? monitors[index] : monitors[0]
+            if home[name] != target {
+                try? cli.run([
+                    "move-workspace-to-monitor", "--workspace", name, "\(target)",
+                ])
+            }
+        }
+        // A monitor stuck showing an auto-invented workspace fronts its
+        // ordinal one — windows the engine stranded there come along, and
+        // nothing is focused in the process.
+        for (index, monitor) in monitors.enumerated() where index < names.count {
+            guard
+                let visible = try? cli.run([
+                    "list-workspaces", "--monitor", "\(monitor)", "--visible",
+                ])
+            else { continue }
+            let showing = visible.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !persistent.contains(showing) else { continue }
+            let workspace = names[index]
+            rehomeStrandedWindows(cli, onMonitor: monitor, to: workspace, keeping: persistent)
+            try? cli.run([
+                "summon-workspace", "--on-monitor", "\(monitor)", "--no-focus", workspace,
+            ])
         }
     }
 

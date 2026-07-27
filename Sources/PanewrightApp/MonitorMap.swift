@@ -262,10 +262,30 @@ enum MonitorMap {
 
     /// Re-spread workspaces across the current displays (off the main thread,
     /// since it shells out to AeroSpace), then repaint the bar.
+    /// AeroSpace monitor ids in M-label order — primary first, then left to
+    /// right by position — so the ordinal distribution (ws0→M1, ws1→M2…)
+    /// agrees with the numbers painted on the bar.
+    private static func orderedMonitorIDs() -> [Int] {
+        let byName = monitorsByName()
+        guard !byName.isEmpty else { return [] }
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
+        var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &ids, &count) == .success else { return [] }
+        let main = CGMainDisplayID()
+        return ids.sorted {
+            if ($0 == main) != ($1 == main) { return $0 == main }
+            return CGDisplayBounds($0).minX < CGDisplayBounds($1).minX
+        }
+        .compactMap { screenName(for: $0).flatMap { byName[normalize($0)] } }
+    }
+
     private static func redistribute() {
         let primary = mainMonitorID()
+        let ordered = orderedMonitorIDs()
         Task.detached(priority: .userInitiated) {
-            Orchestrator().distributeWorkspaces(primaryMonitorID: primary)
+            Orchestrator().distributeWorkspaces(
+                primaryMonitorID: primary, orderedMonitorIDs: ordered)
             await MainActor.run {
                 if write() { reloadBar() }
             }
