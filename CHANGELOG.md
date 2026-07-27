@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-07-26
+
 ### Added
 - **Command palette** (`$mod+D`) — fuzzy-search open windows (jump), installed
   apps (launch), and Panewright commands. Nonactivating: dismissing it returns
