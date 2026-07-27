@@ -261,6 +261,20 @@ struct SettingsView: View {
                     }),
                 range: 0...100)
             Toggle("Show over fullscreen apps", isOn: bind(\.statusBar.showInFullscreen))
+            Toggle("Auto-hide (reveal on mouseover)", isOn: bind(\.statusBar.autoHide))
+            if model.config.statusBar.autoHide {
+                intSlider(
+                    "Hide after",
+                    value: Binding(
+                        get: { Int(model.config.statusBar.autoHideDelay) },
+                        set: {
+                            model.config.statusBar.autoHideDelay = Double($0)
+                            model.configChanged()
+                        }),
+                    range: 1...30)
+                Text("Windows use the bar's strip while it's hidden.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Toggle(
                 "Use a separate accent color for the bar",
                 isOn: Binding(

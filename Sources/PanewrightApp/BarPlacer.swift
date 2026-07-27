@@ -40,6 +40,9 @@ enum BarPlacer {
         // can't live there) and keeps its static offset.
         guard let config = try? Orchestrator().loadConfig(),
             config.statusBar.position != .top,
+            // A hidden (auto-hide) bar has no measurable frame; the static
+            // offset serves until it's revealed.
+            !config.statusBar.autoHide,
             let bar = SketchyBarSupervisor.locate(), bar.isRunning(),
             let screen = NSScreen.main
         else { return }

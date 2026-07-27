@@ -265,6 +265,8 @@ public enum AeroSpaceConfigEmitter {
             "exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/todo-add.sh\""
         case .pillWindow:
             "exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/pill-window.sh\""
+        case .pillSummon(let n):
+            "exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/pill-summon.sh\" \(n)"
         case .help:
             "exec-and-forget open panewright://help"
         case .launcher:

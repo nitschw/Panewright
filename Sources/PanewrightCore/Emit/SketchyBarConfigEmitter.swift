@@ -64,6 +64,7 @@ public enum SketchyBarConfigEmitter {
             " margin=\(geometry.margin) y_offset=\(geometry.yOffset)"
             + " position=\(bar.position.rawValue)"
             + " show_in_fullscreen=\(bar.showInFullscreen ? "on" : "off")"
+            + (bar.autoHide ? " hidden=on" : "")
         switch bar.theme {
         case .native:
             return Palette(
@@ -93,6 +94,9 @@ public enum SketchyBarConfigEmitter {
     /// effect, so a thicker bar automatically pushes tiles further — the two
     /// numbers can't drift because there's only one.
     public static func reservedGap(for bar: PanewrightConfig.StatusBar) -> Int {
+        // An auto-hidden bar overlays on demand; reserving a strip for a bar
+        // that isn't there defeats the point of hiding it.
+        if bar.autoHide { return 0 }
         // Matches the numbers the themes always reserved (40 and 32 at their
         // default thickness), now derived so a custom thickness moves them.
         let offsetAndBreathing = bar.theme == .native ? 10 : 6
@@ -428,7 +432,7 @@ public enum SketchyBarConfigEmitter {
                 COLOR=\(accent); MARK="▾"
               fi
               [ "$i" -ge "$EXISTING" ] && ARGS+=(--add item pill.$i left)
-              ARGS+=(--set pill.$i label="$MARK $LABEL" label.color="$COLOR" \\
+              ARGS+=(--set pill.$i label="$((i + 1)) $MARK $LABEL" label.color="$COLOR" \\
                 label.padding_left=8 label.padding_right=8 \\
                 background.corner_radius=6 background.height=20 \\
                 background.color=0x1affffff background.drawing=on \\

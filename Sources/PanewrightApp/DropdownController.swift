@@ -14,9 +14,16 @@ import PanewrightCore
 enum DropdownController {
     /// The usual suspects, best first. The first one installed wins.
     private static let terminals = [
-        "com.googlecode.iterm2", "com.mitchellh.ghostty", "org.alacritty",
-        "net.kovidgoyal.kitty", "com.apple.Terminal",
+        "com.googlecode.iterm2", "com.mitchellh.ghostty",
+        "com.github.wez.wezterm", "org.alacritty", "net.kovidgoyal.kitty",
+        "dev.warp.Warp", "com.apple.Terminal",
     ]
+
+    /// The frame the user last had it at — resizing the dropdown is a
+    /// statement about how big it should be, and resetting to the config
+    /// height on every summon would overrule it. Config height seeds the
+    /// first summon; the memory holds for the rest of the app's run.
+    private static var rememberedFrame: CGRect?
 
     static func toggle() {
         guard let config = try? Orchestrator().loadConfig(), config.dropdown.enabled,
@@ -41,6 +48,11 @@ enum DropdownController {
             let id = UInt32(line.split(separator: "|")[0])
         {
             DragLog.log("dropdown: dismissing \(appID)")
+            // Capture the size on the way out — this is the moment the
+            // user's resizes are the window's truth.
+            if let frame = WindowSnapshot.frame(of: id) {
+                rememberedFrame = frame
+            }
             _ = try? cli.run(["move-node-to-workspace", "--window-id", "\(id)", "S"])
             return
         }
@@ -91,15 +103,20 @@ enum DropdownController {
         DragLog.log("dropdown: summoning \(appID) (\(id))")
         _ = try? cli.run(["move-node-to-workspace", "--window-id", "\(id)", workspace])
         _ = try? cli.run(["layout", "floating", "--window-id", "\(id)"])
-        // Top strip of the visible frame, full width.
         guard let screen = NSScreen.main else { return }
-        let visible = screen.visibleFrame
-        let height = visible.height * config.dropdown.height
-        // AX speaks top-left coordinates.
-        let topLeftY = screen.frame.height - visible.maxY
-        setFrame(
-            windowID: id,
-            CGRect(x: visible.minX, y: topLeftY, width: visible.width, height: height))
+        if let remembered = rememberedFrame {
+            setFrame(windowID: id, remembered)
+        } else {
+            // First summon: top strip of the visible frame, full width, at
+            // the configured height. AX speaks top-left coordinates.
+            let visible = screen.visibleFrame
+            let height = visible.height * config.dropdown.height
+            let topLeftY = screen.frame.height - visible.maxY
+            setFrame(
+                windowID: id,
+                CGRect(
+                    x: visible.minX, y: topLeftY, width: visible.width, height: height))
+        }
         _ = try? cli.run(["focus", "--window-id", "\(id)"])
     }
 

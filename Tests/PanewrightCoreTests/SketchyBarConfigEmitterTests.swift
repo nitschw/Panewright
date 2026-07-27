@@ -557,3 +557,27 @@ import Testing
         }
     }
 }
+
+/// The auto-hiding bar: hidden at start, strip reclaimed, config round-trips.
+@Suite struct AutoHideTests {
+    @Test func autoHideStartsHiddenAndReclaimsTheStrip() throws {
+        var config = PanewrightConfig.default
+        config.statusBar.autoHide = true
+        let rc = try SketchyBarConfigEmitter.emit(config).sketchybarrc
+        #expect(rc.contains("hidden=on"))
+        #expect(SketchyBarConfigEmitter.reservedGap(for: config.statusBar) == 0)
+        // And the engine's gaps agree — no reserved strip.
+        #expect(AeroSpaceConfigEmitter.emit(config).contains("outer.bottom = 10"))
+    }
+
+    @Test func offByDefaultAndRoundTrips() throws {
+        let rc = try SketchyBarConfigEmitter.emit(.default).sketchybarrc
+        #expect(!rc.contains("hidden=on"))
+        var config = PanewrightConfig.default
+        config.statusBar.autoHide = true
+        config.statusBar.autoHideDelay = 12
+        let parsed = try ConfigParser.parse(toml: PanewrightConfigSerializer.emit(config))
+        #expect(parsed.statusBar.autoHide)
+        #expect(parsed.statusBar.autoHideDelay == 12)
+    }
+}

@@ -93,6 +93,10 @@ public enum ConfigParser {
             if let opacity = bar.opacity {
                 config.statusBar.opacity = max(0, min(1, opacity))
             }
+            config.statusBar.autoHide = bar.autoHide ?? config.statusBar.autoHide
+            if let delay = bar.autoHideDelay {
+                config.statusBar.autoHideDelay = max(1, min(60, delay))
+            }
             if let accent = bar.accentColor {
                 // Fail loudly here rather than emitting a bar the daemon rejects.
                 _ = try ColorHex.argb(fromCSSHex: accent)
@@ -267,6 +271,11 @@ public enum ConfigParser {
         }
         if words == ["pill", "window"] {
             return .pillWindow
+        }
+        if words.count == 3, words[0] == "pill", words[1] == "summon",
+            let n = Int(words[2]), n >= 1
+        {
+            return .pillSummon(n)
         }
         if words == ["help"] {
             return .help
@@ -508,12 +517,16 @@ private struct RawConfig: Codable {
         var fontSize: Int?
         var showInFullscreen: Bool?
         var opacity: Double?
+        var autoHide: Bool?
+        var autoHideDelay: Double?
 
         enum CodingKeys: String, CodingKey {
             case enabled, theme, position, thickness, opacity
             case accentColor = "accent-color"
             case fontSize = "font-size"
             case showInFullscreen = "show-in-fullscreen"
+            case autoHide = "auto-hide"
+            case autoHideDelay = "auto-hide-delay"
         }
     }
 

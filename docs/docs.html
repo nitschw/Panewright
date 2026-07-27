@@ -268,6 +268,7 @@ action = "mode main"</pre>
     <tr><td><kbd>$mod D</kbd></td><td>Command palette — windows, apps, commands</td></tr>
     <tr><td><kbd>$mod O</kbd></td><td>Workspace overview</td></tr>
     <tr><td><kbd>$mod `</kbd></td><td>Dropdown terminal</td></tr>
+    <tr><td><kbd>$mod ⇧ P</kbd></td><td>Pills mode — number keys summon numbered pills</td></tr>
     <tr><td><kbd>$mod H J K L</kbd> / <kbd>+⇧</kbd></td><td>Focus / move window (vim directions)</td></tr>
     <tr><td><kbd>$mod E</kbd> / <kbd>$mod S</kbd></td><td>Tiles / accordion layout</td></tr>
     <tr><td><kbd>$mod F</kbd></td><td>Fullscreen</td></tr>
@@ -319,7 +320,7 @@ action = "mode main"</pre>
   <h2 id="palette">Palette, overview &amp; dropdown</h2>
   <p><b>The command palette</b> (<kbd>$mod D</kbd>) is dmenu for your desktop: type to fuzzy-filter across every open window (jump to it), every installed app (launch it), and Panewright's own commands — workspaces, layouts, settings. Arrows and <kbd>Return</kbd>; <kbd>Esc</kbd> dismisses and focus goes back where it was.</p>
   <p><b>The workspace overview</b> (<kbd>$mod O</kbd>) is the Mission Control that virtual workspaces otherwise take away: one card per occupied workspace with its windows named and iconed. Click a window to focus it, a card to switch there. (Names and icons rather than thumbnails — screenshots would cost you a Screen Recording permission prompt.)</p>
-  <p><b>The dropdown terminal</b> (<kbd>$mod `</kbd>) summons one terminal to the top strip of the screen and dismisses it with the same key, quake-style. It picks the first terminal you have installed (iTerm2, Ghostty, Alacritty, kitty, Terminal) or the one you name:</p>
+  <p><b>The dropdown terminal</b> (<kbd>$mod `</kbd>) summons one terminal to the top strip of the screen and dismisses it with the same key, quake-style. It picks the first terminal you have installed (iTerm2, Ghostty, WezTerm, Alacritty, kitty, Warp, Terminal) — or any app at all, if you name it. Resize it and it holds that size for the rest of the session. Want two terminals in it? Your terminal's own splits are the right tool.</p>
   <pre>[dropdown]
 enabled = true
 app = "com.mitchellh.ghostty"   <span class="c"># optional; auto-detects your terminal</span>
@@ -386,8 +387,10 @@ position = "bottom"  <span class="c"># or "top" (SketchyBar has no vertical bars
 thickness = 30       <span class="c"># bar height in points (18–60); tiles reserve space to match</span>
 font-size = 13       <span class="c"># label size (9–24)</span>
 opacity = 0.17       <span class="c"># background alpha 0–1; turn up for busy wallpaper</span>
-show-in-fullscreen = false</pre>
-  <p>Each monitor's bar leads with its <b>M1/M2/M3 badge</b>, then that monitor's workspace numbers (clickable, drag targets, accent highlight on the active one), a <b>mode badge</b> while resize/join is active, and the frontmost app. Disabling the bar returns everything to the native macOS menu bar. Quick toggles for the bar and borders live in the menu bar icon's dropdown. The bar stays clear of the Dock on its own — lifted above a bottom Dock, inset from a side one — and follows if you move the Dock while it's running.</p>
+show-in-fullscreen = false
+auto-hide = false        <span class="c"># reveal on mouseover at the bar's edge…</span>
+auto-hide-delay = 5      <span class="c"># …and hide this many seconds after the pointer leaves</span></pre>
+  <p>Each monitor's bar leads with its <b>M1/M2/M3 badge</b>, then that monitor's workspace numbers (clickable, drag targets, accent highlight on the active one), a <b>mode badge</b> while resize/join is active, and the frontmost app. Disabling the bar returns everything to the native macOS menu bar. Quick toggles for the bar and borders live in the menu bar icon's dropdown. The bar stays clear of the Dock on its own — lifted above a bottom Dock, inset from a side one — and follows if you move the Dock while it's running. With <code>auto-hide</code> on, the bar stays out of sight until your pointer touches its screen edge, and — the real point — <b>windows reclaim the strip it normally reserves</b>.</p>
 
   <h2 id="modules">Bar widgets</h2>
   <p>Optional modules beyond the window manager. <b>They ship on</b> — the bar arrives looking like the screenshot below — and every one is a single toggle to remove: open <b>Widgets…</b> from the menu bar icon to browse them with a live example of each, toggle them (changes apply instantly — no bar reload), and drag to set their order. <b>Right-click any widget in the bar to turn it off.</b></p>
@@ -485,6 +488,7 @@ enabled = true</pre>
   <p>Park a window you want out of the way but close at hand — a per-window scratchpad you can see. This works on <b>any</b> window, including Panewright's own: pilling the cheat sheet or the Confluence reader keeps a reference one click away, and that's intentional. (One honest limit: pills of Panewright's own windows don't survive a Panewright restart — the windows belong to the app process.)</p>
   <ul>
     <li><b>Park</b> — drag the window onto empty bar space, or press <kbd>$mod P</kbd></li>
+    <li><b>Summon by number</b> — every pill shows its number; <kbd>$mod ⇧ P</kbd> enters <code>[PILLS]</code> mode, then the number summons it (and <kbd>Esc</kbd> backs out)</li>
     <li><b>Peek</b> — click its pill; the window floats over your current workspace, focused</li>
     <li><b>Re-park</b> — click the pill again (<code>▸</code> parked, <code>▾</code> showing)</li>
     <li><b>Release</b> — right-click the pill to give the window back to the tiling tree</li>

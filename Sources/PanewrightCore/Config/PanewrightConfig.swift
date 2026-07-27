@@ -135,6 +135,8 @@ public struct PanewrightConfig: Equatable, Sendable {
         case todoAdd
         /// Stash the focused window into a bar pill you can peek at later.
         case pillWindow
+        /// Summon the Nth pill (1-based, matching the numbers on the bar).
+        case pillSummon(Int)
         /// Open the keybinding cheat-sheet window.
         case help
         /// Open the fuzzy command palette (windows, apps, commands).
@@ -228,11 +230,17 @@ public struct PanewrightConfig: Equatable, Sendable {
         /// native theme is deliberately glassy; turn this up for busy
         /// wallpaper).
         public var opacity: Double?
+        /// Hide the bar until the pointer touches its screen edge; tiles
+        /// reclaim the strip it normally reserves.
+        public var autoHide: Bool
+        /// Seconds after the pointer leaves before the bar hides again.
+        public var autoHideDelay: Double
 
         public init(
             enabled: Bool = true, theme: Theme = .native, accentColor: String? = nil,
             position: Position = .bottom, thickness: Int? = nil, fontSize: Int? = nil,
-            showInFullscreen: Bool = false, opacity: Double? = nil
+            showInFullscreen: Bool = false, opacity: Double? = nil,
+            autoHide: Bool = false, autoHideDelay: Double = 5
         ) {
             self.enabled = enabled
             self.theme = theme
@@ -242,6 +250,8 @@ public struct PanewrightConfig: Equatable, Sendable {
             self.fontSize = fontSize
             self.showInFullscreen = showInFullscreen
             self.opacity = opacity
+            self.autoHide = autoHide
+            self.autoHideDelay = autoHideDelay
         }
 
         /// The bar height actually in effect.
@@ -564,6 +574,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         bindings.append(Binding(key: "t", action: .todoAdd))
         // $mod+p: park the focused window in the bar.
         bindings.append(Binding(key: "p", action: .pillWindow))
+        bindings.append(Binding(key: "shift-p", action: .enterMode("pills")))
         bindings.append(Binding(key: "d", action: .launcher))
         bindings.append(Binding(key: "o", action: .overview))
         bindings.append(Binding(key: "backtick", action: .dropdownToggle))
@@ -597,9 +608,21 @@ public struct PanewrightConfig: Equatable, Sendable {
                 Binding(key: "esc", action: .enterMode("main")),
             ])
 
+        // Pills mode: the numbers match the ones drawn on the bar pills, so
+        // "summon pill 3" is a glance and two keys ($mod+shift+p, 3).
+        let pills = Mode(
+            name: "pills",
+            bindings: (1...9).map { n in
+                Binding(key: "\(n)", actions: [.pillSummon(n), .enterMode("main")])
+            } + [
+                Binding(key: "0", actions: [.pillSummon(10), .enterMode("main")]),
+                Binding(key: "enter", action: .enterMode("main")),
+                Binding(key: "esc", action: .enterMode("main")),
+            ])
+
         return PanewrightConfig(
             bindings: bindings,
-            modes: [resize, join],
+            modes: [resize, join, pills],
             floatingApps: [
                 "com.apple.systempreferences",
                 "com.apple.calculator",

@@ -168,6 +168,7 @@ struct CheatSheetView: View {
         case .todoAdd: "New to-do"
         case .pillWindow: "Park window as a bar pill"
         case .help: "This cheat sheet"
+        case .pillSummon(let n): "Summon pill \(n)"
         case .launcher: "Command palette"
         case .overview: "Workspace overview"
         case .dropdownToggle: "Dropdown terminal"

@@ -266,3 +266,21 @@ import Testing
         #expect(FileManager.default.fileExists(atPath: small))
     }
 }
+
+/// Numbered pills and the mode that summons them.
+@Suite struct PillsModeTests {
+    @Test func summonActionRoundTrips() throws {
+        let toml = "[[binding]]\nkey = \"z\"\naction = \"pill summon 3\""
+        let parsed = try ConfigParser.parse(toml: toml)
+        #expect(PanewrightConfigSerializer.emit(parsed).contains("pill summon 3"))
+    }
+
+    @Test func defaultsShipThePillsMode() {
+        let toml = AeroSpaceConfigEmitter.emit(.default)
+        #expect(toml.contains("alt-shift-p = ['mode pills'"))
+        #expect(toml.contains("[mode.pills.binding]"))
+        #expect(toml.contains("pill-summon.sh\" 3"))
+        // Every entry falls back to main — a sticky mode is a trap.
+        #expect(toml.contains("esc = ['mode main'"))
+    }
+}

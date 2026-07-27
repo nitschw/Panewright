@@ -83,6 +83,17 @@ public struct SketchyBarSupervisor: Sendable {
         return offset
     }
 
+    /// Show/hide the whole bar in place — the auto-hide feature's verb.
+    public func setHidden(_ hidden: Bool) throws {
+        let process = Process()
+        process.executableURL = executableURL
+        process.arguments = ["--bar", "hidden=\(hidden ? "on" : "off")"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        process.waitUntilExit()
+    }
+
     public func stop() {
         let process = Process()
         process.executableURL = URL(filePath: "/usr/bin/pkill")

@@ -61,7 +61,7 @@ import Testing
         #expect(system.first?.key == "f")
         #expect(system.first?.summary.contains("Enter Full Screen") == true)
         let awkward = conflicts.filter { if case .awkward = $0.kind { true } else { false } }
-        #expect(awkward.count == 20)
+        #expect(awkward.count == 21)  // +1 when shift-p (pills mode) joined the defaults
     }
 }
 

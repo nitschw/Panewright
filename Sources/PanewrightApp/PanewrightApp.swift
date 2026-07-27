@@ -186,6 +186,7 @@ final class AppModel {
     /// so a fresh engine's scrambled state can't overwrite the good record.
     @MainActor static var lastEngineLaunch = Date()
     private let dockWatcher = DockWatcher()
+    private let barAutoHide = BarAutoHide()
     var status: AeroSpaceStatus = .notInstalled
     var lastMessage = ""
     private var watcher: ConfigWatcher?
@@ -268,6 +269,7 @@ final class AppModel {
             self?.appSwitchRouter.start()
             WakeGuard.observe()
             self?.dockWatcher.start()
+            self?.barAutoHide.start()
             MonitorMap.observe()
         }
         let dockBottom = DockInset.bottom

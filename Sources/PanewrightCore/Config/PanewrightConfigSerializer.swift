@@ -82,6 +82,10 @@ public enum PanewrightConfigSerializer {
         if let opacity = config.statusBar.opacity {
             lines.append("opacity = \(opacity)")
         }
+        if config.statusBar.autoHide {
+            lines.append("auto-hide = true")
+            lines.append("auto-hide-delay = \(config.statusBar.autoHideDelay)")
+        }
         if let accent = config.statusBar.accentColor {
             lines.append("accent-color = \"\(accent)\"")
         }
@@ -207,6 +211,7 @@ public enum PanewrightConfigSerializer {
         case .workspaceBackAndForth: "workspace back_and_forth"
         case .todoAdd: "todo add"
         case .pillWindow: "pill window"
+        case .pillSummon(let n): "pill summon \(n)"
         case .help: "help"
         case .launcher: "launcher"
         case .overview: "overview"
