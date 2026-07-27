@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.6] — 2026-07-27
+
 ### Fixed
 - Switching workspaces no longer sometimes lands you somewhere else
   ("pressed 0, arrived on 4"). The self-heal that replaces auto-invented
