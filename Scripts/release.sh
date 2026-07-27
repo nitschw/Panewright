@@ -91,6 +91,26 @@ open(path, "w").write(content)
 print(f"docs: release table row added for {version}")
 EOF
 
+# Rotate the changelog: Unreleased becomes this version, and its body
+# becomes the GitHub release notes — one written source for both.
+python3 - "$VERSION" << 'EOF'
+import datetime, re, sys
+version = sys.argv[1]
+path = "CHANGELOG.md"
+content = open(path).read()
+marker = "## [Unreleased]"
+assert marker in content, "CHANGELOG.md needs an [Unreleased] section"
+head, rest = content.split(marker, 1)
+# The Unreleased body runs until the next version heading.
+match = re.search(r"\n## \[", rest)
+body = rest[: match.start()] if match else rest
+remainder = rest[match.start():] if match else ""
+open("build/release-notes.md", "w").write(body.strip() + "\n")
+stamped = f"{marker}\n\n## [{version}] — {datetime.date.today().isoformat()}"
+open(path, "w").write(head + stamped + body.rstrip("\n") + "\n" + remainder)
+print(f"changelog: {version} sectioned, notes extracted")
+EOF
+
 python3 - "$VERSION" "$DMG_SHA" << 'EOF'
 import re, sys
 version, sha = sys.argv[1:3]
@@ -102,7 +122,7 @@ open(path, "w").write(cask)
 print(f"cask: updated to {version}")
 EOF
 
-git add Support/Info.plist appcast.xml docs/docs.html Casks/panewright.rb
+git add Support/Info.plist appcast.xml docs/docs.html Casks/panewright.rb CHANGELOG.md
 git commit -m "Release $VERSION"
 git tag "v$VERSION"
 git push && git push --tags
@@ -141,7 +161,7 @@ sync_tap() {
 
 if command -v gh >/dev/null 2>&1; then
     gh release create "v$VERSION" "$ZIP" "$DMG" \
-        --title "Panewright $VERSION" --generate-notes
+        --title "Panewright $VERSION" --notes-file build/release-notes.md
     # After the release exists, so the cask never points at a missing asset.
     sync_tap
 else
