@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.3] — 2026-07-27
+
 ### Fixed
 - When the engine is alive but waiting for the Accessibility grant (fresh
   installs: the first-launch prompt leaves an *unchecked* "AeroSpace" row
