@@ -251,9 +251,23 @@ public enum SketchyBarConfigEmitter {
             BAR="$(command -v sketchybar)"
             A="$HOME/.config/panewright/bin/aerospace"; [ -x "$A" ] || A=/opt/homebrew/bin/aerospace
             MAP="$HOME/.config/panewright/monitor-map.tsv"
+            # Two engine queries TOTAL, not two per display. Every process
+            # spawn costs; on machines whose endpoint security scans each
+            # exec it costs a lot — six aerospace launches per workspace
+            # switch was most of why switching felt slow on a corporate Mac.
+            VIS_ALL=$("$A" list-workspaces --monitor all --visible --format '%{monitor-id}|%{workspace}' 2>/dev/null)
+            OCC_ALL=$("$A" list-workspaces --monitor all --empty no --format '%{monitor-id}|%{workspace}' 2>/dev/null)
+            # Everything below is pure bash — no awk, grep, or tr. Each
+            # subprocess costs an exec, endpoint security taxes every exec,
+            # and this script used to spawn thirty of them per repaint.
+            MAP_CONTENT=""
+            [ -f "$MAP" ] && MAP_CONTENT=$(<"$MAP")
             ARGS=()
             for did in 1 2 3 4; do
-              MON=$(awk -F'\\t' -v d="$did" '$1 == d { print $2 }' "$MAP" 2>/dev/null)
+              MON=""; LBL=""
+              while IFS=$'\\t' read -r d m l; do
+                [ "$d" = "$did" ] && { MON=$m; LBL=$l; }
+              done <<< "$MAP_CONTENT"
               # No map yet (first boot): assume identity for display 1 so a
               # single-monitor bar still renders before the app writes the map.
               [ -z "$MON" ] && [ ! -f "$MAP" ] && [ "$did" = 1 ] && MON=1
@@ -263,19 +277,26 @@ public enum SketchyBarConfigEmitter {
               fi
               # Badge shows the human-facing number (col 3: primary is always
               # M1), while commands keep using the AeroSpace id (col 2).
-              LBL=$(awk -F'\\t' -v d="$did" '$1 == d { print $3 }' "$MAP" 2>/dev/null)
               ARGS+=(--set "monitor.$did" drawing=on label="M${LBL:-$MON}")
-              VISIBLE=$("$A" list-workspaces --monitor "$MON" --visible 2>/dev/null | tr -d ' ')
-              OCCUPIED=$("$A" list-workspaces --monitor "$MON" --empty no 2>/dev/null | tr -d ' ')
+              VISIBLE=""; OCCUPIED=" "
+              while IFS='|' read -r m w; do
+                [ "$m" = "$MON" ] && VISIBLE=${w// /}
+              done <<< "$VIS_ALL"
+              while IFS='|' read -r m w; do
+                [ "$m" = "$MON" ] && OCCUPIED="$OCCUPIED${w// /} "
+              done <<< "$OCC_ALL"
               for sid in \(workspaceList); do
                 if [ "$sid" = "$VISIBLE" ]; then
                   ARGS+=(--set "space.$did.$sid" drawing=on background.drawing=on \\
                     background.color=\(barAccent) label.color=0xffffffff)
-                elif printf '%s\\n' "$OCCUPIED" | grep -qx "$sid"; then
-                  ARGS+=(--set "space.$did.$sid" drawing=on background.drawing=off \\
-                    label.color=\(palette.dim))
                 else
-                  ARGS+=(--set "space.$did.$sid" drawing=off)
+                  case "$OCCUPIED" in
+                    *" $sid "*)
+                      ARGS+=(--set "space.$did.$sid" drawing=on background.drawing=off \\
+                        label.color=\(palette.dim)) ;;
+                    *)
+                      ARGS+=(--set "space.$did.$sid" drawing=off) ;;
+                  esac
                 fi
               done
             done

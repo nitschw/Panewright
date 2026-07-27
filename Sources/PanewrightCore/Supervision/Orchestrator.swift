@@ -333,21 +333,32 @@ public struct Orchestrator: Sendable {
             # summoned workspace ("I pressed 0 and landed on 4"). The engine's
             # --on-monitor/--no-focus summon replaces the whole dance.
             PERSISTENT="\(workspaceNames.joined(separator: " "))"
-            for MON in $("$A" list-monitors --format '%{monitor-id}' 2>/dev/null); do
-              VIS=$("$A" list-workspaces --monitor "$MON" --visible 2>/dev/null | tr -d ' ')
-              case " $PERSISTENT " in *" $VIS "*) continue ;; esac
+            # One probe for the common case (every monitor on a real
+            # workspace, nothing to do): process spawns are the whole cost
+            # here, and on machines whose endpoint security scans each exec
+            # the per-monitor probing made every workspace switch feel slow.
+            VIS_ALL=$("$A" list-workspaces --monitor all --visible --format '%{monitor-id}|%{workspace}' 2>/dev/null)
+            NEED=0
+            while IFS='|' read -r MON VIS; do
+              VIS=${VIS// /}
               [ -z "$VIS" ] && continue
-              # Visible workspace is auto-invented: place the first persistent
-              # workspace that is empty and not visible on any monitor.
-              TAKEN=$("$A" list-workspaces --monitor all --visible 2>/dev/null | tr -d ' ')
+              case " $PERSISTENT " in *" $VIS "*) ;; *) NEED=1 ;; esac
+            done <<< "$VIS_ALL"
+            if [ "$NEED" = 1 ]; then
               OCCUPIED=$("$A" list-workspaces --monitor all --empty no 2>/dev/null | tr -d ' ')
-              for W in $PERSISTENT; do
-                printf '%s\\n' "$TAKEN" | grep -qx "$W" && continue
-                printf '%s\\n' "$OCCUPIED" | grep -qx "$W" && continue
-                "$A" summon-workspace --on-monitor "$MON" --no-focus "$W" 2>/dev/null
-                break
-              done
-            done
+              while IFS='|' read -r MON VIS; do
+                VIS=${VIS// /}
+                [ -z "$VIS" ] && continue
+                case " $PERSISTENT " in *" $VIS "*) continue ;; esac
+                TAKEN=$(printf '%s\\n' "$VIS_ALL" | cut -d'|' -f2 | tr -d ' ')
+                for W in $PERSISTENT; do
+                  printf '%s\\n' "$TAKEN" | grep -qx "$W" && continue
+                  printf '%s\\n' "$OCCUPIED" | grep -qx "$W" && continue
+                  "$A" summon-workspace --on-monitor "$MON" --no-focus "$W" 2>/dev/null
+                  break
+                done
+              done <<< "$VIS_ALL"
+            fi
 
             /opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change \\
               FOCUSED_WORKSPACE="$AEROSPACE_FOCUSED_WORKSPACE" 2>/dev/null

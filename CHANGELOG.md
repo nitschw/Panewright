@@ -5,6 +5,14 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Changed
+- Workspace switching got faster, most noticeably on machines with endpoint
+  security: the switch pipeline spawned ~20 subprocesses per switch (an
+  engine query per monitor, an awk or grep per pill), and security software
+  taxes every single exec. It's now two engine queries and one bar call,
+  everything else pure bash — the bar repaint runs in roughly half the
+  time even on an untaxed machine.
+
 ## [0.6.6] — 2026-07-27
 
 ### Fixed
