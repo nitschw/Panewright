@@ -5,6 +5,11 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- Bug and crash reports include the engine's log alongside the app's — an
+  engine that dies on every launch writes its reason there and nowhere
+  else, and the first field report of exactly that arrived without it.
+
 ## [0.6.0] — 2026-07-27
 
 ### Added
