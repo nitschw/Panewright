@@ -165,19 +165,6 @@ struct DropExecutor: Sendable {
                 return "drag-to-tile: join-with \(toward) failed"
             }
             usleep(Self.restructureMicroseconds)
-            // State the orientation rather than trusting the join to imply it.
-            //
-            // Joining two windows that are already siblings inside a larger
-            // container nests one that inherits the parent's axis, so the
-            // command succeeds and the pair still runs the old way. On a bare
-            // two-window workspace the join does flip them, which is why this
-            // looked fine in isolation and failed as soon as a third window
-            // existed — the drop reported success and read as a plain swap.
-            try? cli.run([
-                "layout", "--window-id", "\(dragged)", "tiles",
-                axis == .horizontal ? "horizontal" : "vertical",
-            ])
-            usleep(Self.restructureMicroseconds)
         } else if !WindowFitting.siblings(d, t, along: axis) {
             guard descend(dragged: dragged, targetID: targetID, axis: axis) else {
                 return "drag-to-tile: couldn't join the target's container"
@@ -238,13 +225,6 @@ struct DropExecutor: Sendable {
         guard (try? cli.run(["join-with", "--window-id", "\(dragged)", toward])) != nil else {
             return false
         }
-        usleep(Self.restructureMicroseconds)
-        // Same reason as the outer join: nesting inside a container inherits
-        // that container's axis unless told otherwise.
-        try? cli.run([
-            "layout", "--window-id", "\(dragged)", "tiles",
-            axis == .horizontal ? "horizontal" : "vertical",
-        ])
         usleep(Self.restructureMicroseconds)
         return true
     }
