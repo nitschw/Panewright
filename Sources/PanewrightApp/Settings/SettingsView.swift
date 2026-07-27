@@ -15,6 +15,7 @@ struct SettingsView: View {
         case keys = "Keybindings"
         case layout = "Layout"
         case appearance = "Appearance"
+        case scripting = "Scripting"
 
         var id: String { rawValue }
 
@@ -24,6 +25,7 @@ struct SettingsView: View {
             case .keys: "keyboard"
             case .layout: "square.grid.2x2"
             case .appearance: "paintpalette"
+            case .scripting: "curlybraces"
             }
         }
     }
@@ -78,6 +80,7 @@ struct SettingsView: View {
         case .layout: AnyHashable("layout")
         case .appearance: AnyHashable("appearance")
         case .keybindings: AnyHashable("keybindings")
+        case .scripting: AnyHashable("scripting")
         }
     }
 
@@ -89,6 +92,7 @@ struct SettingsView: View {
         case .layout: .layout
         case .appearance: .appearance
         case .keybindings: .keys
+        case .scripting: .scripting
         }
     }
 
@@ -100,8 +104,6 @@ struct SettingsView: View {
                 modifierSection.id("modifier")
                 Divider()
                 fittingSection
-                Divider()
-                hooksSection
             case .keys:
                 bindingsSection.id("keybindings")
                 Divider()
@@ -114,6 +116,10 @@ struct SettingsView: View {
                 workspaceMonitorsSection
                 Divider()
                 appWorkspacesSection
+            case .scripting:
+                hooksSection.id("scripting")
+                Divider()
+                scriptsSection
             case .appearance:
                 borderSection.id("appearance")
                 Divider()
@@ -359,43 +365,6 @@ struct SettingsView: View {
         model.configChanged()
     }
 
-    /// Shell commands run on workspace and focus changes. Supported by the
-    /// config since the beginning and never exposed.
-    private var hooksSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Hooks").font(.headline)
-            Text("Shell commands run on layout events. Leave blank for none.")
-                .font(.caption).foregroundStyle(.secondary)
-            hookField(
-                "On workspace change", note: "WORKSPACE and PREV_WORKSPACE are set.",
-                value: Binding(
-                    get: { model.config.workspaceChangedHook ?? "" },
-                    set: {
-                        model.config.workspaceChangedHook = $0.isEmpty ? nil : $0
-                        model.configChanged()
-                    }))
-            hookField(
-                "On focus change",
-                note: "FOCUSED_APP, FOCUSED_WINDOW_ID, WORKSPACE. Fires often — keep it light.",
-                value: Binding(
-                    get: { model.config.focusChangedHook ?? "" },
-                    set: {
-                        model.config.focusChangedHook = $0.isEmpty ? nil : $0
-                        model.configChanged()
-                    }))
-        }
-    }
-
-    private func hookField(_ label: String, note: String, value: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label).font(.callout.weight(.medium))
-            TextField("python3 ~/hooks/ws.py", text: value)
-                .textFieldStyle(.roundedBorder)
-            Text(note).font(.caption).foregroundStyle(.secondary)
-        }
-    }
-
-    /// What to do when windows overlap because an app won't shrink further.
     private var fittingSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Toggle(isOn: bind(\.fitting.enabled)) {
@@ -704,6 +673,128 @@ struct SettingsView: View {
             }
         }
         .padding(12)
+    }
+
+    // MARK: Scripting
+
+    /// A hook field: empty means unset — the config stores nil, not "".
+    private func hookField(
+        _ label: String, _ keyPath: WritableKeyPath<PanewrightConfig, String?>,
+        env: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            TextField(
+                label,
+                text: Binding(
+                    get: { model.config[keyPath: keyPath] ?? "" },
+                    set: {
+                        model.config[keyPath: keyPath] = $0.isEmpty ? nil : $0
+                        model.configChanged()
+                    }),
+                prompt: Text("command or script path"))
+            Text(env).font(.caption2).foregroundStyle(.tertiary)
+        }
+    }
+
+    private var hooksSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Hooks").font(.headline)
+            Text("Each runs your command when the event fires, with the event's details in the environment.")
+                .font(.caption).foregroundStyle(.secondary)
+            hookField(
+                "Workspace changed", \.workspaceChangedHook,
+                env: "WORKSPACE · PREV_WORKSPACE")
+            hookField(
+                "Focus changed", \.focusChangedHook,
+                env: "FOCUSED_APP · FOCUSED_WINDOW_ID · WORKSPACE — fires often; keep it light")
+            hookField(
+                "Window opened", \.windowOpenedHook,
+                env: "WINDOW_ID · APP_NAME · APP_BUNDLE_ID")
+            hookField(
+                "Window closed", \.windowClosedHook,
+                env: "WINDOW_ID · APP_NAME · APP_BUNDLE_ID — still names the app that owned it")
+            hookField(
+                "Mode changed", \.modeChangedHook,
+                env: "MODE (main, resize, join, pills…)")
+        }
+    }
+
+    private static let userScriptsDirectory = FileManager.default
+        .homeDirectoryForCurrentUser
+        .appending(path: ".config/panewright/user-scripts")
+
+    private var scriptsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Menu Scripts").font(.headline)
+            Text("Pickers on the `panewright menu` primitive — lines in, choice out. The built-ins are worked examples; yours live in user-scripts/ (the generated scripts/ folder is overwritten on every apply).")
+                .font(.caption).foregroundStyle(.secondary)
+            ForEach(Self.listScripts(), id: \.path) { url in
+                HStack {
+                    Image(systemName: "scroll")
+                        .foregroundStyle(.secondary)
+                    Text(url.lastPathComponent)
+                    if url.path.contains("/scripts/") {
+                        Text("built-in").font(.caption2).foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                    Button("Reveal") {
+                        NSWorkspace.shared.activateFileViewerSelecting([url])
+                    }
+                }
+            }
+            Button("New Script from Template…") { Self.newScriptFromTemplate() }
+            Text("Creates a commented starter in user-scripts/ and opens it in your editor. Run it from a binding (action = \"exec …\") or the $mod+D palette.")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private static func listScripts() -> [URL] {
+        var urls: [URL] = []
+        let generated = FileManager.default.homeDirectoryForCurrentUser
+            .appending(path: ".config/panewright/scripts")
+        for dir in [generated, userScriptsDirectory] {
+            let names = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
+            for name in names.sorted()
+            where name.hasPrefix("menu-") || dir == userScriptsDirectory {
+                urls.append(dir.appending(path: name))
+            }
+        }
+        return urls
+    }
+
+    private static func newScriptFromTemplate() {
+        try? FileManager.default.createDirectory(
+            at: userScriptsDirectory, withIntermediateDirectories: true)
+        var n = 1
+        var file = userScriptsDirectory.appending(path: "my-menu.sh")
+        while FileManager.default.fileExists(atPath: file.path) {
+            n += 1
+            file = userScriptsDirectory.appending(path: "my-menu-\(n).sh")
+        }
+        let template = """
+        #!/bin/bash
+        # A Panewright menu script — lines in on stdin, the pick on stdout.
+        # Bind it:   action = "exec \(file.path)"
+        # Or run it from the $mod+D palette by name.
+
+        PICK=$(printf "first option\\nsecond option\\nthird option" \\
+          | "$HOME/.config/panewright/bin/panewright" menu "choose:") || exit 0
+
+        case "$PICK" in
+          "first option")  say "you picked one" ;;
+          "second option") say "you picked two" ;;
+          "third option")  say "you picked three" ;;
+        esac
+        """
+        try? (template + "\n").write(to: file, atomically: true, encoding: .utf8)
+        try? FileManager.default.setAttributes(
+            [.posixPermissions: 0o755], ofItemAtPath: file.path)
+        // -t: the user's plain-text editor, never Xcode-by-file-association.
+        let open = Process()
+        open.executableURL = URL(filePath: "/usr/bin/open")
+        open.arguments = ["-t", file.path]
+        try? open.run()
+        NSWorkspace.shared.activateFileViewerSelecting([file])
     }
 
     // MARK: Binding helpers

@@ -43,6 +43,8 @@ final class SettingsModel {
         /// there isn't one — a deep link to the tab shouldn't report a
         /// failure to locate a binding nobody asked for.
         case keybindings
+        /// The Scripting tab: hooks and menu scripts.
+        case scripting
 
         /// Resolve a deep-link path segment. An unknown or missing segment
         /// opens Settings without jumping anywhere, which is friendlier than
@@ -50,6 +52,7 @@ final class SettingsModel {
         init?(tab: String?) {
             switch tab {
             case "keys", "keybindings": self = .keybindings
+            case "scripting", "scripts", "hooks": self = .scripting
             case "layout": self = .layout
             case "appearance": self = .appearance
             case "bar", "widgets", "status-bar": self = .widgets
@@ -71,6 +74,8 @@ final class SettingsModel {
         /// there isn't one — a deep link to the tab shouldn't report a
         /// failure to locate a binding nobody asked for.
         case keybindings
+        /// The Scripting tab: hooks and menu scripts.
+        case scripting
     }
 
     struct BindingRow: Identifiable {
@@ -309,6 +314,8 @@ final class SettingsModel {
             revealed = .appearance
         case .keybindings:
             revealed = .keybindings
+        case .scripting:
+            revealed = .scripting
         case .modifier:
             revealed = .modifier
         case .binding(let key):

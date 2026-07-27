@@ -5,6 +5,13 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Added
+- **Scripting tab in Settings** — all five hooks with their environment
+  variables captioned inline (previously TOML-only), a listing of the
+  built-in menu scripts and your own `user-scripts/`, and "New Script from
+  Template" which drops a commented `panewright menu` starter into
+  user-scripts/ and opens it in your editor.
+
 ## [0.5.0] — 2026-07-26
 
 ### Added
