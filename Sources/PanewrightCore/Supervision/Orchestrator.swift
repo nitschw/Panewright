@@ -1100,9 +1100,24 @@ public struct Orchestrator: Sendable {
         // A snapshot of a broken engine would restore chaos; only write one
         // that names at least one real window on a real workspace.
         guard output.contains("\t") else { return }
+        // Which workspace each monitor was showing, by monitor *name* — the
+        // ids renumber across engine restarts, the names don't. Without this
+        // an engine relaunch let AeroSpace pick fresh workspaces for the
+        // secondary displays, so a sleep turned "3 on the portrait monitor"
+        // into "4 on the portrait monitor" and the desk stopped matching the
+        // muscle memory.
+        let placements =
+            ((try? cli.run([
+                "list-workspaces", "--monitor", "all", "--visible",
+                "--format", "%{monitor-name}\t%{workspace}",
+            ])) ?? "")
+            .split(separator: "\n")
+            .map { "MONITOR\t\($0)" }
+            .joined(separator: "\n")
         let file = paths.panewrightConfigFile.deletingLastPathComponent()
             .appending(path: ".workspace-snapshot")
-        try? (output + "\nFOCUSED\t" + focused.trimmingCharacters(in: .whitespacesAndNewlines))
+        try? (output + "\nFOCUSED\t" + focused.trimmingCharacters(in: .whitespacesAndNewlines)
+            + (placements.isEmpty ? "" : "\n" + placements))
             .write(to: file, atomically: true, encoding: .utf8)
     }
 
@@ -1150,19 +1165,43 @@ public struct Orchestrator: Sendable {
             Thread.sleep(forTimeInterval: 0.5)
         }
         var focused: String?
+        var placements: [(monitorName: String, workspace: String)] = []
         var moved = 0
         for line in content.split(separator: "\n") {
             let parts = line.split(separator: "\t", maxSplits: 1).map(String.init)
             guard parts.count == 2 else { continue }
             if parts[0] == "FOCUSED" {
                 focused = parts[1]
+            } else if parts[0] == "MONITOR" {
+                let sub = parts[1].split(separator: "\t", maxSplits: 1).map(String.init)
+                if sub.count == 2 { placements.append((sub[0], sub[1])) }
             } else if (try? cli.run([
                 "move-node-to-workspace", "--window-id", parts[0], parts[1],
             ])) != nil {
                 moved += 1
             }
         }
-        if let focused, !focused.isEmpty, moved > 0 {
+        // Put each monitor's workspace back where it was, matched by name —
+        // idempotent when nothing changed, and a monitor that's gone simply
+        // doesn't match. Focusing the workspace is what makes it the visible
+        // one on its monitor; the user's focus is put back last.
+        if !placements.isEmpty, let monitorsOut = try? cli.run(["list-monitors"]) {
+            var idByName: [String: String] = [:]
+            for line in monitorsOut.split(separator: "\n") {
+                let parts = line.components(separatedBy: " | ")
+                guard parts.count == 2 else { continue }
+                idByName[parts[1].trimmingCharacters(in: .whitespaces).lowercased()] =
+                    parts[0].trimmingCharacters(in: .whitespaces)
+            }
+            for placement in placements {
+                guard let id = idByName[placement.monitorName.lowercased()] else { continue }
+                try? cli.run([
+                    "move-workspace-to-monitor", "--workspace", placement.workspace, id,
+                ])
+                try? cli.run(["workspace", placement.workspace])
+            }
+        }
+        if let focused, !focused.isEmpty, moved > 0 || !placements.isEmpty {
             try? cli.run(["workspace", focused])
         }
         return moved

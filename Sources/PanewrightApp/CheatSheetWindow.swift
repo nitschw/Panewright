@@ -126,7 +126,7 @@ struct CheatSheetView: View {
 
     private func category(of actions: [PanewrightConfig.Action]) -> Category {
         switch actions.first {
-        case .workspace, .moveToWorkspace, .workspaceBackAndForth,
+        case .workspace, .summonWorkspace, .moveToWorkspace, .workspaceBackAndForth,
             .moveWorkspaceToMonitor: .workspaces
         case .focus, .move, .focusMonitor, .moveToMonitor, .close, .closeOthers,
             .minimize, .focusBackAndForth: .windows
@@ -145,7 +145,9 @@ struct CheatSheetView: View {
     private func describe(_ action: PanewrightConfig.Action) -> String {
         switch action {
         case .workspace(let n):
-            "Go to workspace \(n) (summons it to this monitor)"
+            "Go to workspace \(n) (on its own monitor)"
+        case .summonWorkspace(let n):
+            "Bring workspace \(n) to this monitor"
         case .moveToWorkspace(let n): "Move window to workspace \(n)"
         case .workspaceBackAndForth: "Bounce to the previous workspace"
         case .focus(let d): "Focus \(d.rawValue)"

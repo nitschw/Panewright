@@ -191,6 +191,7 @@ public enum PanewrightConfigSerializer {
     public static func actionString(_ action: PanewrightConfig.Action) -> String {
         switch action {
         case .workspace(let n): "workspace \(n)"
+        case .summonWorkspace(let n): "summon workspace \(n)"
         case .moveToWorkspace(let n): "move to workspace \(n)"
         case .focus(let direction): "focus \(direction.rawValue)"
         case .move(let direction): "move \(direction.rawValue)"

@@ -31,6 +31,38 @@ public struct SketchyBarSupervisor: Sendable {
         return process.terminationStatus == 0
     }
 
+    /// Whether the daemon's message socket actually answers.
+    ///
+    /// A sleep can leave sketchybar as a zombie: the process lives (its grey
+    /// bar background still renders) but the socket is dead, so no items draw
+    /// and every `--set` vanishes. `isRunning()` passes that zombie, which is
+    /// how the bar stayed an empty grey line until someone killed it by hand
+    /// — health checks must ask the socket, not the process table.
+    public func isResponsive() -> Bool {
+        let process = Process()
+        process.executableURL = executableURL
+        process.arguments = ["--query", "bar"]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return false }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return process.terminationStatus == 0 && !data.isEmpty
+    }
+
+    /// Kill the daemon outright — for a zombie that `reload` can't reach
+    /// (its socket is dead; only SIGKILL and a fresh launch help).
+    public func kill() {
+        let process = Process()
+        process.executableURL = URL(filePath: "/usr/bin/pkill")
+        process.arguments = ["-9", "-x", "sketchybar"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return }
+        process.waitUntilExit()
+    }
+
     public func launch() throws {
         let process = Process()
         process.executableURL = executableURL

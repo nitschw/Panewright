@@ -102,6 +102,10 @@ public struct PanewrightConfig: Equatable, Sendable {
     /// A window-management command, named with i3's vocabulary.
     public enum Action: Equatable, Sendable {
         case workspace(Int)
+        /// Pull a workspace to the focused monitor (re-homing it there) —
+        /// AeroSpace's `summon-workspace`. Distinct from `workspace`, which
+        /// activates the workspace on its own home monitor, i3-style.
+        case summonWorkspace(Int)
         case moveToWorkspace(Int)
         case focus(Direction)
         case move(Direction)
@@ -582,6 +586,10 @@ public struct PanewrightConfig: Equatable, Sendable {
         bindings.append(Binding(key: "shift-minus", action: .scratchpadMove))
         // i3's $mod+Tab reflex: bounce to the previous workspace.
         bindings.append(Binding(key: "tab", action: .workspaceBackAndForth))
+        // $mod+shift+Tab, then a digit: bring that workspace to this monitor
+        // (its new home). The plain digit keys never migrate a workspace —
+        // they activate it wherever it lives, like i3.
+        bindings.append(Binding(key: "shift-tab", action: .enterMode("summon")))
         // $mod+t: capture a to-do without leaving the keyboard.
         bindings.append(Binding(key: "t", action: .todoAdd))
         // $mod+p: park the focused window in the bar.
@@ -632,9 +640,22 @@ public struct PanewrightConfig: Equatable, Sendable {
                 Binding(key: "esc", action: .enterMode("main")),
             ])
 
+        // Summon mode: a digit pulls that workspace to the focused monitor.
+        // The counterpart to the plain digit keys, which activate a workspace
+        // on its own monitor without moving it.
+        let summon = Mode(
+            name: "summon",
+            bindings: (1...9).map { n in
+                Binding(key: "\(n)", actions: [.summonWorkspace(n), .enterMode("main")])
+            } + [
+                Binding(key: "0", actions: [.summonWorkspace(0), .enterMode("main")]),
+                Binding(key: "enter", action: .enterMode("main")),
+                Binding(key: "esc", action: .enterMode("main")),
+            ])
+
         return PanewrightConfig(
             bindings: bindings,
-            modes: [resize, join, pills],
+            modes: [resize, join, pills, summon],
             floatingApps: [
                 "com.apple.systempreferences",
                 "com.apple.calculator",

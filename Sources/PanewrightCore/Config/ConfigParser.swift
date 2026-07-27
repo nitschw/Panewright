@@ -229,6 +229,10 @@ public enum ConfigParser {
         if words.count == 2, words[0] == "workspace", let n = Int(words[1]) {
             return .workspace(n)
         }
+        if words.count == 3, words[0] == "summon", words[1] == "workspace",
+            let n = Int(words[2]) {
+            return .summonWorkspace(n)
+        }
         if words.count == 4, words[0] == "move", words[1] == "to", words[2] == "workspace",
             let n = Int(words[3]) {
             return .moveToWorkspace(n)

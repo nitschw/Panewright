@@ -874,15 +874,31 @@ final class AppModel {
             // in CI under a stricter checker).
             let settling = MainActor.assumeIsolated { WakeGuard.isSettling }
             guard !settling else { return }
+            // Nothing measured while the displays are asleep means anything:
+            // AX queries legitimately answer nothing, so the engine reads as
+            // "stalled" and the bar as broken — and the lid-close "recovery"
+            // killed a healthy engine, which then stayed dead through the
+            // night. If the glass is dark, there is nothing to fix.
+            guard CGDisplayIsAsleep(CGMainDisplayID()) == 0 else { return }
             let insets = MainActor.assumeIsolated { (DockInset.bottom, DockInset.sides) }
             Task.detached(priority: .utility) {
                 let orchestrator = Orchestrator()
                 if let config = try? orchestrator.loadConfig(), config.statusBar.enabled,
-                    let bar = SketchyBarSupervisor.locate(), !bar.isRunning()
+                    let bar = SketchyBarSupervisor.locate()
                 {
-                    DragLog.log("bar health: sketchybar is down — restarting")
-                    try? orchestrator.applyBar(
-                        config, dockInsetBottom: insets.0, dockInsetSides: insets.1)
+                    if !bar.isRunning() {
+                        DragLog.log("bar health: sketchybar is down — restarting")
+                        try? orchestrator.applyBar(
+                            config, dockInsetBottom: insets.0, dockInsetSides: insets.1)
+                    } else if !bar.isResponsive() {
+                        // Alive but its socket is dead — a sleep casualty that
+                        // renders a bare grey strip and answers nothing. Only
+                        // a kill and a fresh launch bring the items back.
+                        DragLog.log("bar health: sketchybar is a zombie — killing and restarting")
+                        bar.kill()
+                        try? orchestrator.applyBar(
+                            config, dockInsetBottom: insets.0, dockInsetSides: insets.1)
+                    }
                 }
                 await self?.checkAeroSpaceHealth(orchestrator)
                 // Keep the who-lives-where record fresh while the engine is
@@ -1000,7 +1016,22 @@ final class AppModel {
         if !aeroStallRestarted {
             aeroStallRestarted = true
             DragLog.log("aerospace health: stalled (0 managed, \(onScreen) on screen) — restarting")
+            await MainActor.run { AppModel.lastEngineLaunch = Date() }
             try? orchestrator.restartAeroSpace()
+            // The restarted engine dumps every window onto one workspace, the
+            // same as any fresh launch — put them back once it answers.
+            for _ in 0..<20 {
+                try? await Task.sleep(for: .milliseconds(500))
+                if let cli = AeroSpaceCLI.locate(),
+                    (try? cli.run(["list-workspaces", "--focused"])) != nil
+                {
+                    let moved = orchestrator.restoreWorkspaces()
+                    if moved > 0 {
+                        DragLog.log("aerospace health: restored \(moved) windows after restart")
+                    }
+                    break
+                }
+            }
             return  // give the restart a cycle before judging it failed
         }
         // A process restart didn't restore the Accessibility connection, so the

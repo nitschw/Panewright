@@ -55,7 +55,7 @@ import Testing
 
     @Test func emitsI3StyleDefaultBindings() {
         let toml = AeroSpaceConfigEmitter.emit(.default)
-        #expect(toml.contains("alt-1 = 'summon-workspace 1'"))
+        #expect(toml.contains("alt-1 = 'workspace 1'"))
         // Routed via move-window.sh so fullscreen windows move too.
         #expect(toml.contains("alt-shift-1 = 'exec-and-forget /bin/bash"))
         #expect(toml.contains("move-window.sh\" workspace 1'"))
@@ -117,7 +117,7 @@ import Testing
         // The default leader is cmd-backtick (2026-07-27, dogfooded).
         #expect(toml.contains("cmd-backtick = 'mode panewright'"))
         #expect(toml.contains("[mode.panewright.binding]"))
-        #expect(toml.contains("1 = ['summon-workspace 1', 'mode main']"))
+        #expect(toml.contains("1 = ['workspace 1', 'mode main']"))
         #expect(toml.contains("h = ['focus left', 'mode main']"))
         // Mode entries must not chain back to main, or the mode would be dead.
         #expect(toml.contains("r = 'mode resize'"))

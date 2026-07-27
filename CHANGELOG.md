@@ -16,6 +16,20 @@ the `Unreleased` section becomes the next release's notes.
   remembered size only replays on a screen it fits.
 - `$mod+,` / `$mod+.` (and `+shift`) wrap around at the last monitor, so
   with three displays they cycle.
+- **Workspaces have a home monitor.** `$mod+N` activates a workspace on its
+  own monitor, i3-style — it no longer migrates the workspace to wherever
+  you happen to be. Deliberately re-homing one is `$mod+shift+tab`, then
+  the digit: summon mode pulls that workspace to the focused monitor.
+- Sleep is survivable: a zombie SketchyBar (process alive, socket dead, a
+  bare grey strip) is detected and replaced; the engine-stall check no
+  longer runs while the displays are asleep (a lid-close false positive
+  used to kill a healthy engine, which then stayed down all night); an
+  engine restarted after a stall gets its windows restored from the
+  snapshot; and the snapshot remembers which workspace each monitor was
+  showing, so waking puts every workspace back on its own display.
+- Hidden windows (including pills) park at the cheapest corner of the whole
+  arrangement — with a second display, its far corner — so the primary
+  display's corners stay completely clean.
 
 ### Fixed
 - Docking no longer churns the desktop: display changes settle for four

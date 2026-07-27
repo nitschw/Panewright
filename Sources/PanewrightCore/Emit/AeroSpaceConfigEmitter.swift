@@ -235,11 +235,15 @@ public enum AeroSpaceConfigEmitter {
 
     static func command(for action: PanewrightConfig.Action) -> String {
         switch action {
-        // summon-workspace, not workspace: i3-style multi-monitor semantics.
-        // If the workspace is showing on another monitor, $mod+N pulls it to
-        // the focused monitor rather than yanking focus across the room; on a
-        // single monitor it behaves exactly like `workspace`.
-        case .workspace(let n): "summon-workspace \(n)"
+        // `workspace`, not `summon-workspace`: i3 semantics. $mod+N
+        // activates the workspace on its *home* monitor — focus crosses the
+        // room, the workspace stays put. The earlier summon-workspace
+        // emission read as i3-style but was its opposite: pressing $mod+1
+        // from another monitor dragged workspace 1 across the desk.
+        // Summoning is deliberate now: the "summon" mode ($mod+shift+tab,
+        // then a digit) re-homes a workspace to the focused monitor.
+        case .workspace(let n): "workspace \(n)"
+        case .summonWorkspace(let n): "summon-workspace \(n)"
         // Routed through a script: a fullscreen window can't be moved until it
         // leaves fullscreen, so the script drops out, moves, and restores.
         case .moveToWorkspace(let n):

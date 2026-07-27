@@ -171,7 +171,7 @@ import Testing
             """
         let config = try ConfigParser.parse(toml: toml)
         let emitted = AeroSpaceConfigEmitter.emit(config)
-        #expect(emitted.contains("cmd-alt-ctrl-3 = 'summon-workspace 3'"))
+        #expect(emitted.contains("cmd-alt-ctrl-3 = 'workspace 3'"))
     }
 }
 
