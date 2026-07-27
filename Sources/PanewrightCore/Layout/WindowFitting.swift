@@ -185,6 +185,16 @@ public enum WindowFitting {
         return worst
     }
 
+    /// A window the user has pushed entirely off the display — a couple of
+    /// points of sliver still counts as gone, since that's all macOS leaves
+    /// of anything parked or shoved.
+    public static func pushedOut(in windows: [Window], bounds: CGRect) -> Window? {
+        windows.first { window in
+            let visible = window.frame.intersection(bounds)
+            return visible.isNull || visible.width <= 2 || visible.height <= 2
+        }
+    }
+
     /// The next single step toward a layout that fits.
     ///
     /// One step at a time on purpose: since AeroSpace redistributes space its
@@ -202,8 +212,18 @@ public enum WindowFitting {
         step: Int,
         /// The smallest a window may be shrunk to, whatever the app accepts.
         usable: CGFloat = 0,
-        overflowEnabled: Bool = true
+        overflowEnabled: Bool = true,
+        /// The user was just resizing. A window they pushed 100% off the
+        /// display is then a verdict, not a problem: honor it by moving THAT
+        /// window to another workspace, instead of un-doing their resize
+        /// with the shrink/stack rescue ladder.
+        honorPushOut: Bool = false
     ) -> Verdict {
+        if honorPushOut, overflowEnabled, let bounds,
+            let gone = pushedOut(in: windows, bounds: bounds), windows.count > 1
+        {
+            return .adjusting(.evict(id: gone.id))
+        }
         let worst = Axis.allCases
             .map { (axis: $0, need: deficit(
                 in: windows, bounds: bounds, separation: separation, axis: $0)) }
@@ -294,7 +314,11 @@ public enum WindowFitting {
         {
             return .adjusting(.stack(id: pair.id, with: pair.with))
         }
-        guard overflowEnabled, let newest = windows.max(by: { $0.arrived < $1.arrived })
+        // Never evict the only window: there is nothing to make room FOR,
+        // and teleporting someone's single window to another workspace is
+        // startling in a way an imperfect layout is not.
+        guard overflowEnabled, windows.count > 1,
+            let newest = windows.max(by: { $0.arrived < $1.arrived })
         else { return .cannotFit(count: windows.count) }
         return .adjusting(.evict(id: newest.id))
     }

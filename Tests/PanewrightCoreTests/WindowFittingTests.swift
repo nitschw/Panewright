@@ -1288,3 +1288,52 @@ private func window(
         #expect(PaletteScore.rank(query: "sw", in: items, by: { $0 }).first == "Switch Workspace")
     }
 }
+
+/// Pushing a window fully off the display is a gesture, not a failure.
+@Suite struct PushOutTests {
+    let bounds = CGRect(x: 0, y: 36, width: 1712, height: 1037)
+
+    func window(_ id: UInt32, x: CGFloat, width: CGFloat) -> WindowFitting.Window {
+        WindowFitting.Window(
+            id: id, bundleID: "app\(id)",
+            frame: CGRect(x: x, y: 36, width: width, height: 1037),
+            arrived: Date(timeIntervalSince1970: TimeInterval(id)))
+    }
+
+    @Test func aWindowShovedEntirelyOffIsEvictedNotRescued() {
+        // Window 2 pushed past the right edge by window 1's resize; window 1
+        // arrived later, so the old newest-arrival rule would evict the
+        // WRONG window — the one the user deliberately grew.
+        let windows = [window(2, x: 1720, width: 600), window(1, x: 0, width: 1712)]
+        let verdict = WindowFitting.nextStep(
+            for: windows, minimums: WindowFitting.Minimums(), bounds: bounds,
+            step: 60, usable: 360, honorPushOut: true)
+        #expect(verdict == .adjusting(.evict(id: 2)))
+    }
+
+    @Test func aSliverStillOnScreenCountsAsPushedOut() {
+        let windows = [window(2, x: 1711, width: 600), window(1, x: 0, width: 1712)]
+        #expect(WindowFitting.pushedOut(in: windows, bounds: bounds)?.id == 2)
+    }
+
+    @Test func withoutTheUserGestureTheRescueLadderStillRuns() {
+        // Same geometry, no recent interaction: normal escalation, which
+        // starts by shrinking whatever has room — not by evicting.
+        let windows = [window(2, x: 1720, width: 600), window(1, x: 0, width: 1712)]
+        let verdict = WindowFitting.nextStep(
+            for: windows, minimums: WindowFitting.Minimums(), bounds: bounds,
+            step: 60, usable: 360, honorPushOut: false)
+        guard case .adjusting(.shrink) = verdict else {
+            Issue.record("expected the rescue ladder, got \(verdict)")
+            return
+        }
+    }
+
+    @Test func aLoneWindowIsNeverPushOutEvicted() {
+        let windows = [window(1, x: 1720, width: 600)]
+        let verdict = WindowFitting.nextStep(
+            for: windows, minimums: WindowFitting.Minimums(), bounds: bounds,
+            step: 60, usable: 360, honorPushOut: true)
+        #expect(verdict != .adjusting(.evict(id: 1)))
+    }
+}

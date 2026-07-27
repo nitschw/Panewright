@@ -226,7 +226,8 @@ final class WindowFitController {
                     for: windows, minimums: minimums.minimums, bounds: bounds,
                     separation: separation, step: config.fitting.step,
                     usable: CGFloat(config.fitting.minimumUsable),
-                    overflowEnabled: config.fitting.overflow)
+                    overflowEnabled: config.fitting.overflow,
+                    honorPushOut: Date().timeIntervalSince(lastInteraction) < 10)
                 switch verdict {
                 case .fits:
                     if attempt > 1 {
@@ -356,7 +357,8 @@ final class WindowFitController {
                 for: windows, minimums: minimums.minimums, bounds: bounds,
                 separation: separation, step: config.fitting.step,
                 usable: CGFloat(config.fitting.minimumUsable),
-                overflowEnabled: config.fitting.overflow)
+                overflowEnabled: config.fitting.overflow,
+                honorPushOut: Date().timeIntervalSince(lastInteraction) < 10)
             if case .adjusting(.evict(let id)) = final,
                 Date().timeIntervalSince(lastInteraction) >= Self.settleAfterInteraction,
                 Date().timeIntervalSince(lastEviction) >= Self.evictionCooldown,
