@@ -34,6 +34,9 @@ the `Unreleased` section becomes the next release's notes.
   over. `[fitting] float-unfillable`, on by default.
 - Switching to an empty, hidden workspace opens it on the monitor you're on
   (i3 semantics, second half — it used to appear on the main display).
+- The workspace snapshot now records each window's layout, so a floating
+  window — an expanded pill, a hand-floated utility — comes back from an
+  engine restart floating instead of being handed a grid slot.
 - `$mod+tab` (back & forth) only remembers workspaces you actually dwelt
   on. Panewright's own machinery — restore, distribution, pill dances —
   bounces focus through workspaces in milliseconds, and every bounce used

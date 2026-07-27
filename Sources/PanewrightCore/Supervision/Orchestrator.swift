@@ -1093,7 +1093,8 @@ public struct Orchestrator: Sendable {
     public func snapshotWorkspaces() {
         guard let cli = AeroSpaceCLI.locate(),
             let output = try? cli.run([
-                "list-windows", "--all", "--format", "%{window-id}\t%{workspace}",
+                "list-windows", "--all", "--format",
+                "%{window-id}\t%{workspace}\t%{window-layout}",
             ]),
             let focused = try? cli.run(["list-workspaces", "--focused"])
         else { return }
@@ -1168,17 +1169,23 @@ public struct Orchestrator: Sendable {
         var placements: [(monitorName: String, workspace: String)] = []
         var moved = 0
         for line in content.split(separator: "\n") {
-            let parts = line.split(separator: "\t", maxSplits: 1).map(String.init)
-            guard parts.count == 2 else { continue }
+            let parts = line.split(separator: "\t").map(String.init)
+            guard parts.count >= 2 else { continue }
             if parts[0] == "FOCUSED" {
                 focused = parts[1]
             } else if parts[0] == "MONITOR" {
-                let sub = parts[1].split(separator: "\t", maxSplits: 1).map(String.init)
-                if sub.count == 2 { placements.append((sub[0], sub[1])) }
+                if parts.count >= 3 { placements.append((parts[1], parts[2])) }
             } else if (try? cli.run([
                 "move-node-to-workspace", "--window-id", parts[0], parts[1],
             ])) != nil {
                 moved += 1
+                // Layout is engine-memory too: a floating window — an
+                // expanded pill, a hand-floated utility — comes back from an
+                // engine restart as a tile and gets a grid slot. Restore the
+                // float along with the address.
+                if parts.count >= 3, parts[2] == "floating" {
+                    try? cli.run(["layout", "floating", "--window-id", parts[0]])
+                }
             }
         }
         // Put each monitor's workspace back where it was, matched by name —
