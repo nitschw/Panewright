@@ -40,6 +40,57 @@ do {
     case "status" where arguments.count == 1:
         print("AeroSpace \(Orchestrator().status())")
 
+    case "menu" where arguments.count <= 2:
+        // The dmenu contract: lines in on stdin, the pick out on stdout,
+        // exit 1 on dismissal — so `git branch | panewright menu | xargs …`
+        // behaves exactly like the rofi/dmenu pipelines it replaces.
+        var input = ""
+        while let line = readLine(strippingNewline: false) { input += line }
+        let items = input.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
+        guard !items.isEmpty else { exit(1) }
+        let session = UUID().uuidString
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "panewright-menu-\(session)")
+        try FileManager.default.createDirectory(
+            at: directory, withIntermediateDirectories: true)
+        // Not defer: exit() below never unwinds, and the dismissal path was
+        // quietly leaving its temp directory behind on every escape.
+        func cleanup() { try? FileManager.default.removeItem(at: directory) }
+        let itemsFile = directory.appending(path: "items")
+        let replyFifo = directory.appending(path: "reply")
+        try items.joined(separator: "\n").write(
+            to: itemsFile, atomically: true, encoding: .utf8)
+        guard mkfifo(replyFifo.path, 0o600) == 0 else {
+            fail("couldn't create the reply pipe")
+        }
+        var components = URLComponents()
+        components.scheme = "panewright"
+        components.host = "menu"
+        components.queryItems = [
+            URLQueryItem(name: "items", value: itemsFile.path),
+            URLQueryItem(name: "reply", value: replyFifo.path),
+            URLQueryItem(name: "prompt", value: arguments.count == 2 ? arguments[1] : ""),
+        ]
+        let opener = Process()
+        opener.executableURL = URL(filePath: "/usr/bin/open")
+        opener.arguments = [components.url!.absoluteString]
+        try opener.run()
+        opener.waitUntilExit()
+        guard opener.terminationStatus == 0 else {
+            fail("Panewright isn't running — the menu needs the app for its panel")
+        }
+        // Block on the pipe like dmenu blocks on X: the answer arrives when
+        // the user picks, and an empty answer is a dismissal.
+        guard let handle = FileHandle(forReadingAtPath: replyFifo.path) else {
+            fail("couldn't open the reply pipe")
+        }
+        let reply = String(
+            decoding: handle.readDataToEndOfFile(), as: UTF8.self
+        ).trimmingCharacters(in: .newlines)
+        cleanup()
+        guard !reply.isEmpty else { exit(1) }
+        print(reply)
+
     case "import" where arguments.count == 2:
         let source = try String(contentsOfFile: arguments[1], encoding: .utf8)
         let result = I3ConfigImporter.importConfig(source)
@@ -65,7 +116,7 @@ do {
         }
 
     default:
-        fail("usage: \(tool) import <i3-config> | emit [panewright.toml] | apply | status")
+        fail("usage: \(tool) import <i3-config> | menu [prompt] | emit [panewright.toml] | apply | status")
     }
 } catch {
     FileHandle.standardError.write(Data("\(tool): \(error)\n".utf8))

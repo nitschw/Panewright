@@ -20,8 +20,19 @@ final class PaletteController {
         open()
     }
 
-    private func open() {
-        model.reload()
+    /// A script's menu (the dmenu contract): show these lines, answer the
+    /// reply pipe with the pick — or with nothing on dismissal, so the
+    /// blocked pipeline unblocks either way. A new session displaces any
+    /// open one, answering it empty first; a menu that can hang its caller
+    /// is worse than no menu.
+    func openMenu(items: [String], replyPath: String, prompt: String) {
+        model.finishSession(with: "")
+        model.beginSession(items: items, replyPath: replyPath, prompt: prompt)
+        open(reload: false)
+    }
+
+    private func open(reload: Bool = true) {
+        if reload { model.reload() }
         let panel: NSPanel
         if let existing = self.panel {
             panel = existing
@@ -56,6 +67,9 @@ final class PaletteController {
 
     func close() {
         panel?.orderOut(nil)
+        // Dismissal answers an active script session with nothing — exit 1
+        // at the far end of the pipe, dmenu-style.
+        model.finishSession(with: "")
         model.query = ""
     }
 }
@@ -66,6 +80,8 @@ struct PaletteItem: Identifiable {
         case window(id: UInt32, workspace: String)
         case app(url: URL)
         case command(() -> Void)
+        /// A line from a script's menu — the pick goes back down the pipe.
+        case selection(String)
     }
 
     let id = UUID()
@@ -84,7 +100,40 @@ final class PaletteModel {
     var selected = 0
     private var all: [PaletteItem] = []
 
+    /// A script-driven session replaces the usual sources until answered.
+    private var replyPath: String?
+    var prompt = ""
+
+    func beginSession(items: [String], replyPath: String, prompt: String) {
+        self.replyPath = replyPath
+        self.prompt = prompt
+        all = items.map {
+            PaletteItem(title: $0, subtitle: "", icon: nil, kind: .selection($0))
+        }
+        query = ""
+        rerank()
+    }
+
+    /// Answer the session's pipe exactly once. Opening a FIFO for writing
+    /// blocks until a reader exists; the caller is that reader, already
+    /// blocked on the other end — but if it died, O_NONBLOCK turns the hang
+    /// into an ENXIO we can ignore.
+    func finishSession(with answer: String) {
+        guard let path = replyPath else { return }
+        replyPath = nil
+        prompt = ""
+        Task.detached {
+            let fd = Darwin.open(path, O_WRONLY | O_NONBLOCK)
+            guard fd >= 0 else { return }
+            let line = answer + "\n"
+            _ = line.withCString { write(fd, $0, strlen($0)) }
+            Darwin.close(fd)
+        }
+    }
+
     func reload() {
+        replyPath = nil
+        prompt = ""
         var items: [PaletteItem] = []
         // Open windows first — jumping beats launching on ties.
         if let cli = AeroSpaceCLI.locate(),
@@ -128,6 +177,8 @@ final class PaletteModel {
                 at: url, configuration: NSWorkspace.OpenConfiguration())
         case .command(let action):
             action()
+        case .selection(let line):
+            finishSession(with: line)
         }
     }
 
@@ -192,7 +243,9 @@ struct PaletteView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            TextField("Windows, apps, commands…", text: $model.query)
+            TextField(
+                model.prompt.isEmpty ? "Windows, apps, commands…" : model.prompt,
+                text: $model.query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 20, weight: .light))
                 .padding(14)

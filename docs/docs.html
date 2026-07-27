@@ -582,6 +582,11 @@ focus-changed = "python3 ~/.config/panewright/user-scripts/on-focus.py"</pre>
     <tr><td><code>mode-changed</code></td><td>Entering or leaving a binding mode</td><td><code>MODE</code></td></tr>
   </table>
   <div class="note"><code>focus-changed</code> fires <b>often</b> — on every focus change, and in bursts around system dialogs. Keep the command light (it forks a process each time); heavy work belongs in a debounced background job, not the hook itself.</div>
+  <h3>Menus from scripts — the dmenu contract</h3>
+  <p><code>panewright menu</code> turns any script into a fuzzy picker: lines in on stdin, the pick out on stdout, exit 1 on Escape. Every dmenu/rofi pipeline ever written ports by changing one word:</p>
+  <pre>git branch | panewright menu "checkout:" | xargs git checkout
+grep "^Host " ~/.ssh/config | awk '{print $2}' | panewright menu | xargs -o ssh</pre>
+  <p>The menu uses the same panel and fuzzy ranking as the <kbd>$mod D</kbd> palette, and dismissing it returns focus to wherever it was — so a binding like <code>action = "exec ~/bin/ssh-picker.sh"</code> gives you rofi-style custom menus on any key.</p>
   <h3>Query and control from scripts</h3>
   <p>The <code>aerospace</code> CLI is the full API — everything Panewright does, your scripts can too:</p>
   <pre>aerospace list-windows --workspace focused --json

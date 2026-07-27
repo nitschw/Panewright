@@ -17,6 +17,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// popup can't draw a two-field form, so it asks the app to.
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls where url.scheme == "panewright" {
+            if url.host == "menu" {
+                let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                    .queryItems ?? []
+                func value(_ name: String) -> String {
+                    query.first { $0.name == name }?.value ?? ""
+                }
+                let itemsPath = value("items")
+                let replyPath = value("reply")
+                if let content = try? String(contentsOfFile: itemsPath, encoding: .utf8),
+                    !replyPath.isEmpty
+                {
+                    MainActor.assumeIsolated {
+                        PaletteController.shared.openMenu(
+                            items: content.split(separator: "\n").map(String.init),
+                            replyPath: replyPath,
+                            prompt: value("prompt"))
+                    }
+                }
+                continue
+            }
             let parts = (url.host.map { [$0] } ?? []) + url.pathComponents.filter { $0 != "/" }
             MainActor.assumeIsolated {
                 switch parts.first {
