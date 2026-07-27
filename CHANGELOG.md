@@ -34,6 +34,11 @@ the `Unreleased` section becomes the next release's notes.
   over. `[fitting] float-unfillable`, on by default.
 - Switching to an empty, hidden workspace opens it on the monitor you're on
   (i3 semantics, second half — it used to appear on the main display).
+- `$mod+tab` (back & forth) only remembers workspaces you actually dwelt
+  on. Panewright's own machinery — restore, distribution, pill dances —
+  bounces focus through workspaces in milliseconds, and every bounce used
+  to become "the previous workspace": one press then teleported you to an
+  empty workspace and spawned it on your monitor.
 - Focus crossing to another monitor brings the pointer along, i3's
   `mouse_warping output` (`mouse-follows-focus`, on by default; lazy — the
   pointer stays put when it's already on the right display).
