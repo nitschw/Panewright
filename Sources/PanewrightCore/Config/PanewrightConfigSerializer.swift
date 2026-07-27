@@ -12,6 +12,7 @@ public enum PanewrightConfigSerializer {
         // your key is silently the default again.
         lines.append("leader-key = \"\(config.leaderKey)\"")
         lines.append("focus-follows-mouse = \(config.focusFollowsMouse)")
+        lines.append("mouse-follows-focus = \(config.mouseFollowsFocus)")
         lines.append("# Cmd+Tab lands you where the app's window actually is.")
         lines.append("follow-app-switch = \(config.followAppSwitch)")
         // EVERY top-level key must be emitted before the first table header.
@@ -115,6 +116,8 @@ public enum PanewrightConfigSerializer {
         lines.append("float-on-top = \(config.fitting.floatOnTop)")
         lines.append("# Never shrink a window below this, whatever the app accepts.")
         lines.append("minimum-usable = \(config.fitting.minimumUsable)")
+        lines.append("# Float windows that can't fill a tile (fixed or max-size-capped).")
+        lines.append("float-unfillable = \(config.fitting.floatUnfillable)")
         lines.append("")
         lines.append("[dropdown]")
         lines.append("enabled = \(config.dropdown.enabled)")

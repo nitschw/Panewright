@@ -27,6 +27,16 @@ the `Unreleased` section becomes the next release's notes.
   engine restarted after a stall gets its windows restored from the
   snapshot; and the snapshot remembers which workspace each monitor was
   showing, so waking puts every workspace back on its own display.
+- **Unfillable windows float themselves.** A window whose size can't be set
+  at all floats on sight; one with a maximum size that leaves a persistent
+  hole in the layout gets one chance to grow into it, then floats — with a
+  toast saying why. The iPhone Mirroring class of app stops being fought
+  over. `[fitting] float-unfillable`, on by default.
+- Switching to an empty, hidden workspace opens it on the monitor you're on
+  (i3 semantics, second half — it used to appear on the main display).
+- Focus crossing to another monitor brings the pointer along, i3's
+  `mouse_warping output` (`mouse-follows-focus`, on by default; lazy — the
+  pointer stays put when it's already on the right display).
 - **Per-monitor bar personalities.** By default the main display carries the
   widget chips and every other display gets a clean workspace strip —
   nothing duplicates. `[[bar.monitor]]` blocks override per display, matched

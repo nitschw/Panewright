@@ -61,6 +61,9 @@ public enum ConfigParser {
         if let focusFollowsMouse = raw.focusFollowsMouse {
             config.focusFollowsMouse = focusFollowsMouse
         }
+        if let mouseFollowsFocus = raw.mouseFollowsFocus {
+            config.mouseFollowsFocus = mouseFollowsFocus
+        }
         if let followAppSwitch = raw.followAppSwitch {
             config.followAppSwitch = followAppSwitch
         }
@@ -169,6 +172,9 @@ public enum ConfigParser {
             config.fitting.step = fitting.step ?? config.fitting.step
             config.fitting.floatOnTop = fitting.floatOnTop ?? config.fitting.floatOnTop
             config.fitting.minimumUsable = fitting.minimumUsable ?? config.fitting.minimumUsable
+        if let floatUnfillable = fitting.floatUnfillable {
+            config.fitting.floatUnfillable = floatUnfillable
+        }
         }
         if let dropdown = raw.dropdown {
             config.dropdown.enabled = dropdown.enabled ?? config.dropdown.enabled
@@ -380,6 +386,7 @@ private struct RawConfig: Codable {
     var mode: [RawMode]?
     var leaderKey: String?
     var focusFollowsMouse: Bool?
+    var mouseFollowsFocus: Bool?
     var followAppSwitch: Bool?
     var floatingApps: [String]?
     var ignoredConflicts: [String]?
@@ -399,6 +406,7 @@ private struct RawConfig: Codable {
         case fitting
         case leaderKey = "leader-key"
         case focusFollowsMouse = "focus-follows-mouse"
+        case mouseFollowsFocus = "mouse-follows-focus"
         case followAppSwitch = "follow-app-switch"
         case floatingApps = "floating-apps"
         case ignoredConflicts = "ignored-conflicts"
@@ -457,11 +465,13 @@ private struct RawConfig: Codable {
         var step: Int?
         var floatOnTop: Bool?
         var minimumUsable: Int?
+        var floatUnfillable: Bool?
 
         enum CodingKeys: String, CodingKey {
             case enabled, overflow, step
             case floatOnTop = "float-on-top"
             case minimumUsable = "minimum-usable"
+            case floatUnfillable = "float-unfillable"
         }
     }
 

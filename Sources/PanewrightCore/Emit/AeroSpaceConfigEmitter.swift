@@ -27,6 +27,14 @@ public enum AeroSpaceConfigEmitter {
                 "on-focus-changed = ['exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/on-focus-change.sh\"']"
             )
         }
+        // i3's mouse_warping output: focus crossing to another monitor
+        // brings the pointer along (lazy — it stays put when already there).
+        // Stock AeroSpace machinery; matters once $mod+N focuses a workspace
+        // on its own monitor instead of dragging the workspace to the mouse.
+        if config.mouseFollowsFocus {
+            lines.append(
+                "on-focused-monitor-changed = ['move-mouse monitor-lazy-center']")
+        }
         lines.append("")
         // i3 split behavior: workspaces come up tiling, nested splits alternate
         // orientation, and redundant single-child containers are flattened.

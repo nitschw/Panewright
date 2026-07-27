@@ -141,6 +141,52 @@ public enum WindowFitting {
     ///   sounds, because the focus border is drawn *outside* the frame, so a
     ///   two-point overlap shows up as a couple of dozen points of overlapping
     ///   border.
+    /// A hole: tiled space no window occupies, next to a window that ought to
+    /// be filling it. The signature of an app with a maximum size — the tile
+    /// grows, the window doesn't, and a bare patch of desktop shows through a
+    /// layout the deficit check calls perfectly fine.
+    ///
+    /// Returns the window bordering the largest hole and the axis it would
+    /// have to grow along, or nil for a properly filled layout. Only spans
+    /// well past the configured separation count; gaps and rounding jitter
+    /// are not holes. Lone windows are never reported — a single capped
+    /// window centered in its workspace harms nothing.
+    public static func hole(
+        in windows: [Window], bounds: CGRect?, separation: CGFloat
+    ) -> (id: UInt32, axis: Axis, amount: CGFloat)? {
+        guard let bounds, windows.count > 1 else { return nil }
+        let tolerance = separation + 24
+        var best: (id: UInt32, axis: Axis, amount: CGFloat)?
+        for window in windows {
+            // The nearest obstacle to the right: the left edge of any window
+            // sharing rows with this one, or the bounds edge. Anything
+            // between here and there beyond the normal gap is uncovered.
+            let rightObstacle = windows
+                .filter {
+                    $0.id != window.id && $0.frame.minX >= window.frame.maxX - 1
+                        && $0.frame.maxY > window.frame.minY + 8
+                        && $0.frame.minY < window.frame.maxY - 8
+                }
+                .map(\.frame.minX).min() ?? bounds.maxX
+            let rightGap = rightObstacle - window.frame.maxX - separation
+            if rightGap > tolerance, best.map({ rightGap > $0.amount }) ?? true {
+                best = (window.id, .horizontal, rightGap)
+            }
+            let bottomObstacle = windows
+                .filter {
+                    $0.id != window.id && $0.frame.minY >= window.frame.maxY - 1
+                        && $0.frame.maxX > window.frame.minX + 8
+                        && $0.frame.minX < window.frame.maxX - 8
+                }
+                .map(\.frame.minY).min() ?? bounds.maxY
+            let bottomGap = bottomObstacle - window.frame.maxY - separation
+            if bottomGap > tolerance, best.map({ bottomGap > $0.amount }) ?? true {
+                best = (window.id, .vertical, bottomGap)
+            }
+        }
+        return best
+    }
+
     public static func deficit(
         in windows: [Window], bounds: CGRect?, separation: CGFloat = 0,
         axis: Axis = .horizontal, tolerance: CGFloat = 1

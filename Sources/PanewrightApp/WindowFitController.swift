@@ -82,6 +82,12 @@ final class WindowFitController {
         /// The last full record per window, so a close hook can still name
         /// the app that owned the now-gone window.
         var lastKnown: [UInt32: WindowFitting.Window] = [:]
+        /// The hole under observation: it must sit still for a second before
+        /// anyone experiments on it.
+        var holeStreak: (id: UInt32, axis: WindowFitting.Axis, count: Int)?
+        /// Windows this workspace already floated as unfillable. If the user
+        /// tiles one back by hand, their decision stands — no refloating.
+        var floatedUnfillable: Set<UInt32> = []
     }
 
     private var states: [String: WorkspaceState] = [:]
@@ -99,6 +105,16 @@ final class WindowFitController {
     private var visibleCache: [Monitors.VisibleWorkspace] = []
     private var visibleCacheIDs: Set<UInt32> = []
     private var visibleCachedAt = Date.distantPast
+
+    /// Window ids already asked whether they're resizable at all — one AX
+    /// probe per window, ever. Capped rather than pruned: re-probing after
+    /// an unlikely overflow costs a millisecond.
+    private var probedResizable: Set<UInt32> = []
+    /// Ceilings learned the hard way: a window that refused to grow into a
+    /// proven hole. Keyed by app, so the second window of the same app skips
+    /// the experiment. In-memory only — unlike floors, a wrong ceiling here
+    /// costs one extra experiment, not a wrong eviction.
+    private var learnedMax: [String: [WindowFitting.Axis: CGFloat]] = [:]
 
     /// True while a convergence burst is in flight, so the timer can't start
     /// a second one on top of it. Global rather than per-workspace: bursts
@@ -212,6 +228,9 @@ final class WindowFitController {
             reset(state)
             return
         }
+        if config.fitting.floatUnfillable {
+            floatNonResizable(in: windows, entry: entry, state: state, cli: cli)
+        }
         // Every window seen is evidence about its floor: it cannot be larger
         // than the size the window is actually at.
         var corrected = false
@@ -233,9 +252,15 @@ final class WindowFitController {
                 in: windows, bounds: bounds, separation: separation, axis: $0) > 0
         }
         guard broken else {
+            // Nothing overlaps — but a layout can be unbroken and still have
+            // a bare patch of desktop where a capped window stopped growing.
+            checkForHole(
+                windows, entry: entry, state: state, config: config, cli: cli,
+                bounds: bounds, separation: separation)
             reset(state)
             return
         }
+        state.holeStreak = nil
         if signature(of: windows) == state.settled { return }
         // Windows are legitimately mid-flight during an animation or a
         // workspace switch. Correcting a layout that was about to settle on
@@ -736,6 +761,104 @@ final class WindowFitController {
         if !raised.isEmpty {
             DragLog.log("fitting: raised floating window(s) \(raised) above the tiling")
         }
+    }
+
+    /// Windows whose size AX says can't be set at all: tiling them is a
+    /// fight nobody wins. Float on first sight, once per window, and say so.
+    private func floatNonResizable(
+        in windows: [WindowFitting.Window], entry: Monitors.VisibleWorkspace,
+        state: WorkspaceState, cli: AeroSpaceCLI
+    ) {
+        for window in windows where !probedResizable.contains(window.id) {
+            probedResizable.insert(window.id)
+            if probedResizable.count > 2048 { probedResizable = [window.id] }
+            guard WindowResizability.isResizable(windowID: window.id) == false else { continue }
+            floatUnfillable(
+                window, state: state, cli: cli,
+                because: "its window can't be resized")
+        }
+    }
+
+    /// A hole that holds still earns one experiment: ask the bordering
+    /// window to grow into it. Growth means the layout was just settling —
+    /// done. Refusal means the app has a maximum size, which makes it
+    /// unfillable: float it, like an i3 user would by hand.
+    private func checkForHole(
+        _ windows: [WindowFitting.Window], entry: Monitors.VisibleWorkspace,
+        state: WorkspaceState, config: PanewrightConfig, cli: AeroSpaceCLI,
+        bounds: CGRect?, separation: CGFloat
+    ) {
+        guard config.fitting.floatUnfillable, !converging,
+            Date().timeIntervalSince(state.lastMembershipChange) >= Self.membershipSettle * 2,
+            Date().timeIntervalSince(lastInteraction) >= Self.settleAfterInteraction
+        else { return }
+        guard
+            let hole = WindowFitting.hole(in: windows, bounds: bounds, separation: separation),
+            !state.floatedUnfillable.contains(hole.id)
+        else {
+            state.holeStreak = nil
+            return
+        }
+        if state.holeStreak?.id == hole.id, state.holeStreak?.axis == hole.axis {
+            state.holeStreak?.count += 1
+        } else {
+            state.holeStreak = (hole.id, hole.axis, 1)
+        }
+        guard let streak = state.holeStreak, streak.count >= 4 else { return }
+        state.holeStreak = nil
+        guard let window = windows.first(where: { $0.id == hole.id }) else { return }
+        // The same app already proved its ceiling: skip the experiment.
+        if let known = learnedMax[window.bundleID]?[hole.axis],
+            hole.axis.extent(window.frame) >= known - 4
+        {
+            floatUnfillable(
+                window, state: state, cli: cli,
+                because: "it can't grow past \(Int(known))pt")
+            return
+        }
+        converging = true
+        Task { @MainActor in
+            defer { converging = false }
+            let asked = min(Int(hole.amount), 400)
+            try? cli.run([
+                "resize", "--window-id", "\(window.id)",
+                hole.axis.resizeDimension, "+\(asked)",
+            ])
+            try? await Task.sleep(for: .milliseconds(80))
+            let after = currentWindows(
+                cli: cli, workspace: entry.workspace, screen: entry.screen, state: state)
+            guard let now = after.first(where: { $0.id == window.id }) else { return }
+            let grew = hole.axis.extent(now.frame) - hole.axis.extent(window.frame)
+            if grew >= CGFloat(asked) - 12 {
+                DragLog.log(
+                    "fitting: \(window.bundleID) grew into its \(Int(hole.amount))pt hole")
+                return
+            }
+            let ceiling = hole.axis.extent(now.frame)
+            learnedMax[window.bundleID, default: [:]][hole.axis] = ceiling
+            DragLog.log(
+                "fitting: \(window.bundleID) capped at \(Int(ceiling))pt "
+                    + "\(hole.axis.rawValue) with a \(Int(hole.amount))pt hole beside it")
+            floatUnfillable(
+                window, state: state, cli: cli,
+                because: "it can't grow past \(Int(ceiling))pt")
+        }
+    }
+
+    /// Floating removes the window from the tree — the tiles reclaim its
+    /// slot, the raiser keeps it on top, and it is never fought over again.
+    private func floatUnfillable(
+        _ window: WindowFitting.Window, state: WorkspaceState, cli: AeroSpaceCLI,
+        because reason: String
+    ) {
+        state.floatedUnfillable.insert(window.id)
+        guard
+            (try? cli.run(["layout", "floating", "--window-id", "\(window.id)"])) != nil
+        else { return }
+        let name = appName(for: window.id, windows: [window])
+        Toast.show("\(name) floats now — \(reason)")
+        DragLog.log("fitting: floated \(window.bundleID) (\(window.id)) — \(reason)")
+        reset(state)
     }
 
     // MARK: Reading the world

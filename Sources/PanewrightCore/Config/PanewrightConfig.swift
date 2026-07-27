@@ -52,16 +52,24 @@ public struct PanewrightConfig: Equatable, Sendable {
         /// usable space means the terminal shrinks a little more with every
         /// window added rather than the workspace admitting it's full.
         public var minimumUsable: Int
+        /// Float windows that can't fill a tile: ones whose window is not
+        /// resizable at all, and ones with a maximum size that leaves a
+        /// persistent hole in the layout (iPhone Mirroring, small utility
+        /// panels). A window that can't participate in tiling shouldn't be
+        /// fought over — floating is what i3 users do to them by hand.
+        public var floatUnfillable: Bool
 
         public init(
             enabled: Bool = true, overflow: Bool = true, step: Int = 60,
-            floatOnTop: Bool = true, minimumUsable: Int = 360
+            floatOnTop: Bool = true, minimumUsable: Int = 360,
+            floatUnfillable: Bool = true
         ) {
             self.enabled = enabled
             self.overflow = overflow
             self.step = step
             self.floatOnTop = floatOnTop
             self.minimumUsable = minimumUsable
+            self.floatUnfillable = floatUnfillable
         }
     }
 
@@ -471,6 +479,11 @@ public struct PanewrightConfig: Equatable, Sendable {
     /// i3's `focus_follows_mouse` — hover moves focus, no click. Implemented
     /// by Panewright's event tap (AeroSpace has no native support).
     public var focusFollowsMouse: Bool
+    /// i3's `mouse_warping output`: when focus lands on another monitor
+    /// (workspace switch, focus-monitor), the pointer warps to that
+    /// monitor's center — your next click is where your eyes already are.
+    /// Lazy: nothing moves when focus stays on the pointer's monitor.
+    public var mouseFollowsFocus: Bool
     /// Make switching to an app land you where its window is: summon it if
     /// it's parked in the bar, follow it if it's on another workspace.
     /// Cmd+Tab knows nothing about workspaces, so without this it raises an
@@ -522,6 +535,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         modules: Modules = Modules(),
         integrations: IntegrationsConfig = IntegrationsConfig(),
         focusFollowsMouse: Bool = false,
+        mouseFollowsFocus: Bool = true,
         followAppSwitch: Bool = true,
         statusBar: StatusBar = StatusBar(),
         gaps: Gaps = Gaps(),
@@ -551,6 +565,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         self.modules = modules
         self.integrations = integrations
         self.focusFollowsMouse = focusFollowsMouse
+        self.mouseFollowsFocus = mouseFollowsFocus
         self.followAppSwitch = followAppSwitch
         self.statusBar = statusBar
         self.gaps = gaps

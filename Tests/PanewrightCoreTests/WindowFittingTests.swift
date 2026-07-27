@@ -1337,3 +1337,55 @@ private func window(
         #expect(verdict != .adjusting(.evict(id: 1)))
     }
 }
+
+@Suite struct HoleDetectionTests {
+    // Bounds matching the fixture windows: 1000pt tall, ~1700 wide.
+    private let bounds = CGRect(x: 0, y: 0, width: 1696, height: 1000)
+
+    @Test func aTightRowHasNoHole() {
+        let windows = [
+            window(1, "a", x: 0, width: 600),
+            window(2, "b", x: 608, width: 500),
+            window(3, "c", x: 1116, width: 580),
+        ]
+        #expect(WindowFitting.hole(in: windows, bounds: bounds, separation: 8) == nil)
+    }
+
+    @Test func aCappedWindowLeavesAHoleOnItsRight() {
+        // "b" stops 400pt short of "c" — the max-size signature.
+        let windows = [
+            window(1, "a", x: 0, width: 600),
+            window(2, "b", x: 608, width: 300),
+            window(3, "c", x: 1316, width: 380),
+        ]
+        let hole = WindowFitting.hole(in: windows, bounds: bounds, separation: 8)
+        #expect(hole?.id == 2)
+        #expect(hole?.axis == .horizontal)
+        #expect(hole.map { $0.amount > 350 } == true)
+    }
+
+    @Test func theLastWindowShortOfTheBoundsEdgeIsAHole() {
+        let windows = [
+            window(1, "a", x: 0, width: 600),
+            window(2, "b", x: 608, width: 500),
+        ]
+        let hole = WindowFitting.hole(in: windows, bounds: bounds, separation: 8)
+        #expect(hole?.id == 2)
+        #expect(hole?.axis == .horizontal)
+    }
+
+    @Test func aLoneWindowIsNeverReported() {
+        let windows = [window(1, "a", x: 0, width: 300)]
+        #expect(WindowFitting.hole(in: windows, bounds: bounds, separation: 8) == nil)
+    }
+
+    @Test func gapSizedSpacingIsNotAHole() {
+        // 30pt of slack over an 8pt gap: rounding and redistribution jitter.
+        let windows = [
+            window(1, "a", x: 0, width: 600),
+            window(2, "b", x: 608, width: 500),
+            window(3, "c", x: 1138, width: 558),
+        ]
+        #expect(WindowFitting.hole(in: windows, bounds: bounds, separation: 8) == nil)
+    }
+}
