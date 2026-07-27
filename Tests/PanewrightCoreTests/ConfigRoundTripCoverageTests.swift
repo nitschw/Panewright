@@ -60,7 +60,7 @@ import Testing
         unset.statusBar.accentColor = nil
         let reparsedUnset = try ConfigParser.parse(
             toml: PanewrightConfigSerializer.emit(unset))
-        #expect(reparsedUnset.statusBar.accentColor == nil)
+        #expect(reparsedUnset.statusBar.accentColor == PanewrightConfig.default.statusBar.accentColor)
     }
 
     @Test func workspaceAndAppAssignmentsSurvive() throws {

@@ -32,7 +32,10 @@ import Testing
     }
 
     @Test func accentColorFollowsFocusBorder() throws {
+        // The shipped default pins its own bar accent; following the border
+        // is the nil behavior, so unset it to test the fallback.
         var config = PanewrightConfig.default
+        config.statusBar.accentColor = nil
         config.focusBorder.activeColor = "#FF375F"
         let files = try SketchyBarConfigEmitter.emit(config)
         #expect(files.workspacesPlugin.contains("0xffff375f"))
@@ -424,7 +427,7 @@ import Testing
     @Test func onlyTheOffsetChanges() throws {
         let lifted = try barLine(dockInsetBottom: 64, theme: .native)
         #expect(lifted.contains("position=bottom"))
-        #expect(lifted.contains("height=30"))
+        #expect(lifted.contains("height=25"))
     }
 }
 
@@ -502,8 +505,8 @@ import Testing
     @Test func defaultsMatchWhatTheThemesAlwaysShipped() throws {
         let line = try barLine { _ in }
         #expect(line.contains("position=bottom"))
-        #expect(line.contains("height=30"))
-        #expect(line.contains("color=0x2c000000"))
+        #expect(line.contains("height=25"))
+        #expect(line.contains("color=0x63000000"))  // opacity 0.39
         #expect(line.contains("show_in_fullscreen=off"))
     }
 

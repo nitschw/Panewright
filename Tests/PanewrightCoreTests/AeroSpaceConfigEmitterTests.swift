@@ -17,9 +17,9 @@ import Testing
     @Test func statusBarReservesTheBottomEdge() {
         var config = PanewrightConfig.default
         config.gaps = .init(inner: 8, outer: 8)
-        #expect(AeroSpaceConfigEmitter.emit(config).contains("outer.bottom = 48"))
+        #expect(AeroSpaceConfigEmitter.emit(config).contains("outer.bottom = 43"))  // thickness 25 + 10 + outer 8
         config.statusBar.theme = .technical
-        #expect(AeroSpaceConfigEmitter.emit(config).contains("outer.bottom = 40"))
+        #expect(AeroSpaceConfigEmitter.emit(config).contains("outer.bottom = 39"))  // technical: 25 + 6 + 8
         config.statusBar.enabled = false
         #expect(AeroSpaceConfigEmitter.emit(config).contains("outer.bottom = 8"))
         // Only the bottom edge reserves bar space.
@@ -87,7 +87,7 @@ import Testing
         let toml = AeroSpaceConfigEmitter.emit(.default)
         #expect(toml.contains("alt-f = 'fullscreen'"))
         #expect(toml.contains("alt-shift-space = 'layout floating tiling'"))
-        #expect(toml.contains("alt-left = 'focus-monitor left'"))
+        #expect(toml.contains("alt-comma = 'focus-monitor left'"))
         #expect(toml.contains("move-window.sh\" monitor right'"))
         #expect(toml.contains("alt-enter = 'exec-and-forget open -a Terminal'"))
     }

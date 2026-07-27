@@ -237,9 +237,13 @@ public struct PanewrightConfig: Equatable, Sendable {
         public var autoHideDelay: Double
 
         public init(
-            enabled: Bool = true, theme: Theme = .native, accentColor: String? = nil,
-            position: Position = .bottom, thickness: Int? = nil, fontSize: Int? = nil,
-            showInFullscreen: Bool = false, opacity: Double? = nil,
+            enabled: Bool = true, theme: Theme = .native,
+            // The dogfooded bar (synced 2026-07-27): slimmer and denser than
+            // the original theme numbers, more opaque, green accent split
+            // from the red border.
+            accentColor: String? = "#0F5F15",
+            position: Position = .bottom, thickness: Int? = 25, fontSize: Int? = 12,
+            showInFullscreen: Bool = false, opacity: Double? = 0.39,
             autoHide: Bool = false, autoHideDelay: Double = 5
         ) {
             self.enabled = enabled
@@ -543,7 +547,12 @@ public struct PanewrightConfig: Equatable, Sendable {
             bindings.append(Binding(key: "\(n)", action: .workspace(n)))
             bindings.append(Binding(key: "shift-\(n)", action: .moveToWorkspace(n)))
         }
-        let vim: [(String, Direction)] = [("h", .left), ("j", .down), ("k", .up), ("l", .right)]
+        // Arrows are first-class citizens beside the vim keys, exactly as in
+        // i3: focus bare, move with shift. Both hands' muscle memory works.
+        let vim: [(String, Direction)] = [
+            ("h", .left), ("j", .down), ("k", .up), ("l", .right),
+            ("left", .left), ("down", .down), ("up", .up), ("right", .right),
+        ]
         for (key, direction) in vim {
             bindings.append(Binding(key: key, action: .focus(direction)))
             bindings.append(Binding(key: "shift-\(key)", action: .move(direction)))
@@ -557,10 +566,13 @@ public struct PanewrightConfig: Equatable, Sendable {
         bindings.append(Binding(key: "r", action: .enterMode("resize")))
         bindings.append(Binding(key: "enter", action: .exec("open -a Terminal")))
         // Multi-monitor flow on the arrow keys.
-        bindings.append(Binding(key: "left", action: .focusMonitor(.left)))
-        bindings.append(Binding(key: "right", action: .focusMonitor(.right)))
-        bindings.append(Binding(key: "shift-left", action: .moveToMonitor(.left)))
-        bindings.append(Binding(key: "shift-right", action: .moveToMonitor(.right)))
+        // Monitor focus moved off the arrows when they became i3-style
+        // focus/move (2026-07-27): comma and period, "previous / next", the
+        // same pair many i3 configs use for output hopping.
+        bindings.append(Binding(key: "comma", action: .focusMonitor(.left)))
+        bindings.append(Binding(key: "period", action: .focusMonitor(.right)))
+        bindings.append(Binding(key: "shift-comma", action: .moveToMonitor(.left)))
+        bindings.append(Binding(key: "shift-period", action: .moveToMonitor(.right)))
         // $mod+g: join mode — group the focused window with a neighbor.
         // $mod+shift+g: un-group everything on the workspace.
         bindings.append(Binding(key: "g", action: .enterMode("join")))

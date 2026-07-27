@@ -269,7 +269,7 @@ action = "mode main"</pre>
     <tr><td><kbd>$mod O</kbd></td><td>Workspace overview</td></tr>
     <tr><td><kbd>$mod `</kbd></td><td>Dropdown terminal</td></tr>
     <tr><td><kbd>$mod ⇧ P</kbd></td><td>Pills mode — number keys summon numbered pills</td></tr>
-    <tr><td><kbd>$mod H J K L</kbd> / <kbd>+⇧</kbd></td><td>Focus / move window (vim directions)</td></tr>
+    <tr><td><kbd>$mod H J K L</kbd> or <kbd>$mod ←↓↑→</kbd> / <kbd>+⇧</kbd></td><td>Focus / move window — vim keys and arrows, both i3-style</td></tr>
     <tr><td><kbd>$mod E</kbd> / <kbd>$mod S</kbd></td><td>Tiles / accordion layout</td></tr>
     <tr><td><kbd>$mod F</kbd></td><td>Fullscreen</td></tr>
     <tr><td><kbd>$mod ⇧ Space</kbd></td><td>Floating toggle</td></tr>
@@ -591,6 +591,7 @@ focus-changed = "python3 ~/.config/panewright/user-scripts/on-focus.py"</pre>
   <pre>git branch | panewright menu "checkout:" | xargs git checkout
 grep "^Host " ~/.ssh/config | awk '{print $2}' | panewright menu | xargs -o ssh</pre>
   <p>The menu uses the same panel and fuzzy ranking as the <kbd>$mod D</kbd> palette, and dismissing it returns focus to wherever it was — so a binding like <code>action = "exec ~/bin/ssh-picker.sh"</code> gives you rofi-style custom menus on any key.</p>
+  <p><b>Three classics ship ready to use</b> (find them in the <kbd>$mod D</kbd> palette, or bind them): <code>menu-ssh.sh</code> picks a host from <code>~/.ssh/config</code> and connects in your default terminal; <code>menu-kill.sh</code> lists the heaviest processes and TERMs your pick; <code>menu-power.sh</code> is the rofi power menu (lock, sleep, restart…). They live in <code>~/.config/panewright/scripts/</code> as ordinary scripts on the menu primitive — worked examples for writing your own.</p>
   <h3>Query and control from scripts</h3>
   <p>The <code>aerospace</code> CLI is the full API — everything Panewright does, your scripts can too:</p>
   <pre>aerospace list-windows --workspace focused --json

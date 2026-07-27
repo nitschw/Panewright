@@ -217,7 +217,21 @@ final class PaletteModel {
                 title: "Workspace \(n)", subtitle: "Panewright command", icon: nil,
                 kind: .command(cli(["workspace", "\(n)"])))
         }
+        func script(_ name: String) -> () -> Void {
+            {
+                let process = Process()
+                process.executableURL = URL(filePath: "/bin/bash")
+                process.arguments = [
+                    NSHomeDirectory() + "/.config/panewright/scripts/" + name
+                ]
+                process.terminationHandler = { _ in }
+                try? process.run()
+            }
+        }
         let rest: [(String, () -> Void)] = [
+            ("SSH To…", script("menu-ssh.sh")),
+            ("Kill Process…", script("menu-kill.sh")),
+            ("Power Menu…", script("menu-power.sh")),
             ("Fullscreen", cli(["fullscreen"])),
             ("Float / Tile Window", cli(["layout", "floating", "tiling"])),
             ("Flatten Workspace", cli(["flatten-workspace-tree"])),
