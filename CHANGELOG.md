@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.5] — 2026-07-27
+
 ### Fixed
 - Plugging in monitors no longer scatters windows: engine recovery is one
   actor, once, after the dust settles. During a docking storm the engine
