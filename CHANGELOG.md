@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-07-26
+
 ### Added
 - **Scripting tab in Settings** — all five hooks with their environment
   variables captioned inline (previously TOML-only), a listing of the
