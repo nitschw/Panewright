@@ -14,13 +14,23 @@ cd "$(dirname "$0")/.."
 CONFIGURATION="${1:-release}"
 APP="build/Panewright.app"
 
-swift build -c "$CONFIGURATION" --product panewright
-swift build -c "$CONFIGURATION" --product panewright-dev
+# Release builds are universal: the site says Apple Silicon & Intel, and an
+# arm64-only binary makes that a lie on every Intel Mac. (The 0.4.x DMGs
+# shipped a universal *engine* inside an arm64-only app — exactly this.)
+if [ "$CONFIGURATION" = "release" ]; then
+    swift build -c release --arch arm64 --arch x86_64 --product panewright
+    swift build -c release --arch arm64 --arch x86_64 --product panewright-dev
+    PRODUCTS=".build/apple/Products/Release"
+else
+    swift build -c "$CONFIGURATION" --product panewright
+    swift build -c "$CONFIGURATION" --product panewright-dev
+    PRODUCTS=".build/$CONFIGURATION"
+fi
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp Support/Info.plist "$APP/Contents/Info.plist"
-cp ".build/$CONFIGURATION/panewright" "$APP/Contents/MacOS/panewright"
+cp "$PRODUCTS/panewright" "$APP/Contents/MacOS/panewright"
 cp Assets/logo.png "$APP/Contents/Resources/logo.png"
 cp Assets/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
@@ -44,7 +54,7 @@ fi
 # Panewright's own CLI (`panewright import` etc.) — the cask links it into
 # PATH, so brew users get the importer without a source checkout.
 mkdir -p "$APP/Contents/Helpers"
-cp ".build/$CONFIGURATION/panewright-dev" "$APP/Contents/Helpers/panewright-cli"
+cp "$PRODUCTS/panewright-dev" "$APP/Contents/Helpers/panewright-cli"
 
 # Embed Sparkle (SwiftPM links it from build artifacts; ship a copy).
 SPARKLE_FW="$(find .build/artifacts -name "Sparkle.framework" -type d | head -1)"
