@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.11] — 2026-07-27
+
 ### Fixed
 - Bug reports (not just crash prompts) now attach any crash either process
   suffered in the last day — the symbolicated trace from macOS's own
