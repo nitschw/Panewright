@@ -28,7 +28,7 @@ import Testing
 @Suite struct JankyBordersEmitterTests {
     @Test func emitsDefaultBorderArguments() throws {
         let args = try JankyBordersEmitter.arguments(for: .init())
-        #expect(args.contains("active_color=0xff0a84ff"))
+        #expect(args.contains("active_color=0xffff283e"))
         #expect(args.contains("inactive_color=0x00000000"))
         #expect(args.contains("width=4.0"))
         #expect(args.contains("style=round"))

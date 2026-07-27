@@ -58,7 +58,7 @@ public struct Orchestrator: Sendable {
         # Every key is optional; omitted keys use i3-familiar defaults
         # (workspaces 1-9, hjkl focus/move, $mod+r resize, $mod+g join).
 
-        modifier = "ctrl-cmd"  # or "hyper" (Caps Lock via Karabiner) / "alt" / "cmd" / "ctrl" / "leader"
+        modifier = "alt"  # or "hyper" (Caps Lock via Karabiner) / "ctrl-cmd" / "cmd" / "ctrl" / "leader"
         """ + "\n"
 
     /// First-run: create `panewright.toml` so the user has something to edit.
@@ -935,6 +935,12 @@ public struct Orchestrator: Sendable {
         let embedded = Bundle.main.bundleURL
             .appending(path: "Contents/Helpers/AeroSpace")
         if FileManager.default.isExecutableFile(atPath: embedded.path) {
+            // The engine's menu bar icon stays hidden — Panewright's bar owns
+            // that surface. Written from code, every launch, because a manual
+            // `defaults write` on the dev machine is an experience no fresh
+            // install would share.
+            UserDefaults(suiteName: "bobko.aerospace")?
+                .set(true, forKey: "menu-bar-icon-hidden")
             let engine = Process()
             engine.executableURL = embedded
             // The engine's own words go to a file, not /dev/null. It died

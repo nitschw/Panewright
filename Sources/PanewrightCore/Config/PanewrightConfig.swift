@@ -54,7 +54,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         public var minimumUsable: Int
 
         public init(
-            enabled: Bool = true, overflow: Bool = true, step: Int = 240,
+            enabled: Bool = true, overflow: Bool = true, step: Int = 60,
             floatOnTop: Bool = true, minimumUsable: Int = 360
         ) {
             self.enabled = enabled
@@ -69,7 +69,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         public var inner: Int
         public var outer: Int
 
-        public init(inner: Int = 8, outer: Int = 8) {
+        public init(inner: Int = 10, outer: Int = 10) {
             self.inner = inner
             self.outer = outer
         }
@@ -85,7 +85,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         public init(
             enabled: Bool = true,
             width: Int = 4,
-            activeColor: String = "#0A84FF",
+            activeColor: String = "#FF283E",
             inactiveColor: String = "#00000000"
         ) {
             self.enabled = enabled
@@ -304,12 +304,12 @@ public struct PanewrightConfig: Equatable, Sendable {
         public var order: [String]
 
         public init(
-            systemMonitor: Bool = false, systemGraphs: Bool = true, network: Bool = false, ports: Bool = false,
-            disk: Bool = false, battery: Bool = false, docker: Bool = false,
-            cloudContext: Bool = false, scratchpad: Bool = false, micMute: Bool = false, volume: Bool = false,
-            brewUpdates: Bool = false, vpn: Bool = false, keyboardLayout: Bool = false,
-            focusMode: Bool = false, nowPlaying: Bool = false, weather: Bool = false,
-            order: [String] = []
+            systemMonitor: Bool = true, systemGraphs: Bool = true, network: Bool = true, ports: Bool = true,
+            disk: Bool = true, battery: Bool = true, docker: Bool = true,
+            cloudContext: Bool = true, scratchpad: Bool = true, micMute: Bool = true, volume: Bool = true,
+            brewUpdates: Bool = true, vpn: Bool = true, keyboardLayout: Bool = true,
+            focusMode: Bool = true, nowPlaying: Bool = true, weather: Bool = true,
+            order: [String] = ["weather", "battery", "disk", "network"]
         ) {
             self.systemMonitor = systemMonitor
             self.systemGraphs = systemGraphs
@@ -437,10 +437,10 @@ public struct PanewrightConfig: Equatable, Sendable {
         // Ctrl+Cmd: a real chord (one keypress per command), types no
         // characters, and needs no third-party remapper — the best default
         // that works out of the box. Caps-Lock hyper remains one line away.
-        modifier: Modifier = .ctrlCmd,
+        modifier: Modifier = .alt,
         // Same chord as the default modifier, plus a key — a prefix can't be
         // modifiers alone. Space keeps it one thumb press away.
-        leaderKey: String = "ctrl-cmd-space",
+        leaderKey: String = "cmd-backtick",
         todo: TodoList = TodoList(),
         pills: Pills = Pills(),
         modules: Modules = Modules(),
@@ -453,7 +453,11 @@ public struct PanewrightConfig: Equatable, Sendable {
         focusBorder: FocusBorder = FocusBorder(),
         bindings: [Binding] = [],
         modes: [Mode] = [],
-        floatingApps: [String] = [],
+        floatingApps: [String] = [
+            "com.apple.systempreferences",
+            "com.apple.calculator",
+            "com.apple.ScreenContinuity",
+        ],
         workspaceMonitors: [Int: String] = [:],
         appWorkspaces: [String: Int] = [:],
         workspaceChangedHook: String? = nil,

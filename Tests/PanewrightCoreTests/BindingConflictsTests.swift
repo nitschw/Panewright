@@ -41,22 +41,25 @@ import Testing
         #expect(conflicts.allSatisfy { if case .duplicate = $0.kind { true } else { false } })
     }
 
-    @Test func defaultsHaveOneKnownSystemCollision() {
-        // Found by this detector on its first run: the default $mod+f
-        // (fullscreen) becomes ctrl-cmd-f, which is macOS's own "Enter Full
-        // Screen". Apps with that menu item swallow it before AeroSpace sees
-        // it. Asserted rather than hidden so the decision to rebind is
-        // deliberate — and so a NEW conflict still fails this test.
-        let conflicts = BindingConflicts.find(in: .default)
+    @Test func defaultsHaveNoKnownCollisions() {
+        // The old ctrl-cmd default carried 21 findings out of the box — the
+        // ctrl-cmd-f "Enter Full Screen" system collision and twenty
+        // three-modifier stretches. Switching the default to alt (2026-07-27,
+        // matching the dogfooded setup) eliminated every one. Asserted at
+        // zero so a new default binding that introduces a collision fails
+        // here instead of shipping.
+        #expect(BindingConflicts.find(in: .default).isEmpty)
+    }
+
+    @Test func theOldDefaultModifierStillShowsItsCollisions() {
+        // The detector's coverage of the ctrl-cmd problems must outlive
+        // ctrl-cmd being the default.
+        var config = PanewrightConfig.default
+        config.modifier = .ctrlCmd
+        let conflicts = BindingConflicts.find(in: config)
         let system = conflicts.filter { if case .systemShortcut = $0.kind { true } else { false } }
-        #expect(system.count == 1)
         #expect(system.first?.key == "f")
         #expect(system.first?.summary.contains("Enter Full Screen") == true)
-
-        // And the ergonomics check measures the other half of the problem:
-        // under the ctrl-cmd default, every $mod+Shift binding is a
-        // three-modifier stretch. That count is the case for replacing them
-        // with a mode — it should go DOWN, never up.
         let awkward = conflicts.filter { if case .awkward = $0.kind { true } else { false } }
         #expect(awkward.count == 20)
     }
@@ -215,7 +218,10 @@ import Testing
     }
 
     @Test func theChipCountsWhatTheWindowWouldList() throws {
-        let config = PanewrightConfig.default
+        // The clean alt default shows no chip, so exercise the plumbing with
+        // the modifier that has real findings.
+        var config = PanewrightConfig.default
+        config.modifier = .ctrlCmd
         let rc = try SketchyBarConfigEmitter.emit(config).sketchybarrc
         // Rows, not findings — the two numbers have to agree or neither is
         // believable.
@@ -226,15 +232,13 @@ import Testing
     }
 
     @Test func aFreshInstallDoesNotCryWolf() throws {
-        // The default keymap has 21 findings but only 2 decisions: rebind the
-        // macOS collision, and deal with the three-modifier stretches as a
-        // group. A chip reading ⚠ 21 on day one is how a warning becomes
-        // wallpaper.
+        // Better than not crying wolf: with the alt default there is nothing
+        // to warn about at all, so day one shows no conflicts chip.
         let config = PanewrightConfig.default
-        #expect(BindingConflicts.find(in: config).count == 21)
-        #expect(BindingConflicts.rows(in: config).count == 2)
+        #expect(BindingConflicts.find(in: config).isEmpty)
+        #expect(BindingConflicts.rows(in: config).isEmpty)
         let rc = try SketchyBarConfigEmitter.emit(config).sketchybarrc
-        #expect(rc.contains("label=\"⚠ 2\""))
+        #expect(!rc.contains("--add item conflicts right"))
     }
 
     @Test func ignoringEveryConflictTakesTheChipDown() throws {
@@ -360,7 +364,9 @@ import Testing
 
 @Suite struct ConflictChipPlacementTests {
     @Test func theChipSitsOutsideTheTodoCluster() throws {
+        // The clean alt default has no chip; use the modifier with findings.
         var config = PanewrightConfig.default
+        config.modifier = .ctrlCmd
         config.todo.enabled = true
         let rc = try SketchyBarConfigEmitter.emit(config).sketchybarrc
         guard let chip = rc.range(of: "--add item conflicts"),

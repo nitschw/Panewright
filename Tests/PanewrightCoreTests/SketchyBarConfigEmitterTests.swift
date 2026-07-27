@@ -120,9 +120,13 @@ import Testing
         #expect(files.pillsPlugin.contains("grep -qx \"$id\" || continue"))
     }
 
-    @Test func systemMonitorModuleIsOptIn() throws {
-        // Off by default: no chip, no graphs, an empty plugin.
-        let off = try SketchyBarConfigEmitter.emit(.default)
+    @Test func systemMonitorModuleCanBeTurnedOff() throws {
+        // Widgets default ON (2026-07-27, matching the dogfooded setup) —
+        // turning one off must remove its items entirely.
+        var offConfig = PanewrightConfig.default
+        offConfig.modules.systemMonitor = false
+        offConfig.modules.systemGraphs = false
+        let off = try SketchyBarConfigEmitter.emit(offConfig)
         #expect(!off.sketchybarrc.contains("--add item sys "))
         #expect(!off.sketchybarrc.contains("sys.cpu.graph"))
 
@@ -209,7 +213,7 @@ import Testing
         #expect(try ConfigParser.parse(toml: toml) == config)
         let aerospace = AeroSpaceConfigEmitter.emit(config)
         #expect(aerospace.contains("on-workspace-change.sh"))
-        #expect(aerospace.contains("ctrl-cmd-tab = 'workspace-back-and-forth'"))
+        #expect(aerospace.contains("alt-tab = 'workspace-back-and-forth'"))
     }
 
     @Test func focusChangedHookRoundTripsAndEmitsCallback() throws {
@@ -265,7 +269,7 @@ import Testing
         // or an invalid binding silently breaks every keybinding.
         #expect(ConfigParser.normalizeKeySpec("cmd+`") == "cmd-backtick")
         #expect(ConfigParser.normalizeKeySpec("cmd+~") == "cmd-shift-backtick")
-        #expect(ConfigParser.normalizeKeySpec("ctrl-cmd-space") == "ctrl-cmd-space")
+        #expect(ConfigParser.normalizeKeySpec("alt-space") == "alt-space")
         #expect(ConfigParser.normalizeKeySpec("cmd-minus") == "cmd-minus")
         // An explicit shift plus a shifted glyph shouldn't double up.
         #expect(ConfigParser.normalizeKeySpec("cmd+shift+~") == "cmd-shift-backtick")

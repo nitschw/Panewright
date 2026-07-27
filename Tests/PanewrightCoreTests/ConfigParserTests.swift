@@ -173,3 +173,22 @@ import Testing
         #expect(emitted.contains("cmd-alt-ctrl-3 = 'summon-workspace 3'"))
     }
 }
+
+/// The contract behind "my setup is what new users get": the file a fresh
+/// install writes must parse to exactly the built-in defaults — which are the
+/// dogfooded configuration (2026-07-27). Any drift between the template and
+/// the defaults breaks the promise silently, so it breaks here instead.
+@Suite struct FreshInstallTests {
+    @Test func theFirstRunTemplateParsesToTheDefaults() throws {
+        let parsed = try ConfigParser.parse(toml: Orchestrator.defaultConfigTemplate)
+        #expect(parsed == PanewrightConfig.default)
+    }
+
+    @Test func theDefaultsSerializeWithoutPinningTheKeymap() {
+        // No [[binding]] blocks in what the editor would save for a default
+        // config — a frozen keymap snapshot is how one machine stopped
+        // receiving new default bindings for weeks.
+        let toml = PanewrightConfigSerializer.emit(.default)
+        #expect(!toml.contains("[[binding]]"))
+    }
+}
