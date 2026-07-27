@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.12] — 2026-07-27
+
 ### Changed
 - **Workspace distribution is ordinal and predictable**: when monitors
   attach, workspace 0 homes on M1, 1 on M2, 2 on M3, and everything else
