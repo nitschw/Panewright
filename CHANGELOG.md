@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.10] — 2026-07-27
+
 ### Fixed
 - Rapid workspace switching ending on an empty workspace no longer gets
   yanked back (engine): an empty workspace leaves the old window holding

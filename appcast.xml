@@ -277,5 +277,13 @@
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
       <enclosure url="https://github.com/nitschw/Panewright/releases/download/v0.6.9/Panewright-0.6.9.zip" type="application/octet-stream" sparkle:edSignature="sHxh0mXtVHOPfYvapLR4AtE13+3Bb/q9dBBk3oberEsV11gH+E1iM1YeZftpmCwY4CVXvREekkYu3H9pwC3kDQ==" length="17363152" />
     </item>
+    <item>
+      <title>0.6.10</title>
+      <pubDate>Mon, 27 Jul 2026 14:44:29 -0700</pubDate>
+      <sparkle:version>202607271442</sparkle:version>
+      <sparkle:shortVersionString>0.6.10</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure url="https://github.com/nitschw/Panewright/releases/download/v0.6.10/Panewright-0.6.10.zip" type="application/octet-stream" sparkle:edSignature="T4CpM6cTfDWqkvAVpKuo6ToXfMlDbTdZedveznFdq4roAoLK/4Zog9hiJqNUpnD2ZNstsXQtjhIy5/1/f3mGAg==" length="17364543" />
+    </item>
   </channel>
 </rss>
