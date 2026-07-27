@@ -46,25 +46,42 @@ struct CheatSheetView: View {
         return ForEach(Category.allCases, id: \.self) { cat in
             if let bindings = groups[cat], !bindings.isEmpty {
                 section(cat.rawValue) {
-                    ForEach(Array(BindingOrder.sorted(bindings).enumerated()), id: \.offset) {
-                        _, binding in
-                        row(prettyKey(binding.key), describe(binding.actions))
+                    ForEach(Array(coalesced(bindings).enumerated()), id: \.offset) { _, entry in
+                        row(entry.keys, entry.what)
                     }
                     if cat == .modes {
                         ForEach(config.modes, id: \.name) { mode in
                             ForEach(
-                                Array(BindingOrder.sorted(mode.bindings).enumerated()),
+                                Array(coalesced(mode.bindings).enumerated()),
                                 id: \.offset
-                            ) { _, b in
-                                row(
-                                    "\(mode.name) → \(prettyKey(b.key))",
-                                    describe(b.actions))
+                            ) { _, entry in
+                                row("\(mode.name) → \(entry.keys)", entry.what)
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    /// One row per *action*, not per binding. The vim keys and the arrows are
+    /// deliberate equals, which means eight of the sixteen focus/move
+    /// bindings describe something already listed — "Focus left" twice with
+    /// different keys reads as a duplicate, not a choice. Keys that do the
+    /// same thing share a row: "H / ←".
+    private func coalesced(
+        _ bindings: [PanewrightConfig.Binding]
+    ) -> [(keys: String, what: String)] {
+        var rows: [(keys: [String], what: String)] = []
+        for binding in BindingOrder.sorted(bindings) {
+            let what = describe(binding.actions)
+            if let index = rows.firstIndex(where: { $0.what == what }) {
+                rows[index].keys.append(prettyKey(binding.key))
+            } else {
+                rows.append(([prettyKey(binding.key)], what))
+            }
+        }
+        return rows.map { ($0.keys.joined(separator: " / "), $0.what) }
     }
 
     private var mouseSection: some View {
