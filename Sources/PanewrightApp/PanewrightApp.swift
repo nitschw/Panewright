@@ -1004,6 +1004,13 @@ final class AppModel {
     /// the user can do, so tell them (once) instead of thrashing.
     private var aeroStallRestarted = false
     private var aeroStallNotified = false
+    /// One recovery at a time. The health tick detaches a task each cycle;
+    /// during a docking storm the engine segfaulted, two ticks both saw it
+    /// dead, and two concurrent recoveries each launched an engine and each
+    /// restored the snapshot — five windows moved twice by us while
+    /// AeroSpace redistributed them to brand-new monitors. "Windows spammed
+    /// around between all of them" was three actors with no coordination.
+    private var engineRecoveryInFlight = false
     /// Consecutive health ticks with the engine process alive but its CLI
     /// server silent — the signature of an engine waiting for Accessibility.
     private var engineWaitingTicks = 0
@@ -1015,6 +1022,23 @@ final class AppModel {
         // problem. Now it's ours: nothing else will ever bring it back, which
         // was measured the hard way — a killed engine stayed down until the
         // whole app was restarted.
+        // Hold all recovery while a docking storm is in progress: an engine
+        // relaunched mid-storm restores windows onto monitors that are still
+        // renumbering, and the settle handler will re-spread everything
+        // seconds later anyway.
+        let displaysSettling = await MainActor.run {
+            Date().timeIntervalSince(MonitorMap.lastDisplayEvent) < 8
+        }
+        guard !displaysSettling else { return }
+        let alreadyRecovering = await MainActor.run { () -> Bool in
+            if engineRecoveryInFlight { return true }
+            engineRecoveryInFlight = true
+            return false
+        }
+        guard !alreadyRecovering else { return }
+        defer {
+            Task { @MainActor in self.engineRecoveryInFlight = false }
+        }
         if let config = try? orchestrator.loadConfig(), config.fitting.enabled
             || config.statusBar.enabled,
             AeroSpaceCLI.locate() != nil,

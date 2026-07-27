@@ -6,6 +6,14 @@ the `Unreleased` section becomes the next release's notes.
 ## [Unreleased]
 
 ### Fixed
+- Plugging in monitors no longer scatters windows: engine recovery is one
+  actor, once, after the dust settles. During a docking storm the engine
+  could crash and two health ticks both "recovered" it — two engines
+  launched, the snapshot restored twice, all while workspaces redistributed
+  to monitors that were still renumbering. Recovery now takes a lock and
+  waits out the display storm (8s of quiet) before touching anything.
+
+### Fixed
 - The dropdown terminal is one designated window, not "whichever window of
   that app is nearby": with several iTerm windows open, `$mod+\`` used to
   dismiss any of them on the current workspace (tiled work terminals

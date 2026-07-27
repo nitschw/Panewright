@@ -168,6 +168,12 @@ enum MonitorMap {
     private static let settleDelay: Duration = .seconds(4)
     private static var pendingChange: Task<Void, Never>?
 
+    /// When the display arrangement last visibly changed — health checks
+    /// consult this to hold recovery actions during a docking storm, when
+    /// monitors renumber several times a second and anything "recovered"
+    /// mid-storm is recovered onto geography that's about to change again.
+    private(set) static var lastDisplayEvent = Date.distantPast
+
     /// Rewrite the map and repaint the bar whenever the display layout changes.
     /// Plugging or unplugging a monitor also re-spreads workspaces so the new
     /// display gets one (and an unplugged one's workspaces return home).
@@ -187,6 +193,7 @@ enum MonitorMap {
                 guard fingerprint != displayFingerprint else { return }
                 DragLog.log("display change: \(fingerprint) — settling")
                 displayFingerprint = fingerprint
+                lastDisplayEvent = Date()
                 // Coalesce the storm: each change restarts the clock, and
                 // only the arrangement that survives the quiet period gets
                 // acted on.
