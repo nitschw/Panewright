@@ -125,7 +125,7 @@ final class WindowFitController {
             return
         }
         let windows = currentWindows(cli: cli)
-        prune(to: windows)
+        prune(to: windows, config: config)
         if config.fitting.floatOnTop { raiseFloaters() }
         guard windows.count > 1 else {
             reset()
@@ -750,10 +750,51 @@ final class WindowFitController {
         settled = nil
     }
 
-    /// Drop remembered arrival times for windows that are gone, so this can't
-    /// grow without bound.
-    private func prune(to windows: [WindowFitting.Window]) {
+    /// Drop remembered arrival times for windows that are gone — and tell the
+    /// user's hooks who came and went. The fitter already watches every
+    /// window on a quarter-second tick, so open/close events are free to
+    /// observe here and nowhere else.
+    private func prune(to windows: [WindowFitting.Window], config: PanewrightConfig) {
         let live = Set(windows.map(\.id))
+        let known = Set(lastKnown.keys)
+        // No dispatch on the very first pass: launching Panewright over an
+        // existing desktop is not thirty windows "opening".
+        if !known.isEmpty {
+            if let hook = config.windowOpenedHook {
+                for window in windows where !known.contains(window.id) {
+                    Self.runHook(hook, window: window)
+                }
+            }
+            if let hook = config.windowClosedHook {
+                for id in known.subtracting(live) {
+                    guard let record = lastKnown[id] else { continue }
+                    Self.runHook(hook, window: record)
+                }
+            }
+        }
+        for window in windows { lastKnown[window.id] = window }
+        lastKnown = lastKnown.filter { live.contains($0.key) }
         firstSeen = firstSeen.filter { live.contains($0.key) }
+    }
+
+    /// The last full record per window, so a close hook can still name the
+    /// app that owned the now-gone window.
+    private var lastKnown: [UInt32: WindowFitting.Window] = [:]
+
+    /// User hooks run detached with the window's identity in the environment,
+    /// mirroring the engine-side hooks (WORKSPACE, FOCUSED_* etc.).
+    private static func runHook(_ hook: String, window: WindowFitting.Window) {
+        let process = Process()
+        process.executableURL = URL(filePath: "/bin/bash")
+        process.arguments = ["-c", hook]
+        var env = ProcessInfo.processInfo.environment
+        env["WINDOW_ID"] = "\(window.id)"
+        env["APP_BUNDLE_ID"] = window.bundleID
+        env["APP_NAME"] = window.bundleID.split(separator: ".").last.map(String.init) ?? ""
+        process.environment = env
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        process.terminationHandler = { _ in }
+        try? process.run()
     }
 }

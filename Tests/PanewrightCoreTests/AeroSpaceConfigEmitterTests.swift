@@ -188,3 +188,34 @@ import Testing
         #expect(toml.contains("enable-normalization-flatten-containers = true"))
     }
 }
+
+/// The scripting events that make hooks worth scripting against.
+@Suite struct RicherHooksTests {
+    @Test func modeChangedHookRidesTheModeChain() {
+        var config = PanewrightConfig.default
+        config.modeChangedHook = "~/bin/on-mode.sh"
+        let toml = AeroSpaceConfigEmitter.emit(config)
+        // Entering resize runs the user hook with MODE in the environment,
+        // in the same chain as the mode switch itself.
+        #expect(toml.contains("MODE=resize /bin/bash -c \"~/bin/on-mode.sh\""))
+        #expect(toml.contains("MODE=join /bin/bash -c \"~/bin/on-mode.sh\""))
+    }
+
+    @Test func hooksRoundTripThroughTheConfigFile() throws {
+        var config = PanewrightConfig.default
+        config.windowOpenedHook = "echo opened"
+        config.windowClosedHook = "echo closed"
+        config.modeChangedHook = "echo mode"
+        let parsed = try ConfigParser.parse(toml: PanewrightConfigSerializer.emit(config))
+        #expect(parsed.windowOpenedHook == "echo opened")
+        #expect(parsed.windowClosedHook == "echo closed")
+        #expect(parsed.modeChangedHook == "echo mode")
+    }
+
+    @Test func noHooksMeansNoHookNoiseInTheEmit() {
+        // The bar's own MODE= trigger is always there; the user-hook shell
+        // invocation must not be.
+        let toml = AeroSpaceConfigEmitter.emit(.default)
+        #expect(!toml.contains("MODE=resize /bin/bash"))
+    }
+}

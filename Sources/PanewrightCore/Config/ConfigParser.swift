@@ -192,6 +192,9 @@ public enum ConfigParser {
         if let hooks = raw.hooks {
             config.workspaceChangedHook = hooks.workspaceChanged
             config.focusChangedHook = hooks.focusChanged
+            config.windowOpenedHook = hooks.windowOpened
+            config.windowClosedHook = hooks.windowClosed
+            config.modeChangedHook = hooks.modeChanged
         }
         return config
     }
@@ -454,10 +457,16 @@ private struct RawConfig: Codable {
     struct RawHooks: Codable {
         var workspaceChanged: String?
         var focusChanged: String?
+        var windowOpened: String?
+        var windowClosed: String?
+        var modeChanged: String?
 
         enum CodingKeys: String, CodingKey {
             case workspaceChanged = "workspace-changed"
             case focusChanged = "focus-changed"
+            case windowOpened = "window-opened"
+            case windowClosed = "window-closed"
+            case modeChanged = "mode-changed"
         }
     }
 

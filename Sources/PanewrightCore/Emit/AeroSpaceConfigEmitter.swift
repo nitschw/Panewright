@@ -95,13 +95,13 @@ public enum AeroSpaceConfigEmitter {
             lines.append("esc = \(escape)")
             for binding in config.bindings {
                 lines.append(
-                    "\(binding.key) = \(leaderBindingValue(binding, statusBarEnabled: barEnabled))"
+                    "\(binding.key) = \(leaderBindingValue(binding, statusBarEnabled: barEnabled, modeChangedHook: config.modeChangedHook))"
                 )
             }
         } else {
             for binding in config.bindings {
                 let combo = keyCombo(modifier: config.modifier, key: binding.key)
-                lines.append("\(combo) = \(bindingValue(binding, statusBarEnabled: barEnabled))")
+                lines.append("\(combo) = \(bindingValue(binding, statusBarEnabled: barEnabled, modeChangedHook: config.modeChangedHook))")
             }
         }
         // Mode bindings are bare keys — that's the point of a mode.
@@ -109,7 +109,7 @@ public enum AeroSpaceConfigEmitter {
             lines.append("")
             lines.append("[mode.\(mode.name).binding]")
             for binding in mode.bindings {
-                lines.append("\(binding.key) = \(bindingValue(binding, statusBarEnabled: barEnabled))")
+                lines.append("\(binding.key) = \(bindingValue(binding, statusBarEnabled: barEnabled, modeChangedHook: config.modeChangedHook))")
             }
         }
         return lines.joined(separator: "\n") + "\n"
@@ -164,17 +164,29 @@ public enum AeroSpaceConfigEmitter {
         "exec-and-forget /opt/homebrew/bin/sketchybar --trigger panewright_mode MODE=\(name)"
     }
 
+    /// The user's mode hook, entering `name` — rides the same chain slot as
+    /// the bar trigger, so a mode change is one event however many listeners.
+    static func modeHook(_ hook: String, entering name: String) -> String {
+        "exec-and-forget MODE=\(name) /bin/bash -c \"\(hook)\""
+    }
+
     /// A binding's TOML value: a single command as a string, a chain as an array.
     static func bindingValue(
-        _ binding: PanewrightConfig.Binding, statusBarEnabled: Bool = false
+        _ binding: PanewrightConfig.Binding, statusBarEnabled: Bool = false,
+        modeChangedHook: String? = nil
     ) -> String {
         var commands: [String] = []
         for action in binding.actions {
             for command in Self.commands(for: action) {
                 commands.append("'\(command)'")
             }
-            if statusBarEnabled, case .enterMode(let name) = action {
-                commands.append("'\(modeTrigger(name))'")
+            if case .enterMode(let name) = action {
+                if statusBarEnabled {
+                    commands.append("'\(modeTrigger(name))'")
+                }
+                if let hook = modeChangedHook {
+                    commands.append("'\(modeHook(hook, entering: name))'")
+                }
             }
         }
         return commands.count == 1 ? commands[0] : "[\(commands.joined(separator: ", "))]"
@@ -195,7 +207,8 @@ public enum AeroSpaceConfigEmitter {
     /// Leader-mode value: one-shot — every chain falls back to main unless it
     /// already ends by entering another mode.
     static func leaderBindingValue(
-        _ binding: PanewrightConfig.Binding, statusBarEnabled: Bool = false
+        _ binding: PanewrightConfig.Binding, statusBarEnabled: Bool = false,
+        modeChangedHook: String? = nil
     ) -> String {
         var actions = binding.actions
         let endsInModeChange: Bool
@@ -209,7 +222,7 @@ public enum AeroSpaceConfigEmitter {
         }
         return bindingValue(
             PanewrightConfig.Binding(key: binding.key, actions: actions),
-            statusBarEnabled: statusBarEnabled)
+            statusBarEnabled: statusBarEnabled, modeChangedHook: modeChangedHook)
     }
 
     static func command(for action: PanewrightConfig.Action) -> String {

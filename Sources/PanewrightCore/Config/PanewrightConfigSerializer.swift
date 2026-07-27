@@ -33,11 +33,23 @@ public enum PanewrightConfigSerializer {
             }
             lines.append("]")
         }
-        if config.workspaceChangedHook != nil || config.focusChangedHook != nil {
+        if config.workspaceChangedHook != nil || config.focusChangedHook != nil
+            || config.windowOpenedHook != nil || config.windowClosedHook != nil
+            || config.modeChangedHook != nil
+        {
             lines.append("")
             lines.append("[hooks]")
             if let hook = config.workspaceChangedHook {
                 lines.append("workspace-changed = \"\(hook)\"")
+            }
+            if let hook = config.windowOpenedHook {
+                lines.append("window-opened = \"\(hook)\"")
+            }
+            if let hook = config.windowClosedHook {
+                lines.append("window-closed = \"\(hook)\"")
+            }
+            if let hook = config.modeChangedHook {
+                lines.append("mode-changed = \"\(hook)\"")
             }
             if let hook = config.focusChangedHook {
                 lines.append("focus-changed = \"\(hook)\"")

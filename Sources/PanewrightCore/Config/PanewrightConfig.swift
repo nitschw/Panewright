@@ -428,6 +428,12 @@ public struct PanewrightConfig: Equatable, Sendable {
     /// `FOCUSED_WINDOW_ID`, and `WORKSPACE` set. Fires often (every focus
     /// change) — keep the command light.
     public var focusChangedHook: String?
+    /// Runs when a window appears anywhere (WINDOW_ID, APP_NAME, APP_BUNDLE_ID).
+    public var windowOpenedHook: String?
+    /// Runs when a window goes away (WINDOW_ID, APP_NAME, APP_BUNDLE_ID).
+    public var windowClosedHook: String?
+    /// Runs on entering/leaving a binding mode (MODE, one of main/resize/join…).
+    public var modeChangedHook: String?
     /// Conflict IDs the user has chosen to live with. Kept in the config
     /// rather than app preferences so "Ignore" also silences the bar's ⚠ chip
     /// — a warning you dismissed that keeps glowing is worse than no warning.
@@ -462,6 +468,9 @@ public struct PanewrightConfig: Equatable, Sendable {
         appWorkspaces: [String: Int] = [:],
         workspaceChangedHook: String? = nil,
         focusChangedHook: String? = nil,
+        windowOpenedHook: String? = nil,
+        windowClosedHook: String? = nil,
+        modeChangedHook: String? = nil,
         ignoredConflicts: [String] = []
     ) {
         self.modifier = modifier
@@ -482,6 +491,9 @@ public struct PanewrightConfig: Equatable, Sendable {
         self.workspaceMonitors = workspaceMonitors
         self.appWorkspaces = appWorkspaces
         self.workspaceChangedHook = workspaceChangedHook
+        self.windowOpenedHook = windowOpenedHook
+        self.windowClosedHook = windowClosedHook
+        self.modeChangedHook = modeChangedHook
         self.focusChangedHook = focusChangedHook
         self.ignoredConflicts = ignoredConflicts
     }
