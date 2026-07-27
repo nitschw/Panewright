@@ -60,11 +60,13 @@ public enum SketchyBarConfigEmitter {
         // user-tunable, so "more opaque over busy wallpaper" never turns into
         // a third theme by accident.
         let alpha = bar.opacity.map { Int(($0 * 255).rounded()) }
+        // Auto-hide boots the bar already slid off its edge; the app's
+        // BarAutoHide slides it in and out from there with the animator.
+        let bootOffset = bar.autoHide ? Self.hiddenOffset(for: bar) : geometry.yOffset
         let common =
-            " margin=\(geometry.margin) y_offset=\(geometry.yOffset)"
+            " margin=\(geometry.margin) y_offset=\(bootOffset)"
             + " position=\(bar.position.rawValue)"
             + " show_in_fullscreen=\(bar.showInFullscreen ? "on" : "off")"
-            + (bar.autoHide ? " hidden=on" : "")
         switch bar.theme {
         case .native:
             return Palette(
@@ -93,6 +95,13 @@ public enum SketchyBarConfigEmitter {
     /// bar height + y-offset + breathing room. Derived from the thickness in
     /// effect, so a thicker bar automatically pushes tiles further — the two
     /// numbers can't drift because there's only one.
+    /// Where an auto-hidden bar rests: fully past its screen edge, with
+    /// margin to spare so no sliver peeks (offsets aren't points on every
+    /// display — one measured at 2x).
+    public static func hiddenOffset(for bar: PanewrightConfig.StatusBar) -> Int {
+        -(bar.effectiveThickness + 25)
+    }
+
     public static func reservedGap(for bar: PanewrightConfig.StatusBar) -> Int {
         // An auto-hidden bar overlays on demand; reserving a strip for a bar
         // that isn't there defeats the point of hiding it.

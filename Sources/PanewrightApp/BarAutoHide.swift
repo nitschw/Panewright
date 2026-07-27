@@ -1,10 +1,13 @@
 import AppKit
 import PanewrightCore
 
-/// The optional auto-hiding bar: hidden until the pointer touches its screen
-/// edge, hidden again a configurable delay after the pointer leaves. Tiles
-/// reclaim the strip the bar normally reserves (reservedGap goes to zero),
-/// so hiding buys real screen space, not just a cleaner look.
+/// The optional auto-hiding bar: slides off its screen edge, slides back
+/// when the pointer touches that edge, and slides away again a configurable
+/// delay after the pointer leaves. Tiles reclaim the strip the bar normally
+/// reserves (reservedGap goes to zero), so hiding buys real screen space.
+///
+/// Slides, not `hidden=on`: the binary toggle is instantaneous, which reads
+/// as the bar vanishing; the animator makes it leave.
 ///
 /// Polling the pointer, not tapping events: NSEvent.mouseLocation needs no
 /// permission and no tap, and five reads a second of a static property is
@@ -14,9 +17,13 @@ final class BarAutoHide {
     private var timer: Timer?
     private var revealed = false
     private var pointerLeftAt: Date?
+    /// The feature's state last tick, so flipping it on reveals-then-times
+    /// -out instead of yanking the bar away mid-thought, and flipping it off
+    /// always leaves the bar shown.
+    private var wasEnabled: Bool?
     /// The edge strip that summons the bar — deliberately thin, so ordinary
     /// work near the bottom of a window doesn't flash the bar.
-    private static let summonBand: CGFloat = 3
+    private static let summonBand: CGFloat = 6
 
     func start() {
         timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { _ in
@@ -26,23 +33,34 @@ final class BarAutoHide {
 
     private func tick() {
         guard let config = try? Orchestrator().loadConfig(),
-            config.statusBar.enabled, config.statusBar.autoHide,
             let bar = SketchyBarSupervisor.locate(), bar.isRunning(),
             let screen = NSScreen.main
-        else {
-            // Auto-hide switched off while revealed: leave the bar shown and
-            // forget our state, so toggling the feature never strands a
-            // hidden bar.
-            if revealed || pointerLeftAt != nil {
+        else { return }
+        let enabled = config.statusBar.enabled && config.statusBar.autoHide
+        defer { wasEnabled = enabled }
+        guard enabled else {
+            // Flipped off (or never on): make sure the bar is at its normal
+            // offset, once, so disabling never strands a slid-away bar.
+            if wasEnabled == true {
+                DragLog.log("autohide: disabled — sliding the bar home")
+                try? bar.animateBarOffset(revealOffset(config))
                 revealed = false
                 pointerLeftAt = nil
             }
             return
         }
+        // Just flipped on: show the bar and let the timer take it away, so
+        // the user sees the feature do its thing instead of losing the bar
+        // the instant they click the toggle.
+        if wasEnabled != true {
+            DragLog.log("autohide: enabled — revealed, hiding in \(Int(config.statusBar.autoHideDelay))s")
+            try? bar.animateBarOffset(revealOffset(config))
+            revealed = true
+            pointerLeftAt = Date()
+            return
+        }
         let mouse = NSEvent.mouseLocation
-        // The bar's own band (bottom or top of the screen, its thickness
-        // plus the summon strip) — pointer inside means "keep it shown".
-        let barBand = CGFloat(config.statusBar.effectiveThickness) + 12
+        let barBand = CGFloat(config.statusBar.effectiveThickness) + 14
         let inBand: Bool
         if config.statusBar.position == .bottom {
             inBand = mouse.y <= (revealed ? barBand : Self.summonBand)
@@ -54,7 +72,8 @@ final class BarAutoHide {
             pointerLeftAt = nil
             if !revealed {
                 revealed = true
-                try? bar.setHidden(false)
+                DragLog.log("autohide: pointer at the edge — sliding in")
+                try? bar.animateBarOffset(revealOffset(config))
             }
             return
         }
@@ -63,7 +82,18 @@ final class BarAutoHide {
         if Date().timeIntervalSince(pointerLeftAt!) >= config.statusBar.autoHideDelay {
             revealed = false
             pointerLeftAt = nil
-            try? bar.setHidden(true)
+            DragLog.log("autohide: sliding away")
+            try? bar.animateBarOffset(
+                SketchyBarConfigEmitter.hiddenOffset(for: config.statusBar))
         }
+    }
+
+    /// The bar's shown position, dock lift included — the same numbers the
+    /// emitted config uses, from the same function.
+    private func revealOffset(_ config: PanewrightConfig) -> Int {
+        SketchyBarConfigEmitter.barGeometry(
+            for: config.statusBar.theme,
+            dockInsetBottom: DockInset.bottom, dockInsetSides: DockInset.sides
+        ).yOffset
     }
 }

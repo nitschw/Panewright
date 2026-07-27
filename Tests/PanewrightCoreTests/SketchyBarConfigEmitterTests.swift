@@ -564,7 +564,7 @@ import Testing
         var config = PanewrightConfig.default
         config.statusBar.autoHide = true
         let rc = try SketchyBarConfigEmitter.emit(config).sketchybarrc
-        #expect(rc.contains("hidden=on"))
+        #expect(rc.contains("y_offset=\(SketchyBarConfigEmitter.hiddenOffset(for: config.statusBar))"))
         #expect(SketchyBarConfigEmitter.reservedGap(for: config.statusBar) == 0)
         // And the engine's gaps agree — no reserved strip.
         #expect(AeroSpaceConfigEmitter.emit(config).contains("outer.bottom = 10"))
@@ -572,7 +572,8 @@ import Testing
 
     @Test func offByDefaultAndRoundTrips() throws {
         let rc = try SketchyBarConfigEmitter.emit(.default).sketchybarrc
-        #expect(!rc.contains("hidden=on"))
+        let barLine = rc.split(separator: "\n").first { $0.contains("$BAR --bar ") } ?? ""
+        #expect(!barLine.contains("y_offset=-"))
         var config = PanewrightConfig.default
         config.statusBar.autoHide = true
         config.statusBar.autoHideDelay = 12

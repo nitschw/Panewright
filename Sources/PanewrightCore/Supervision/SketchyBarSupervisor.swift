@@ -83,11 +83,16 @@ public struct SketchyBarSupervisor: Sendable {
         return offset
     }
 
-    /// Show/hide the whole bar in place — the auto-hide feature's verb.
-    public func setHidden(_ hidden: Bool) throws {
+    /// Slide the bar to a y_offset with SketchyBar's animator — the
+    /// auto-hide feature's verb. `hidden=on` exists but is instantaneous;
+    /// sliding off the edge is what reads as the bar leaving rather than
+    /// vanishing.
+    public func animateBarOffset(_ yOffset: Int, frames: Int = 25) throws {
         let process = Process()
         process.executableURL = executableURL
-        process.arguments = ["--bar", "hidden=\(hidden ? "on" : "off")"]
+        process.arguments = [
+            "--animate", "tanh", "\(frames)", "--bar", "y_offset=\(yOffset)",
+        ]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         try process.run()
