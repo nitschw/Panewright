@@ -5,6 +5,13 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- Bug reports (not just crash prompts) now attach any crash either process
+  suffered in the last day — the symbolicated trace from macOS's own
+  DiagnosticReports, for both the app and the engine. A hard crash dies
+  without a log line, so "it crashed" reports used to arrive with logs
+  showing nothing wrong while the whole story sat in an .ips file.
+
 ## [0.6.10] — 2026-07-27
 
 ### Fixed

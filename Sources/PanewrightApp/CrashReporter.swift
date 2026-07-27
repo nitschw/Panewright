@@ -111,13 +111,31 @@ enum CrashReporter {
             **What happened:**
 
             **What I expected:**
-            \(logSection(maxCharacters: 3200))
+            \(logSection(maxCharacters: 3200))\(recentCrashes())
             """
+    }
+
+    /// Any crash either of our processes suffered in the last day rides
+    /// along with a bug report. The app dies without ceremony on a hard
+    /// crash — no log line, no exception handler — so the user's "it
+    /// crashed" report used to arrive with logs that showed nothing wrong.
+    /// macOS wrote the whole story to DiagnosticReports; include it.
+    private static func recentCrashes() -> String {
+        let since = Date().addingTimeInterval(-86400)
+        var sections: [String] = []
+        if let app = latestCrashReport(since: since, prefix: "panewright") {
+            sections.append(app)
+        }
+        if let engine = latestCrashReport(since: since, prefix: "AeroSpace") {
+            sections.append(engine)
+        }
+        guard !sections.isEmpty else { return "" }
+        return "\n\n" + sections.joined(separator: "\n\n")
     }
 
     // MARK: macOS crash reports (.ips)
 
-    private static func latestCrashReport(since: Date) -> String? {
+    private static func latestCrashReport(since: Date, prefix: String = "panewright") -> String? {
         let directory = FileManager.default.homeDirectoryForCurrentUser
             .appending(path: "Library/Logs/DiagnosticReports")
         guard
@@ -133,7 +151,7 @@ enum CrashReporter {
         let latest =
             files
             .filter {
-                $0.lastPathComponent.hasPrefix("panewright") && $0.pathExtension == "ips"
+                $0.lastPathComponent.hasPrefix(prefix) && $0.pathExtension == "ips"
                     && modified($0) > since
             }
             .max { modified($0) < modified($1) }
