@@ -17,6 +17,12 @@ cask "panewright" do
     strategy :github_latest
   end
 
+  # Sparkle updates the app in place, so brew's records go stale by design.
+  # Without this, `brew outdated` reported every Sparkle update as pending —
+  # including in Panewright's own brew widget, which nagged its user to
+  # re-install the thing they'd just updated.
+  auto_updates true
+
   depends_on macos: :sonoma
 
   # The tiling engine (Panewright's build of AeroSpace) ships INSIDE the app
