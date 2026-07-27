@@ -5,6 +5,15 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- Rapid workspace switching ending on an empty workspace no longer gets
+  yanked back (engine): an empty workspace leaves the old window holding
+  native focus, and stale async focus grants from the switch before landed
+  late — the engine followed both and dragged you to whatever workspace
+  that window lived on. A one-second grace window after focusing an empty
+  workspace swallows them. Verified with nine consecutive rapid 2→1→6 runs
+  all ending on 6 (previously flaky).
+
 ## [0.6.9] — 2026-07-27
 
 ### Fixed
