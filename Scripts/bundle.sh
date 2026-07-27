@@ -43,6 +43,14 @@ CLI_BIN="$HOME/src/AeroSpace-patched/.build/apple/Products/Release/aerospace"
 if [ -f "$ENGINE" ]; then
     mkdir -p "$APP/Contents/Helpers"
     cp "$ENGINE" "$APP/Contents/Helpers/AeroSpace"
+    # The engine's default config in the app bundle's Resources — Bundle.main
+    # for a Contents/Helpers executable resolves to the surrounding .app.
+    # (Not in Helpers/: codesign refuses data files there.) Without this
+    # file the engine's only fallback is the compile-time #filePath of the
+    # dev checkout — it booted on the one machine that has it and died with
+    # an assertion on every other machine, every launch.
+    DEFAULT_CONFIG="$HOME/src/AeroSpace-patched/docs/config-examples/default-config.toml"
+    cp "$DEFAULT_CONFIG" "$APP/Contents/Resources/default-config.toml"
     # Named aerospace-cli, not aerospace: APFS is case-insensitive by
     # default, so "aerospace" beside "AeroSpace" would be the same file.
     [ -f "$CLI_BIN" ] && cp "$CLI_BIN" "$APP/Contents/Helpers/aerospace-cli"

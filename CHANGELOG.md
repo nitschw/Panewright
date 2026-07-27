@@ -5,6 +5,14 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- **The engine now starts on machines that aren't the development machine.**
+  Its default-config lookup fell through to a compile-time source path that
+  exists exactly one place in the world, so on every other machine the
+  engine died with an assertion on every launch — the bar drew, tiling
+  silently never worked. The config now ships in the app bundle and the
+  engine knows where to find it. (Issues #1, #2 — thank you, work MacBook.)
+
 ## [0.6.1] — 2026-07-27
 
 ### Fixed
