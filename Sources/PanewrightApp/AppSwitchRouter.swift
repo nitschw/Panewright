@@ -17,6 +17,15 @@ final class AppSwitchRouter {
     /// another activation notification. Without this the router would answer
     /// its own move and could ping-pong between two workspaces.
     private var actingUntil = Date.distantPast
+    /// The workspace as of the last activation event, to tell a summons from
+    /// fallout. Switching to an *empty* workspace focuses no window, so
+    /// macOS re-activates whichever app is still frontmost — on several
+    /// monitors there's always one — and answering that activation yanked
+    /// the user straight back to that app's workspace ("I pressed 6 and it
+    /// took me to 4"). An activation that arrives together with a workspace
+    /// change is the switch's exhaust, not the user summoning an app.
+    private var lastSeenWorkspace = ""
+    private var lastWorkspaceChange = Date.distantPast
 
     func start() {
         stop()
@@ -48,6 +57,15 @@ final class AppSwitchRouter {
         guard let focused = try? cli.run(["list-workspaces", "--focused"]).trimmed(),
             !focused.isEmpty
         else { return }
+        if focused != lastSeenWorkspace {
+            let arrivedWithSwitch = !lastSeenWorkspace.isEmpty
+            lastSeenWorkspace = focused
+            lastWorkspaceChange = Date()
+            if arrivedWithSwitch { return }
+        }
+        // Activation bursts trail a switch for a beat; none of them is a
+        // deliberate summons.
+        guard Date().timeIntervalSince(lastWorkspaceChange) >= 2 else { return }
         let windows = knownWindows(cli: cli)
         switch AppSwitchRouting.route(to: bundleID, windows: windows, focusedWorkspace: focused) {
         case .nothing:
@@ -61,6 +79,13 @@ final class AppSwitchRouter {
             DragLog.log("switch: summoned parked \(bundleID)")
         case .focusWindow(let id):
             actingUntil = Date().addingTimeInterval(1.5)
+            // Our own follow changes the workspace; pre-record the
+            // destination so the next genuine Cmd+Tab isn't mistaken for
+            // switch fallout and dropped.
+            if let destination = windows.first(where: { $0.id == id })?.workspace {
+                lastSeenWorkspace = destination
+                lastWorkspaceChange = .distantPast
+            }
             try? cli.run(["focus", "--window-id", "\(id)"])
             DragLog.log("switch: followed \(bundleID) to its workspace")
         }

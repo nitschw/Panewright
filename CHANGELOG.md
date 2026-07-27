@@ -5,6 +5,18 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- Switching to an empty workspace no longer bounces you elsewhere. Two
+  culprits: app-activation events that are the switch's own exhaust (macOS
+  re-activates whatever's still frontmost when the new workspace has no
+  window to focus) were treated as "the user summoned this app" and
+  followed to its workspace; and the orphan-adoption nudge could tug focus
+  to the raised window — with apps that churn helper windows (Steam), every
+  15-second sweep found a fresh "orphan" and dragged you to its workspace.
+  The follower now ignores activations that arrive with a workspace change,
+  and the adopter restores your workspace if a nudge moved it and limits
+  itself to one nudge per app per ten minutes.
+
 ## [0.6.7] — 2026-07-27
 
 ### Changed

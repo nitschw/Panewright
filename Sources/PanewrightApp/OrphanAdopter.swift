@@ -26,6 +26,12 @@ final class OrphanAdopter {
     private var candidates: Set<UInt32> = []
     /// Windows we nudged, so a failed adoption is logged once, not forever.
     private var nudged: Set<UInt32> = []
+    /// Last nudge per app. Some apps (Steam) churn helper windows with fresh
+    /// ids continuously — without a cooldown every sweep found a "new"
+    /// orphan to raise, and each raise could tug focus toward it: the user
+    /// got dragged to that app's workspace every fifteen seconds.
+    private var lastNudgeByApp: [String: Date] = [:]
+    private static let perAppCooldown: TimeInterval = 600
 
     /// Owners that legitimately live outside the tiling.
     private static let infrastructure: Set<String> = [
@@ -69,11 +75,25 @@ final class OrphanAdopter {
             if candidates.contains(window.id) { confirmed.append(window) }
         }
         candidates = seen
+        guard !confirmed.isEmpty else { return }
+        // The raise can tug OS focus to the raised window, and the engine
+        // follows focus — an adoption nudge must never cost the user their
+        // workspace. Remember where they were; put them back if it moved.
+        let focusedBefore = (try? cli.run(["list-workspaces", "--focused"]))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        var raisedAny = false
         for window in confirmed {
             if nudged.contains(window.id) { continue }
+            if let last = lastNudgeByApp[window.ownerName],
+                Date().timeIntervalSince(last) < Self.perAppCooldown
+            {
+                continue
+            }
             nudged.insert(window.id)
             if nudged.count > 512 { nudged = [window.id] }
+            lastNudgeByApp[window.ownerName] = Date()
             if Self.raise(window) {
+                raisedAny = true
                 DragLog.log(
                     "orphan: \(window.ownerName) (\(window.id)) has no workspace"
                         + " — raised it for adoption")
@@ -81,6 +101,16 @@ final class OrphanAdopter {
                 DragLog.log(
                     "orphan: \(window.ownerName) (\(window.id)) has no workspace"
                         + " and resisted the nudge — leaving it alone")
+            }
+        }
+        guard raisedAny, let focusedBefore, !focusedBefore.isEmpty else { return }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(400))
+            let now = (try? cli.run(["list-workspaces", "--focused"]))?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if let now, now != focusedBefore {
+                DragLog.log("orphan: nudge moved focus \(focusedBefore) → \(now) — restoring")
+                _ = try? cli.run(["workspace", focusedBefore])
             }
         }
     }
