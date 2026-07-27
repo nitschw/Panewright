@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.13] — 2026-07-27
+
 ### Fixed
 - **Rapid workspace switching is finally trustworthy** — keys or bar
   clicks, occupied or empty destinations. Three layers: the engine gates
