@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.4] — 2026-07-27
+
 ### Fixed
 - The engine no longer deletes its own Accessibility entry while waiting
   for the grant (an upstream reset that, embedded, erased the very row the
