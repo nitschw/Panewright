@@ -677,45 +677,83 @@ struct SettingsView: View {
 
     // MARK: Scripting
 
-    /// A hook field: empty means unset — the config stores nil, not "".
+    /// A hook field with a real explanation: when it fires, what it's for,
+    /// and what each environment variable means — "WORKSPACE ·
+    /// PREV_WORKSPACE" is a reminder for someone who already knows, not a
+    /// description for someone who doesn't.
     private func hookField(
-        _ label: String, _ keyPath: WritableKeyPath<PanewrightConfig, String?>,
-        env: String
+        _ title: String, _ keyPath: WritableKeyPath<PanewrightConfig, String?>,
+        fires: String, vars: [(String, String)]
     ) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).fontWeight(.medium)
+            Text(fires).font(.caption).foregroundStyle(.secondary)
             TextField(
-                label,
+                "",
                 text: Binding(
                     get: { model.config[keyPath: keyPath] ?? "" },
                     set: {
                         model.config[keyPath: keyPath] = $0.isEmpty ? nil : $0
                         model.configChanged()
                     }),
-                prompt: Text("command or script path"))
-            Text(env).font(.caption2).foregroundStyle(.tertiary)
+                prompt: Text("shell command, or path to a script — empty = off"))
+            VStack(alignment: .leading, spacing: 1) {
+                ForEach(vars, id: \.0) { name, meaning in
+                    Text("$\(name)").font(.caption2.monospaced())
+                        + Text("  \(meaning)").font(.caption2)
+                }
+            }
+            .foregroundStyle(.tertiary)
         }
+        .padding(.bottom, 6)
     }
 
     private var hooksSection: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Hooks").font(.headline)
-            Text("Each runs your command when the event fires, with the event's details in the environment.")
+            Text("A hook is a shell command Panewright runs for you when something happens on the desktop — the same idea as i3's exec on events. Put a command or a script path in a field and it runs every time that event fires, with details passed as environment variables your script can read.")
                 .font(.caption).foregroundStyle(.secondary)
+            Text("Try it: paste  say \"workspace $WORKSPACE\"  into the first field, switch workspaces, and your Mac announces them. (Then clear the field.)")
+                .font(.caption).foregroundStyle(.secondary)
+                .padding(6)
+                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
             hookField(
                 "Workspace changed", \.workspaceChangedHook,
-                env: "WORKSPACE · PREV_WORKSPACE")
+                fires: "Every time you switch workspaces — by key, click, or drag. Good for: per-workspace wallpaper, logging where your time goes, external status displays.",
+                vars: [
+                    ("WORKSPACE", "the workspace you just landed on"),
+                    ("PREV_WORKSPACE", "the one you came from"),
+                ])
             hookField(
                 "Focus changed", \.focusChangedHook,
-                env: "FOCUSED_APP · FOCUSED_WINDOW_ID · WORKSPACE — fires often; keep it light")
+                fires: "Every time a different window takes focus. Fires a lot — keep the command fast, and do heavy work in a background job it kicks off. Good for: per-app keyboard layouts, time trackers.",
+                vars: [
+                    ("FOCUSED_APP", "name of the app that now has focus"),
+                    ("FOCUSED_WINDOW_ID", "its window's id (usable with the aerospace CLI)"),
+                    ("WORKSPACE", "where that window lives"),
+                ])
             hookField(
                 "Window opened", \.windowOpenedHook,
-                env: "WINDOW_ID · APP_NAME · APP_BUNDLE_ID")
+                fires: "A new window appeared anywhere, on any workspace. Good for: auto-arranging apps beyond the per-app rules, notifications for long-awaited windows.",
+                vars: [
+                    ("WINDOW_ID", "the new window's id"),
+                    ("APP_NAME", "the app it belongs to"),
+                    ("APP_BUNDLE_ID", "that app's bundle identifier"),
+                ])
             hookField(
                 "Window closed", \.windowClosedHook,
-                env: "WINDOW_ID · APP_NAME · APP_BUNDLE_ID — still names the app that owned it")
+                fires: "A window went away. The variables still describe it — Panewright remembers what it was, even though it's gone.",
+                vars: [
+                    ("WINDOW_ID", "the closed window's (former) id"),
+                    ("APP_NAME", "the app that owned it"),
+                    ("APP_BUNDLE_ID", "that app's bundle identifier"),
+                ])
             hookField(
                 "Mode changed", \.modeChangedHook,
-                env: "MODE (main, resize, join, pills…)")
+                fires: "You entered or left a binding mode (resize, join, pills — or back to main). Good for: syncing an external keypad or lighting to the current mode.",
+                vars: [
+                    ("MODE", "the mode just entered: main, resize, join, pills…")
+                ])
         }
     }
 
