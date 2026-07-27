@@ -864,7 +864,12 @@ final class AppModel {
             // coming back. Both checks below then "recover" a system that was
             // never broken — restarting AeroSpace and rebuilding the bar every
             // time the lid opens.
-            guard !WakeGuard.isSettling else { return }
+            // Both reads are main-actor state and this timer fires on the
+            // main run loop — assumeIsolated makes that explicit, which older
+            // toolchains require (the bare read compiled locally and failed
+            // in CI under a stricter checker).
+            let settling = MainActor.assumeIsolated { WakeGuard.isSettling }
+            guard !settling else { return }
             let insets = MainActor.assumeIsolated { (DockInset.bottom, DockInset.sides) }
             Task.detached(priority: .utility) {
                 let orchestrator = Orchestrator()
