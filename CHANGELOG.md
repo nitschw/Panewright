@@ -52,6 +52,11 @@ the `Unreleased` section becomes the next release's notes.
   widget subset, or hide a display's bar entirely. Re-applies automatically
   as displays come and go — and editable in Settings → Appearance → "Bar
   per monitor".
+- **Your scripts in the palette.** Anything executable in
+  `~/.config/panewright/scripts/user-scripts/` appears in `$mod+D`
+  automatically — `deploy-staging.sh` becomes "Deploy Staging", no
+  registration step. Scripts using `panewright menu` get their picker;
+  plain scripts just run.
 - **Orphan windows get adopted.** A window the engine never learned about —
   born during an engine restart, or an app whose windows misreport their
   type until touched (Steam) — used to lurk outside the tiling and snap

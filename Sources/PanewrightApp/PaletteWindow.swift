@@ -249,7 +249,41 @@ final class PaletteModel {
                     title: $0.0, subtitle: "Panewright command", icon: nil,
                     kind: .command($0.1))
             })
+        items.append(contentsOf: userScripts())
         return items
+    }
+
+    /// Everything executable in `user-scripts/` becomes a palette entry —
+    /// drop a script in the folder (or Settings → Scripting → "New Script
+    /// from Template…") and it's in `$mod+D`, no registration step. The
+    /// filename is the label, prettied: `deploy-staging.sh` → "Deploy
+    /// Staging". Scripts that speak the `panewright menu` contract get their
+    /// picker; plain scripts just run.
+    private static func userScripts() -> [PaletteItem] {
+        let directory = FileManager.default.homeDirectoryForCurrentUser
+            .appending(path: ".config/panewright/scripts/user-scripts")
+        guard
+            let entries = try? FileManager.default.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: nil)
+        else { return [] }
+        return entries
+            .filter { FileManager.default.isExecutableFile(atPath: $0.path) }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+            .map { url in
+                let name = url.deletingPathExtension().lastPathComponent
+                    .replacingOccurrences(of: "-", with: " ")
+                    .replacingOccurrences(of: "_", with: " ")
+                    .capitalized
+                return PaletteItem(
+                    title: name, subtitle: "Your script", icon: nil,
+                    kind: .command {
+                        let process = Process()
+                        process.executableURL = URL(filePath: "/bin/bash")
+                        process.arguments = [url.path]
+                        process.terminationHandler = { _ in }
+                        try? process.run()
+                    })
+            }
     }
 }
 
