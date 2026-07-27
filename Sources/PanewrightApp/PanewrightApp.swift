@@ -1004,6 +1004,10 @@ final class AppModel {
     /// the user can do, so tell them (once) instead of thrashing.
     private var aeroStallRestarted = false
     private var aeroStallNotified = false
+    /// Consecutive health ticks with the engine process alive but its CLI
+    /// server silent — the signature of an engine waiting for Accessibility.
+    private var engineWaitingTicks = 0
+    private var engineWaitingNotified = false
     private func checkAeroSpaceHealth(_ orchestrator: Orchestrator) async {
         // A dead engine first, and separately from a stalled one. The stall
         // path exists for a *running* engine that lost Accessibility; before
@@ -1037,6 +1041,31 @@ final class AppModel {
             }
             return
         }
+        // Alive but silent: an engine that lacks Accessibility doesn't die —
+        // it loops waiting for the grant, hotkeys unregistered, tiling
+        // dormant, its CLI server never started. From the outside that's
+        // "Panewright runs but nothing happens", and the first launch's
+        // permission prompt leaves an *unchecked* AeroSpace row that blocks
+        // the inheritance from Panewright's own grant. Say exactly what to
+        // click, once, after the state has held for a minute.
+        if orchestrator.isAeroSpaceProcessRunning(),
+            AeroSpaceCLI.locate().map({ (try? $0.run(["list-workspaces", "--focused"])) == nil })
+                ?? false
+        {
+            engineWaitingTicks += 1
+            if engineWaitingTicks >= 3, !engineWaitingNotified {
+                engineWaitingNotified = true
+                DragLog.log(
+                    "aerospace health: engine alive but its server is silent"
+                        + " — likely waiting for Accessibility")
+                notify(
+                    "The tiling engine is waiting for permission. In System Settings"
+                        + " → Privacy & Security → Accessibility, enable “AeroSpace”"
+                        + " — tiling starts the moment it's on.")
+            }
+            return
+        }
+        engineWaitingTicks = 0
         let onScreen = WindowSnapshot.capture().filter {
             !Self.systemOwners.contains($0.ownerName)
         }.count

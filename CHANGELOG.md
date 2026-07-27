@@ -5,6 +5,13 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- When the engine is alive but waiting for the Accessibility grant (fresh
+  installs: the first-launch prompt leaves an *unchecked* "AeroSpace" row
+  that blocks it), Panewright now notices within a minute and tells you the
+  exact switch to flip — instead of running a bar over a desktop that
+  silently never tiles.
+
 ## [0.6.2] — 2026-07-27
 
 ### Fixed
