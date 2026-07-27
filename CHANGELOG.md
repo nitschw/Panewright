@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.8] — 2026-07-27
+
 ### Fixed
 - Switching to an empty workspace no longer bounces you elsewhere. Two
   culprits: app-activation events that are the switch's own exhaust (macOS
