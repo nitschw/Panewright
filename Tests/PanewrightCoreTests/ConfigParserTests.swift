@@ -206,9 +206,9 @@ import Testing
 
     @Test func newDefaultsCarryTheTrioAndEmitDeepLinks() {
         let toml = AeroSpaceConfigEmitter.emit(.default)
-        #expect(toml.contains("alt-d = 'exec-and-forget open panewright://launcher'"))
-        #expect(toml.contains("alt-o = 'exec-and-forget open panewright://overview'"))
-        #expect(toml.contains("alt-backtick = 'exec-and-forget open panewright://dropdown'"))
+        #expect(toml.contains("alt-d = 'exec-and-forget open -g panewright://launcher'"))
+        #expect(toml.contains("alt-o = 'exec-and-forget open -g panewright://overview'"))
+        #expect(toml.contains("alt-backtick = 'exec-and-forget open -g panewright://dropdown'"))
     }
 
     @Test func dropdownConfigRoundTrips() throws {

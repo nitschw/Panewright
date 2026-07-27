@@ -24,6 +24,19 @@ final class WindowFitController {
 
     /// Overlap must be seen twice running before anything moves.
     private var consecutiveOverlaps = 0
+    /// The window set last tick, and when it last changed. A change means a
+    /// workspace switch, a new window, or a closed one — all moments when
+    /// frames are legitimately mid-flight. Correcting or *learning* against
+    /// them is how bopping between two workspaces taught the fitter that
+    /// Messages' minimum width is 885 points (it is 660) and evicted two
+    /// windows in twenty seconds off the fiction: a mid-unpark window
+    /// refuses a resize because it is busy, which is indistinguishable from
+    /// hitting its floor.
+    private var lastMembership: Set<UInt32> = []
+    private var lastMembershipChange = Date.distantPast
+    /// Unpark plus retile settles well inside a second; churny moments
+    /// (windows opening in bursts) just extend the quiet period.
+    private static let membershipSettle: TimeInterval = 1.2
     /// True while a convergence burst is in flight, so the timer can't start a
     /// second one on top of it.
     private var converging = false
@@ -126,6 +139,15 @@ final class WindowFitController {
         }
         let windows = currentWindows(cli: cli)
         prune(to: windows, config: config)
+        let membership = Set(windows.map(\.id))
+        if membership != lastMembership {
+            lastMembership = membership
+            lastMembershipChange = Date()
+        }
+        if Date().timeIntervalSince(lastMembershipChange) < Self.membershipSettle {
+            consecutiveOverlaps = 0
+            return
+        }
         if config.fitting.floatOnTop { raiseFloaters() }
         guard windows.count > 1 else {
             reset()

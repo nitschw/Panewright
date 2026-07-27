@@ -50,6 +50,14 @@ public enum AeroSpaceConfigEmitter {
         }
         // Skip junk entries (an empty row in the editor, a stray dash) —
         // they'd emit rules that match nothing.
+        // Panewright's own windows (settings, cheat sheet, palette) are
+        // infrastructure, never tiling candidates — the engine once adopted a
+        // cheat-sheet window and parked it on a workspace, and activating the
+        // app then yanked focus there. Unconditional: not a user preference.
+        lines.append("[[on-window-detected]]")
+        lines.append("if.app-id = 'com.panewright.app'")
+        lines.append("run = 'layout floating'")
+        lines.append("")
         for appId in config.floatingApps where appId.contains(".") {
             lines.append("[[on-window-detected]]")
             lines.append("if.app-id = '\(appId)'")
@@ -260,11 +268,15 @@ public enum AeroSpaceConfigEmitter {
         case .help:
             "exec-and-forget open panewright://help"
         case .launcher:
-            "exec-and-forget open panewright://launcher"
+            // -g on all three panel links: plain `open` activates Panewright
+            // to deliver the URL, and the activation ripples into a workspace
+            // switch before the (deliberately nonactivating) panel even
+            // appears. Background delivery shows the panel and moves nothing.
+            "exec-and-forget open -g panewright://launcher"
         case .overview:
-            "exec-and-forget open panewright://overview"
+            "exec-and-forget open -g panewright://overview"
         case .dropdownToggle:
-            "exec-and-forget open panewright://dropdown"
+            "exec-and-forget open -g panewright://dropdown"
         case .balanceSizes: "balance-sizes"
         case .nativeFullscreen: "macos-native-fullscreen"
         case .minimize: "macos-native-minimize"
