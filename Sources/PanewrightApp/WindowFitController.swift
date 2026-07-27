@@ -142,6 +142,8 @@ final class WindowFitController {
     /// layout genuinely too full still resolves without being touched again.
     private static let settleAfterInteraction: TimeInterval = 3
     private static let reEvictionGuard: TimeInterval = 10
+    private static let switchStampPath = NSHomeDirectory()
+        + "/.config/panewright/.last-switch"
 
     init(notify: @escaping (String) -> Void) {
         self.notify = notify
@@ -181,6 +183,19 @@ final class WindowFitController {
         // Nothing measured just after a wake is trustworthy — not the frames,
         // and not a window's refusal to resize.
         guard !WakeGuard.isSettling else {
+            for state in states.values { state.consecutiveOverlaps = 0 }
+            return
+        }
+        // The user is actively switching workspaces: every frame on the
+        // glass is mid-teleport, membership is a lie, and acting on any of
+        // it is how a rapid bar-click session got windows evicted to three
+        // different workspaces with the user dragged along behind them. The
+        // switch dispatch script stamps this file; a fresh stamp means
+        // hands off, entirely.
+        if let stamp = try? FileManager.default.attributesOfItem(
+            atPath: Self.switchStampPath)[.modificationDate] as? Date,
+            Date().timeIntervalSince(stamp) < 2.5
+        {
             for state in states.values { state.consecutiveOverlaps = 0 }
             return
         }

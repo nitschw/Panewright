@@ -334,6 +334,11 @@ public struct Orchestrator: Sendable {
             # Runs on every workspace switch (AeroSpace exec-on-workspace-change).
             A="$HOME/.config/panewright/bin/aerospace"; [ -x "$A" ] || A=/opt/homebrew/bin/aerospace
 
+            # Stamp the switch for the fitter: while the user is actively
+            # navigating, window frames are mid-teleport and nothing measured
+            # means anything. A bash builtin, so it costs no process.
+            : > "$HOME/.config/panewright/.last-switch"
+
             # Summoning a workspace away can leave the vacated monitor on an
             # auto-invented workspace (10, 11, …) that has no bar pill. Land it
             # on a free persistent workspace instead — WITHOUT touching focus:

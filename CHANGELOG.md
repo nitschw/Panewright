@@ -5,6 +5,22 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- **Rapid workspace switching is finally trustworthy** — keys or bar
+  clicks, occupied or empty destinations. Three layers: the engine gates
+  focus-following while a switch's own focus grant is in flight (slow apps
+  deliver them seconds late, and the still-active app reasserting itself
+  looked like user intent — both dragged you backwards through your own
+  switches); the fitter stands down entirely for 2.5s after any switch
+  (mid-teleport frames once read as overlap and got the focused window
+  evicted with you attached); and grants that predate your latest command
+  are discarded as echoes. Verified with a 12-round rapid-switch gauntlet,
+  all clean — the same gauntlet previously failed two rounds in three.
+- The engine no longer segfaults during display renumbering storms
+  (issue #6's trace: a SkyLight crash inside NSScreen enumeration mid-
+  reconfiguration) — the monitor list is served from cache for a beat
+  after any display reconfiguration event.
+
 ## [0.6.12] — 2026-07-27
 
 ### Changed
