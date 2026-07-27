@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.14] — 2026-07-27
+
 ### Fixed
 - Undocking and redocking recover in seconds instead of the better part of
   a minute. Recovery was passive — the 20-second health cadence, three
