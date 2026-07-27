@@ -112,6 +112,7 @@
       <a href="#drag">Drag-to-tile</a>
       <a href="#scratchpad">Scratchpad</a>
       <a href="#rules">Per-app rules</a>
+      <a href="#fitting">Overlap rescue</a>
       <a href="#ffm">Focus follows mouse</a>
     </div>
     <div class="toc-group">
@@ -161,8 +162,8 @@ brew install nitschw/tap/panewright   <span class="c"># Panewright + the tiling 
   <p>That's the only permissions row — the tiling engine is a child process of Panewright, so macOS attributes its window control to Panewright and it never appears in System Settings separately.</p>
 
   <h2 id="concepts">How it works</h2>
-  <p>Panewright is an orchestrator: it reads your one config file and generates/supervises the configs of AeroSpace, JankyBorders, and SketchyBar. Save your config and everything downstream reloads within a second.</p>
-  <p><b>It also supervises them.</b> If the status bar dies it comes back on its own, and if AeroSpace's Accessibility connection stalls under load — the honest weakness of every macOS tiler — Panewright detects it, restarts the engine, and only bothers you (to re-grant the permission) if the restart doesn't take. The tiling is meant to stay up, not go quietly dead until you notice.</p>
+  <p>Panewright reads your one config file and drives everything from it. The tiling engine — Panewright's own build of AeroSpace, <a href="https://github.com/nitschw/AeroSpace/tree/panewright">patches in the open</a> — runs <b>inside the app</b> as a child process under Panewright's permission grant; the focus borders (JankyBorders) and status bar (SketchyBar) are supervised external tools whose configs Panewright generates. Save your config and everything downstream reloads within a second.</p>
+  <p><b>It also keeps the system alive.</b> If the bar dies it comes back on its own. If the engine dies or its Accessibility connection stalls under load — the honest weakness of every macOS tiler — Panewright respawns it, and because it continuously snapshots which window lives on which workspace, the restart puts everything back where it was instead of dumping your layout onto one workspace. It only bothers you (to re-grant the permission) if a restart doesn't take.</p>
   <div class="note">Files Panewright generates — <code>~/.config/aerospace/aerospace.toml</code>, <code>~/.config/sketchybar/*</code>, <code>~/.config/panewright/scripts/*</code> — are overwritten on every apply. Edit <code>panewright.toml</code>, not them.</div>
 
   <h2 id="mod">The mod key</h2>
@@ -331,6 +332,19 @@ action = "mode main"</pre>
   <p>Find any app's bundle ID:</p>
   <pre>osascript -e 'id of app "Spotify"'</pre>
 
+  <h2 id="fitting">Overlap rescue</h2>
+  <pre>[fitting]
+enabled = true
+overflow = true        <span class="c"># allow moving a window out as the true last resort</span>
+minimum-usable = 360   <span class="c"># don't shrink anything narrower than this (points)</span></pre>
+  <p>macOS apps have minimum sizes and will refuse to shrink past them — the engine divides the space evenly, the app says no, and windows quietly render on top of each other. No error, no log; tiling just stops being tiling. Panewright watches the <b>real frames</b>, and when windows overlap it escalates in order:</p>
+  <ul>
+    <li><b>Shrink</b> whichever window has room to spare — asking only for the points actually missing, and learning each app's true floor from what it refuses to give</li>
+    <li><b>Stack two columns into one</b> when no column can give any more width — two windows at half height beats one window crushed to nothing or sent away</li>
+    <li><b>Move the newest window out</b>, only when no arrangement fits at all — with a toast naming the arithmetic (<i>"needs 2061pt but the display is 1712pt"</i>)</li>
+  </ul>
+  <p>Corrections pause while your mouse is down and for a few seconds after a wake, so it never fights your hand or a half-restored display. Set <code>overflow = false</code> if you'd rather live with overlap than have anything moved.</p>
+
   <h2 id="ffm">Focus follows mouse</h2>
   <pre>focus-follows-mouse = true    <span class="c"># default false</span></pre>
   <p>Hover moves focus — no click. Pairs well with the focus border. Automatically pauses during drags.</p>
@@ -353,8 +367,13 @@ accent-color = "#30D158"      <span class="c"># workspace highlight only; omit t
   <pre>[bar]
 enabled = true
 theme = "native"     <span class="c"># vibrancy + SF Pro — or "technical": square, monospace</span>
-accent-color = "#30D158"   <span class="c"># optional; defaults to the focus border's active color</span></pre>
-  <p>Each monitor's bar leads with its <b>M1/M2/M3 badge</b>, then that monitor's workspace numbers (clickable, drag targets, accent highlight on the active one), a <b>mode badge</b> while resize/join is active, and the frontmost app. Disabling the bar returns everything to the native macOS menu bar. Quick toggles for the bar and borders live in the menu bar icon's dropdown.</p>
+accent-color = "#30D158"   <span class="c"># optional; defaults to the focus border's active color</span>
+position = "bottom"  <span class="c"># or "top" (SketchyBar has no vertical bars)</span>
+thickness = 30       <span class="c"># bar height in points (18–60); tiles reserve space to match</span>
+font-size = 13       <span class="c"># label size (9–24)</span>
+opacity = 0.17       <span class="c"># background alpha 0–1; turn up for busy wallpaper</span>
+show-in-fullscreen = false</pre>
+  <p>Each monitor's bar leads with its <b>M1/M2/M3 badge</b>, then that monitor's workspace numbers (clickable, drag targets, accent highlight on the active one), a <b>mode badge</b> while resize/join is active, and the frontmost app. Disabling the bar returns everything to the native macOS menu bar. Quick toggles for the bar and borders live in the menu bar icon's dropdown. The bar stays clear of the Dock on its own — lifted above a bottom Dock, inset from a side one — and follows if you move the Dock while it's running.</p>
 
   <h2 id="modules">Bar widgets</h2>
   <p>Optional modules beyond the window manager. <b>Every one is off by default</b>, so the bar stays pure WM until you opt in. Open <b>Widgets…</b> from the menu bar icon to browse them all with a live example of each, toggle them (changes apply instantly — no bar reload), and drag to set their order. <b>Right-click any widget in the bar to turn it off.</b></p>
@@ -591,7 +610,7 @@ open "panewright://confluence/page/123456"
 open "panewright://integrations/jira"</pre>
 
   <h2 id="updates">Updates &amp; crash reports</h2>
-  <p>Panewright checks for new versions once a day and offers them; <b>Check for Updates…</b> in the menu asks immediately. Updates are cryptographically signed and delivered via Sparkle. If Panewright crashes, the next launch shows the full report text and offers to open a <b>pre-filled GitHub issue</b> — nothing is ever sent except by your own submit click.</p>
+  <p>Panewright checks for new versions once a day and offers them; <b>Check for Updates…</b> in the menu asks immediately. Updates are cryptographically signed and delivered via Sparkle. Installed through Homebrew? Same story — the cask declares <code>auto_updates</code>, so brew knows Sparkle owns updates and won't nag you to reinstall one you already have. If Panewright crashes, the next launch shows the full report text and offers to open a <b>pre-filled GitHub issue</b> — nothing is ever sent except by your own submit click.</p>
 
   <h2 id="quit">Quitting</h2>
   <p>Quit Panewright and macOS returns to stock: borders off, bar gone, every hidden window brought back on-screen, tiling stopped. Relaunch and the whole environment reassembles. <b>Launch at Login</b> (in the menu) makes it part of your Mac's boot.</p>
@@ -599,12 +618,13 @@ open "panewright://integrations/jira"</pre>
   <h2 id="troubleshooting">Troubleshooting</h2>
   <table>
     <tr><th>Symptom</th><th>Fix</th></tr>
-    <tr><td>Windows won't tile</td><td>AeroSpace probably lacks (or was granted after launch) Accessibility — grant it, then use the menu's <b>Restart AeroSpace</b></td></tr>
+    <tr><td>Windows won't tile</td><td>Panewright probably lacks (or was granted after launch) Accessibility — the engine runs under Panewright's grant. Grant it, then <b>Restart Environment</b> from the menu</td></tr>
     <tr><td>No drag ghosts</td><td>Panewright needs Accessibility + Input Monitoring; grant both, quit and reopen the app</td></tr>
     <tr><td>Layout got weird</td><td><kbd>$mod ⇧ G</kbd> flattens the workspace; rebuild with join mode</td></tr>
     <tr><td>Config error</td><td>Errors arrive as notifications with the line's problem; fix and save — applies instantly</td></tr>
     <tr><td>Everything's stacked full-screen</td><td>You're in accordion — <kbd>$mod E</kbd> returns to tiles</td></tr>
-    <tr><td>Deeper digging</td><td><code>~/Library/Logs/Panewright.log</code> records the drag engine and any survived exceptions</td></tr>
+    <tr><td>Engine restarted and my layout scrambled</td><td>It shouldn't — workspace assignments are snapshotted and restored automatically. If it happens, that's a bug worth reporting</td></tr>
+    <tr><td>Deeper digging</td><td><code>~/Library/Logs/Panewright.log</code> records the drag engine, fitting decisions, and survived exceptions; <code>PanewrightEngine.log</code> records the engine's own exit reasons</td></tr>
   </table>
 
 </main>

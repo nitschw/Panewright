@@ -291,7 +291,7 @@
   <section id="why">
     <div class="kicker">The honest question</div>
     <h2>“Isn’t this just AeroSpace?”</h2>
-    <p class="sub">Fair. <a href="https://github.com/nikitabobko/AeroSpace" style="color:var(--accent)">AeroSpace</a> is a great, free i3-like tiler, and Panewright runs on top of it — plus <a href="https://github.com/FelixKratz/JankyBorders" style="color:var(--accent)">JankyBorders</a> and <a href="https://github.com/FelixKratz/SketchyBar" style="color:var(--accent)">SketchyBar</a>. Panewright is the layer that turns three separate command-line tools into one app your parents could install — and adds the things a raw config can’t.</p>
+    <p class="sub">Fair. <a href="https://github.com/nikitabobko/AeroSpace" style="color:var(--accent)">AeroSpace</a> is a great, free i3-like tiler — and Panewright's engine is its own build of it (<a href="https://github.com/nitschw/AeroSpace/tree/panewright" style="color:var(--accent)">patches in the open</a>), shipped <b>inside the app</b> and running under Panewright's single permission grant, alongside <a href="https://github.com/FelixKratz/JankyBorders" style="color:var(--accent)">JankyBorders</a> and <a href="https://github.com/FelixKratz/SketchyBar" style="color:var(--accent)">SketchyBar</a>. Panewright is the layer that turns all of that into one app your parents could install — and adds the things a raw config can’t.</p>
     <div class="inv" style="margin-top:36px">
       <div>
         <h4>What Panewright adds</h4>
@@ -611,7 +611,7 @@
     <div class="qa">
       <div class="qa-item">
         <h4>Does it disable SIP?</h4>
-        <p>Never. Panewright orchestrates <a href="https://github.com/nikitabobko/AeroSpace">AeroSpace</a>, <a href="https://github.com/FelixKratz/JankyBorders">JankyBorders</a>, and <a href="https://github.com/FelixKratz/SketchyBar">SketchyBar</a> over public APIs — one brain, one config.</p>
+        <p>Never. Panewright's engine (its own build of <a href="https://github.com/nikitabobko/AeroSpace">AeroSpace</a>, shipped inside the app) and the tools it orchestrates — <a href="https://github.com/FelixKratz/JankyBorders">JankyBorders</a>, <a href="https://github.com/FelixKratz/SketchyBar">SketchyBar</a> — all use public APIs. One brain, one config, one permission grant.</p>
       </div>
       <div class="qa-item">
         <h4>Why does it want Accessibility <em>and</em> Input Monitoring?</h4>
@@ -619,7 +619,7 @@
       </div>
       <div class="qa-item">
         <h4>Won't it get flaky like other tilers?</h4>
-        <p>macOS's Accessibility API can stall under load — the honest weakness of every Mac tiler. Panewright <b>supervises</b> its engine: it restarts the bar if it dies and detects a stalled tiler, recovering it (or telling you to re-grant) instead of silently going dead until you notice.</p>
+        <p>macOS's Accessibility API can stall under load — the honest weakness of every Mac tiler. Panewright <b>supervises</b> its engine: a dead or stalled tiler is respawned, your window-to-workspace layout is snapshotted and restored across the restart, and the bar heals itself — instead of anything silently going dead until you notice.</p>
       </div>
       <div class="qa-item">
         <h4>Why isn't it on the App Store?</h4>

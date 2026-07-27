@@ -5,7 +5,9 @@
 <h1 align="center">Panewright</h1>
 <p align="center"><b>An i3-style tiling window manager for macOS</b> — for developers who miss i3.</p>
 <p align="center">
-  <a href="https://github.com/nitschw/Panewright/releases">Download</a> ·
+  <code>brew install nitschw/tap/panewright</code>
+</p>
+<p align="center">
   <a href="https://panewright.com">panewright.com</a> ·
   <a href="DESIGN.md">Design doc</a> ·
   <a href="https://patreon.com/panewright">Patreon</a>
@@ -19,19 +21,24 @@ scratchpad, per-app rules — delivered as **one menu bar app reading one
 config file**, with the platform's manners intact: native window chrome,
 no SIP disable, and a quit that restores your Mac to stock.
 
-It orchestrates best-in-class open primitives —
-[AeroSpace](https://github.com/nikitabobko/AeroSpace) (tiling),
-[JankyBorders](https://github.com/FelixKratz/JankyBorders) (focus borders),
-[SketchyBar](https://github.com/FelixKratz/SketchyBar) (status bar) —
-so you configure one system, not three.
+The tiling engine — Panewright's own build of
+[AeroSpace](https://github.com/nikitabobko/AeroSpace) — **ships inside the
+app** and runs under Panewright's single permission grant, so there is one
+app to install and one row in System Settings. The visual layer is
+best-in-class open primitives, orchestrated:
+[JankyBorders](https://github.com/FelixKratz/JankyBorders) (focus borders)
+and [SketchyBar](https://github.com/FelixKratz/SketchyBar) (status bar).
+You configure one system, not three.
 
 **Isn't this just AeroSpace?** AeroSpace is a great, free i3-like tiler, and
-Panewright runs on it. Panewright is the layer on top: the drag-to-tile
-interaction no CLI tiler has, one live config for all three tools, a visual
-editor, work-tracker integrations, and a supervisor that restarts what dies
-and recovers a stalled tiler. Rather run the three tools by hand? That's a
-fair choice — and since Panewright is MIT, you can read exactly how it does
-all of it.
+Panewright's engine is a build of it (patches
+[in the open](https://github.com/nitschw/AeroSpace/tree/panewright)).
+Panewright is everything on top: the drag-to-tile interaction no CLI tiler
+has, automatic overlap rescue for apps that refuse to shrink, one live
+config, a visual editor, work-tracker integrations, and a supervisor that
+respawns a dead engine and puts every window back on its workspace
+afterwards. Rather run the raw tools by hand? Fair choice — and since
+Panewright is MIT, you can read exactly how it does all of it.
 
 ## The headline: ghost drag-to-tile
 
@@ -65,32 +72,46 @@ tree reshapes on release, in one motion. No other macOS tiler has this.
   translates bindings/modes/gaps/colors/scratchpad, and flags every
   untranslatable line with a line number and a reason. Never silent.
 - **Profiles** — snapshot full configs by name, switch from the menu
-- **Status bar** — clickable workspace numbers with accent highlight, mode
-  badge, front app; one per monitor, each scoped to its own display;
-  native-vibrancy or square-monospace "technical" theme, one toggle apart
 - **Built-in cheat sheet** — `$mod+?` pops a window listing every binding in
   *your* config (not a stock list), plus the drag zones and bar interactions
+- **Overlap rescue** — macOS apps have minimum sizes and refuse to shrink
+  past them, which is how "tiling" quietly stops being tiling. Panewright
+  measures the real frames, learns each app's floor, and escalates:
+  shrink what has room, then **stack two columns** rather than crush
+  anything, and only then move a window out — telling you why
+- **Survives everything** — the engine is supervised and respawned, window
+  → workspace assignments are snapshotted continuously and restored after
+  any engine restart, and the bar heals its own ordering; opening your
+  laptop lid is not an event
+- **Status bar, your way** — clickable workspace numbers, mode badge, and
+  front app, one bar per monitor scoped to its own display; bottom or top
+  edge, thickness, text size, opacity, show-over-fullscreen; native-vibrancy
+  or square-monospace "technical" theme; it dodges the Dock on any edge
+  automatically
 - **A real off switch** — quitting stops the daemons, un-parks every
   hidden window, and leaves macOS exactly as Apple shipped it
 
 ## Install
 
 ```sh
-brew install --cask nikitabobko/tap/aerospace   # tiling engine (required)
-brew install FelixKratz/formulae/borders        # focus borders (optional)
-brew install FelixKratz/formulae/sketchybar     # status bar (optional)
-brew install --cask karabiner-elements          # Caps Lock as $mod (optional)
+brew trust nitschw/tap                # Homebrew requires this for third-party casks
+brew install nitschw/tap/panewright   # Panewright + engine, borders, status bar
 ```
 
-Prefer no extra software? macOS can remap Caps Lock to Control or Option
-natively (System Settings → Keyboard → Modifier Keys); pair that with
-`modifier = "ctrl"` or `"alt"`.
+That's the whole install — the tiling engine is built in, and the cask
+pulls in the borders and the bar. Launch Panewright and the setup
+checklist walks through the one permission step (Accessibility + Input
+Monitoring, both for Panewright itself — the engine runs under its
+grant). Already running AeroSpace separately? Uninstall it first; two
+engines fight over the same windows.
 
-Then grab [the latest release](https://github.com/nitschw/Panewright/releases),
-drop `Panewright.app` in Applications, and launch. The built-in setup
-checklist walks through the two permission grants (Accessibility for
-AeroSpace; Accessibility + Input Monitoring for Panewright's drag engine)
-and can install any missing tools itself — no terminal required.
+Want Caps Lock as `$mod` without extra software? macOS remaps Caps Lock
+to Control or Option natively (System Settings → Keyboard → Modifier
+Keys); pair that with `modifier = "ctrl"` or `"alt"`. For a true hyper
+key, `brew install --cask karabiner-elements`.
+
+Updates arrive through the app itself (Sparkle, signed); brew knows this
+and won't nag.
 
 Coming from i3?
 
@@ -101,14 +122,19 @@ panewright-dev import ~/.config/i3/config
 ## Building from source
 
 ```sh
-swift build && swift test        # library + 94 tests
+swift build && swift test        # library + 300-odd tests
 Scripts/bundle.sh release        # → build/Panewright.app (signed if you have a dev cert)
-Scripts/release.sh 0.1.0         # full release: version, zip, appcast, tag, GH release
+Scripts/release.sh 0.5.0         # full release: version, zip+dmg, appcast, tag, GH release, tap
 ```
 
-macOS 14+, Swift 6. The config model, parsers, emitters, and importer live
-in `PanewrightCore` (fully unit-tested, CI on every push); the menu bar
-app, drag engine, and editor in `PanewrightApp`.
+macOS 14+, Swift 6. The config model, parsers, emitters, window-fitting
+logic, and importer live in `PanewrightCore` (fully unit-tested, CI on
+every push); the menu bar app, drag engine, and editor in `PanewrightApp`.
+The engine patches live as a branch of
+[nitschw/AeroSpace](https://github.com/nitschw/AeroSpace/tree/panewright)
+with mirrors in `Patches/`; `bundle.sh` embeds the engine build when the
+fork checkout is present and falls back to a separately installed
+AeroSpace otherwise.
 
 ## Philosophy
 
