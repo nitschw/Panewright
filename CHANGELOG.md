@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.7] — 2026-07-27
+
 ### Changed
 - Workspace switching got faster, most noticeably on machines with endpoint
   security: the switch pipeline spawned ~20 subprocesses per switch (an
