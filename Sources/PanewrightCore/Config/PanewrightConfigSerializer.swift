@@ -89,6 +89,18 @@ public enum PanewrightConfigSerializer {
         if let accent = config.statusBar.accentColor {
             lines.append("accent-color = \"\(accent)\"")
         }
+        for profile in config.statusBar.monitorProfiles {
+            lines.append("")
+            lines.append("[[bar.monitor]]")
+            lines.append("match = \"\(profile.match)\"")
+            if let widgets = profile.widgets {
+                lines.append(
+                    "widgets = [\(widgets.map { "\"\($0)\"" }.joined(separator: ", "))]")
+            }
+            if profile.hidden {
+                lines.append("hidden = true")
+            }
+        }
         lines.append("")
         lines.append("[todo]")
         lines.append("enabled = \(config.todo.enabled)")

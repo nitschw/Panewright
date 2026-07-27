@@ -391,6 +391,15 @@ opacity = 0.17       <span class="c"># background alpha 0–1; turn up for busy 
 show-in-fullscreen = false
 auto-hide = false        <span class="c"># reveal on mouseover at the bar's edge…</span>
 auto-hide-delay = 5      <span class="c"># …and hide this many seconds after the pointer leaves</span></pre>
+  <p>On several monitors, each display can have its own bar personality. With no configuration, the automatic policy applies: the main display carries the widget chips, and every other display gets a clean workspace strip — nothing duplicates. Override per display with <code>[[bar.monitor]]</code> blocks, matched in order (first match wins):</p>
+  <pre>[[bar.monitor]]
+match = "portrait"       <span class="c"># a name fragment ("LC32G7") or a class: builtin, external, portrait, landscape, main, *</span>
+widgets = ["battery", "network"]  <span class="c"># the [modules] names, plus "todo" and "integrations"; omit for all, [] for none</span>
+
+[[bar.monitor]]
+match = "*"
+hidden = true            <span class="c"># no bar at all on everything else</span></pre>
+  <p>Profiles re-apply automatically when displays are plugged, unplugged, or rearranged. (Bar thickness stays uniform across displays — the bar is one surface; the widgets are per-display.)</p>
   <p>Each monitor's bar leads with its <b>M1/M2/M3 badge</b>, then that monitor's workspace numbers (clickable, drag targets, accent highlight on the active one), a <b>mode badge</b> while resize/join is active, and the frontmost app. Disabling the bar returns everything to the native macOS menu bar. Quick toggles for the bar and borders live in the menu bar icon's dropdown. The bar stays clear of the Dock on its own — lifted above a bottom Dock, inset from a side one — and follows if you move the Dock while it's running. With <code>auto-hide</code> on, the bar stays out of sight until your pointer touches its screen edge, and — the real point — <b>windows reclaim the strip it normally reserves</b>.</p>
 
   <h2 id="modules">Bar widgets</h2>

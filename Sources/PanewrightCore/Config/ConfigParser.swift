@@ -97,6 +97,11 @@ public enum ConfigParser {
             if let delay = bar.autoHideDelay {
                 config.statusBar.autoHideDelay = max(1, min(60, delay))
             }
+            if let monitors = bar.monitor {
+                config.statusBar.monitorProfiles = monitors.map {
+                    .init(match: $0.match, widgets: $0.widgets, hidden: $0.hidden ?? false)
+                }
+            }
             if let accent = bar.accentColor {
                 // Fail loudly here rather than emitting a bar the daemon rejects.
                 _ = try ColorHex.argb(fromCSSHex: accent)
@@ -512,6 +517,12 @@ private struct RawConfig: Codable {
         var binding: [RawBinding]?
     }
 
+    struct RawBarMonitor: Codable {
+        var match: String
+        var widgets: [String]?
+        var hidden: Bool?
+    }
+
     struct RawBar: Codable {
         var enabled: Bool?
         var theme: String?
@@ -523,9 +534,10 @@ private struct RawConfig: Codable {
         var opacity: Double?
         var autoHide: Bool?
         var autoHideDelay: Double?
+        var monitor: [RawBarMonitor]?
 
         enum CodingKeys: String, CodingKey {
-            case enabled, theme, position, thickness, opacity
+            case enabled, theme, position, thickness, opacity, monitor
             case accentColor = "accent-color"
             case fontSize = "font-size"
             case showInFullscreen = "show-in-fullscreen"

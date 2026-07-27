@@ -27,6 +27,12 @@ the `Unreleased` section becomes the next release's notes.
   engine restarted after a stall gets its windows restored from the
   snapshot; and the snapshot remembers which workspace each monitor was
   showing, so waking puts every workspace back on its own display.
+- **Per-monitor bar personalities.** By default the main display carries the
+  widget chips and every other display gets a clean workspace strip —
+  nothing duplicates. `[[bar.monitor]]` blocks override per display, matched
+  by name fragment or class (`builtin`, `portrait`, `external`, `*`): pick a
+  widget subset, or hide a display's bar entirely. Re-applies automatically
+  as displays come and go.
 - Hidden windows (including pills) park at the cheapest corner of the whole
   arrangement — with a second display, its far corner — so the primary
   display's corners stay completely clean.

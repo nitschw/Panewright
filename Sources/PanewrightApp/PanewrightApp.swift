@@ -900,6 +900,12 @@ final class AppModel {
                             config, dockInsetBottom: insets.0, dockInsetSides: insets.1)
                     }
                 }
+                // Re-assert each display's bar personality: reloads forget
+                // associated_display, and to-do/integration items appear
+                // after the fact. Idempotent — same values, no repaint.
+                if let config = try? orchestrator.loadConfig() {
+                    await MainActor.run { BarProfiles.apply(config) }
+                }
                 await self?.checkAeroSpaceHealth(orchestrator)
                 // Keep the who-lives-where record fresh while the engine is
                 // healthy — but not right after a (re)launch, when the truth

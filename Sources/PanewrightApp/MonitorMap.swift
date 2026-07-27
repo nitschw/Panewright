@@ -108,7 +108,7 @@ enum MonitorMap {
     /// (`front_app`, present on every display). The origin lands inside that
     /// display's `CGDisplayBounds`, so it pins each SketchyBar display to a
     /// physical one regardless of how SketchyBar orders them.
-    nonisolated private static func sketchyBarDisplayOrigins() -> [Int: CGPoint] {
+    nonisolated static func sketchyBarDisplayOrigins() -> [Int: CGPoint] {
         let process = Process()
         process.executableURL = URL(filePath: "/opt/homebrew/bin/sketchybar")
         process.arguments = ["--query", "front_app"]
@@ -231,6 +231,15 @@ enum MonitorMap {
             await MainActor.run {
                 write()
                 reloadBar()
+            }
+            // The reload rebuilt every item from the rc, forgetting their
+            // per-display assignments; give it a beat to lay out, then hand
+            // each display its bar personality.
+            try? await Task.sleep(for: .seconds(3))
+            await MainActor.run {
+                if let config = try? Orchestrator().loadConfig() {
+                    BarProfiles.apply(config)
+                }
             }
         }
     }

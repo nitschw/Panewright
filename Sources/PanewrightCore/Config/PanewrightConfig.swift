@@ -239,6 +239,30 @@ public struct PanewrightConfig: Equatable, Sendable {
         public var autoHide: Bool
         /// Seconds after the pointer leaves before the bar hides again.
         public var autoHideDelay: Double
+        /// Per-display bar personalities, matched in order (first match
+        /// wins). With none configured the automatic policy applies: the
+        /// main display carries the widget chips, every other display gets
+        /// a clean workspace strip — nothing duplicates.
+        public var monitorProfiles: [MonitorProfile]
+
+        /// One display's bar personality.
+        public struct MonitorProfile: Equatable, Sendable {
+            /// A monitor-name fragment ("LC32G7") or a class keyword:
+            /// `builtin`, `external`, `portrait`, `landscape`, `main`, `*`.
+            public var match: String
+            /// Widget keys shown there (the `[modules]` names, plus `todo`
+            /// and `integrations`). nil = every enabled widget; empty = a
+            /// strip-only bar.
+            public var widgets: [String]?
+            /// No bar at all on this display.
+            public var hidden: Bool
+
+            public init(match: String, widgets: [String]? = nil, hidden: Bool = false) {
+                self.match = match
+                self.widgets = widgets
+                self.hidden = hidden
+            }
+        }
 
         public init(
             enabled: Bool = true, theme: Theme = .native,
@@ -248,7 +272,8 @@ public struct PanewrightConfig: Equatable, Sendable {
             accentColor: String? = "#0F5F15",
             position: Position = .bottom, thickness: Int? = 25, fontSize: Int? = 12,
             showInFullscreen: Bool = false, opacity: Double? = 0.39,
-            autoHide: Bool = false, autoHideDelay: Double = 5
+            autoHide: Bool = false, autoHideDelay: Double = 5,
+            monitorProfiles: [MonitorProfile] = []
         ) {
             self.enabled = enabled
             self.theme = theme
@@ -260,6 +285,7 @@ public struct PanewrightConfig: Equatable, Sendable {
             self.opacity = opacity
             self.autoHide = autoHide
             self.autoHideDelay = autoHideDelay
+            self.monitorProfiles = monitorProfiles
         }
 
         /// The bar height actually in effect.
