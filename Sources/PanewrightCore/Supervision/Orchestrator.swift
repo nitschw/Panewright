@@ -327,32 +327,27 @@ public struct Orchestrator: Sendable {
 
             # Summoning a workspace away can leave the vacated monitor on an
             # auto-invented workspace (10, 11, …) that has no bar pill. Land it
-            # on a free persistent workspace instead. Guarded so the summon we
-            # issue (which re-runs this script) finds nothing to fix and stops.
+            # on a free persistent workspace instead — WITHOUT touching focus:
+            # the old dance (focus the monitor, summon, focus back) raced the
+            # user's own switches, and losing the race stranded them on the
+            # summoned workspace ("I pressed 0 and landed on 4"). The engine's
+            # --on-monitor/--no-focus summon replaces the whole dance.
             PERSISTENT="\(workspaceNames.joined(separator: " "))"
-            FIXED=0
             for MON in $("$A" list-monitors --format '%{monitor-id}' 2>/dev/null); do
               VIS=$("$A" list-workspaces --monitor "$MON" --visible 2>/dev/null | tr -d ' ')
               case " $PERSISTENT " in *" $VIS "*) continue ;; esac
               [ -z "$VIS" ] && continue
-              # Visible workspace is auto-invented: summon the first persistent
+              # Visible workspace is auto-invented: place the first persistent
               # workspace that is empty and not visible on any monitor.
               TAKEN=$("$A" list-workspaces --monitor all --visible 2>/dev/null | tr -d ' ')
               OCCUPIED=$("$A" list-workspaces --monitor all --empty no 2>/dev/null | tr -d ' ')
               for W in $PERSISTENT; do
                 printf '%s\\n' "$TAKEN" | grep -qx "$W" && continue
                 printf '%s\\n' "$OCCUPIED" | grep -qx "$W" && continue
-                "$A" focus-monitor "$MON" 2>/dev/null
-                "$A" summon-workspace "$W" 2>/dev/null
-                FIXED=1
+                "$A" summon-workspace --on-monitor "$MON" --no-focus "$W" 2>/dev/null
                 break
               done
             done
-            # Fixing a vacated monitor moved focus there; put it back on the
-            # workspace the user actually switched to.
-            if [ "$FIXED" = 1 ] && [ -n "$AEROSPACE_FOCUSED_WORKSPACE" ]; then
-              "$A" workspace "$AEROSPACE_FOCUSED_WORKSPACE" 2>/dev/null
-            fi
 
             /opt/homebrew/bin/sketchybar --trigger aerospace_workspace_change \\
               FOCUSED_WORKSPACE="$AEROSPACE_FOCUSED_WORKSPACE" 2>/dev/null

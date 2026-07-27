@@ -5,6 +5,14 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- Switching workspaces no longer sometimes lands you somewhere else
+  ("pressed 0, arrived on 4"). The self-heal that replaces auto-invented
+  workspaces on background monitors used to do it by focusing that monitor,
+  summoning, and focusing back — racing your own switch, and the loser was
+  you. The engine now places a workspace on a monitor with no focus
+  movement at all (`summon-workspace --on-monitor --no-focus`).
+
 ## [0.6.5] — 2026-07-27
 
 ### Fixed
