@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.2] — 2026-07-27
+
 ### Fixed
 - **The engine now starts on machines that aren't the development machine.**
   Its default-config lookup fell through to a compile-time source path that
