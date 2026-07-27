@@ -10,7 +10,9 @@ the `Unreleased` section becomes the next release's notes.
   variables captioned inline (previously TOML-only), a listing of the
   built-in menu scripts and your own `user-scripts/`, and "New Script from
   Template" which drops a commented `panewright menu` starter into
-  user-scripts/ and opens it in your editor.
+  user-scripts/ and opens it in your editor. Every hook explains when it
+  fires, what it's for, and what each variable means — with a
+  paste-and-feel example.
 
 ## [0.5.0] — 2026-07-26
 
