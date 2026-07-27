@@ -65,7 +65,12 @@ enum MonitorMap {
             // previous geometry-derived map exists. Keep it: a stale-but-right
             // map beats overwriting with the guessed list order, which briefly
             // misroutes every bar click and drag (the map was observed flapping
-            // wrong→right on every display event).
+            // wrong→right on every display event). The caller's retry loop is
+            // what eventually replaces it — this branch returning silently,
+            // with nothing scheduled to try again, is how a two-display setup
+            // ran for hours on a one-display map and the M-badges never
+            // appeared.
+            DragLog.log("monitor-map: bar mid-reload — keeping previous map for now")
             return
         } else {
             // No bar and no map yet (first boot): fall back to list order;
@@ -145,6 +150,17 @@ enum MonitorMap {
         return ids.map { "\($0):\(CGDisplayBounds($0))" }.joined(separator: "|")
     }
 
+    /// How long the display arrangement must hold still before it's believed.
+    ///
+    /// Docking is not one event: the log shows the same external display
+    /// connecting and disconnecting six times in fifty seconds while the
+    /// link negotiated. Reacting to each flap reloaded the bar (visible
+    /// flicker) and re-spread workspaces (windows visibly teleporting) once
+    /// per flap — the arrangement that finally settled had been "handled"
+    /// six times. Nothing here is urgent enough to be wrong about.
+    private static let settleDelay: Duration = .seconds(4)
+    private static var pendingChange: Task<Void, Never>?
+
     /// Rewrite the map and repaint the bar whenever the display layout changes.
     /// Plugging or unplugging a monitor also re-spreads workspaces so the new
     /// display gets one (and an unplugged one's workspaces return home).
@@ -162,10 +178,19 @@ enum MonitorMap {
             MainActor.assumeIsolated {
                 let fingerprint = currentFingerprint()
                 guard fingerprint != displayFingerprint else { return }
-                DragLog.log("display change: \(fingerprint)")
+                DragLog.log("display change: \(fingerprint) — settling")
                 displayFingerprint = fingerprint
-                refreshMap()
-                redistribute()
+                // Coalesce the storm: each change restarts the clock, and
+                // only the arrangement that survives the quiet period gets
+                // acted on.
+                pendingChange?.cancel()
+                pendingChange = Task { @MainActor in
+                    try? await Task.sleep(for: settleDelay)
+                    guard !Task.isCancelled else { return }
+                    DragLog.log("display change settled: \(currentFingerprint())")
+                    refreshMap()
+                    redistribute()
+                }
             }
         }
     }
@@ -180,9 +205,28 @@ enum MonitorMap {
         write()
         reloadBar()
         Task.detached(priority: .userInitiated) {
-            for _ in 0..<30 {
-                if !sketchyBarDisplayOrigins().isEmpty { break }
+            // Wait for the bar to report geometry for *every* display, not
+            // just any: right after a display change SketchyBar answers for
+            // the displays it has laid out so far, and a map written from a
+            // partial answer is exactly as wrong as the stale one. The
+            // generous window matters — during a dock's link negotiation the
+            // bar can be mid-reload for a long time, and giving up early is
+            // how the map stayed at one display until the next reboot.
+            var count: UInt32 = 0
+            CGGetActiveDisplayList(0, nil, &count)
+            let displays = Int(count)
+            var complete = false
+            for _ in 0..<75 {
+                if sketchyBarDisplayOrigins().count >= displays {
+                    complete = true
+                    break
+                }
                 try? await Task.sleep(for: .milliseconds(400))
+            }
+            if !complete {
+                DragLog.log(
+                    "monitor-map: bar never reported all \(displays) display(s)"
+                        + " — writing what it has")
             }
             await MainActor.run {
                 write()

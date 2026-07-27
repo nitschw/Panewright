@@ -72,7 +72,9 @@ final class Toast {
     }
 
     private func present(for duration: TimeInterval) {
-        guard let screen = NSScreen.main else { return }
+        // The focused monitor: a toast explaining an eviction that just
+        // happened on the external display should not appear on the laptop.
+        guard let screen = Monitors.focusedScreen() else { return }
         // Above the bar rather than centred over the windows: it's a status
         // message, and the bar is where status lives.
         let frame = window.frame

@@ -3,55 +3,116 @@ import CoreGraphics
 import Foundation
 import PanewrightCore
 
-/// Watches the focused workspace for windows rendering over each other, and
-/// corrects it.
+/// Watches every visible workspace — one per monitor — for windows rendering
+/// over each other, and corrects it.
 ///
 /// The loop is observe → nudge → observe, not solve-and-apply, because
 /// AeroSpace redistributes freed space on its own terms (see `WindowFitting`).
 /// That makes every correction a small experiment: ask one window for some
 /// width, look at what actually happened, and use the answer both to decide
 /// the next step and to learn that app's floor.
+///
+/// With one monitor there is exactly one visible workspace and this behaves
+/// as it always has. With more, each workspace is fitted against the screen
+/// its monitor actually occupies — bounds, parked-window filtering and
+/// fullscreen detection all resolve per display, because a 2160-point
+/// portrait panel and a laptop lid agree on nothing.
 @MainActor
 final class WindowFitController {
     private let notify: (String) -> Void
     private var timer: Timer?
     private var minimums = MinimumSizeStore.default()
 
-    /// First time each window was seen, so "newest arrival" means something.
-    /// Keyed by window id; entries for windows that have gone away are pruned
-    /// each pass so this can't grow without bound.
-    private var firstSeen: [UInt32: Date] = [:]
+    /// Everything the fitter knows about one workspace. Per-workspace rather
+    /// than global because two monitors show two workspaces at once, and a
+    /// membership change or an eviction on one must not reset the other's
+    /// timers. A class so the dictionary hands out references — the converge
+    /// burst mutates this across awaits, and copy-back bookkeeping is how
+    /// state quietly forks.
+    private final class WorkspaceState {
+        /// First time each window was seen, so "newest arrival" means
+        /// something. Entries for windows that have gone away are pruned each
+        /// pass so this can't grow without bound.
+        var firstSeen: [UInt32: Date] = [:]
+        /// Overlap must be seen twice running before anything moves.
+        var consecutiveOverlaps = 0
+        /// The window set last tick, and when it last changed. A change means
+        /// a workspace switch, a new window, or a closed one — all moments
+        /// when frames are legitimately mid-flight. Correcting or *learning*
+        /// against them is how bopping between two workspaces taught the
+        /// fitter that Messages' minimum width is 885 points (it is 660) and
+        /// evicted two windows in twenty seconds off the fiction: a
+        /// mid-unpark window refuses a resize because it is busy, which is
+        /// indistinguishable from hitting its floor.
+        var lastMembership: Set<UInt32> = []
+        var lastMembershipChange = Date.distantPast
+        /// The layout we've already given up on, as a position-and-size
+        /// signature.
+        ///
+        /// Keyed on geometry rather than on the set of window ids, which was
+        /// the bug: once stuck, resizing a window by hand changed nothing
+        /// about *which* windows were present, so the corrector stayed
+        /// given-up and appeared to need poking before it would do anything.
+        var settled: String?
+        var lastEviction = Date.distantPast
+        /// Same idea as the eviction cooldown: a join reshapes the tree, and
+        /// judging the layout again before AeroSpace has settled reads chaos.
+        var lastStack = Date.distantPast
+        /// The window set at the moment of the last eviction. Nothing else
+        /// moves until this differs from what's actually on screen.
+        var evictedFrom: Set<UInt32> = []
+        /// Windows moved out recently, and when.
+        ///
+        /// The set-based guard compares the whole workspace, so it passes as
+        /// soon as *any* window changes — which let the same window be
+        /// evicted twice, the second time to the workspace it was already on.
+        /// Remembering the window itself is what makes that impossible rather
+        /// than unlikely.
+        var recentlyEvicted: [UInt32: Date] = [:]
+        /// Cached workspace membership, refreshed only when the on-screen
+        /// window set changes — see currentWindows.
+        var cachedBundleIDs: [UInt32: String] = [:]
+        var cachedFloating: Set<UInt32> = []
+        /// Windows currently filling this display. Kept separately from the
+        /// tiled set so they're left out of fitting, and raised like floaters
+        /// — a fullscreen window covered by a tiled one is plainly wrong.
+        var fullscreenIDs: Set<UInt32> = []
+        var cachedWindowIDs: Set<UInt32> = []
+        var cachedAt = Date.distantPast
+        /// The last full record per window, so a close hook can still name
+        /// the app that owned the now-gone window.
+        var lastKnown: [UInt32: WindowFitting.Window] = [:]
+    }
 
-    /// Overlap must be seen twice running before anything moves.
-    private var consecutiveOverlaps = 0
-    /// The window set last tick, and when it last changed. A change means a
-    /// workspace switch, a new window, or a closed one — all moments when
-    /// frames are legitimately mid-flight. Correcting or *learning* against
-    /// them is how bopping between two workspaces taught the fitter that
-    /// Messages' minimum width is 885 points (it is 660) and evicted two
-    /// windows in twenty seconds off the fiction: a mid-unpark window
-    /// refuses a resize because it is busy, which is indistinguishable from
-    /// hitting its floor.
-    private var lastMembership: Set<UInt32> = []
-    private var lastMembershipChange = Date.distantPast
-    /// Unpark plus retile settles well inside a second; churny moments
-    /// (windows opening in bursts) just extend the quiet period.
-    private static let membershipSettle: TimeInterval = 1.2
-    /// True while a convergence burst is in flight, so the timer can't start a
-    /// second one on top of it.
+    private var states: [String: WorkspaceState] = [:]
+
+    private func state(for workspace: String) -> WorkspaceState {
+        if let existing = states[workspace] { return existing }
+        let fresh = WorkspaceState()
+        states[workspace] = fresh
+        return fresh
+    }
+
+    /// The visible-workspace roster (workspace ↔ monitor ↔ screen), cached on
+    /// the same policy as workspace membership: shelling out to AeroSpace
+    /// four times a second is what the caching exists to avoid.
+    private var visibleCache: [Monitors.VisibleWorkspace] = []
+    private var visibleCacheIDs: Set<UInt32> = []
+    private var visibleCachedAt = Date.distantPast
+
+    /// True while a convergence burst is in flight, so the timer can't start
+    /// a second one on top of it. Global rather than per-workspace: bursts
+    /// resize through the same engine, and two running interleaved would
+    /// each read the other's churn as refusals.
     private var converging = false
-    /// The layout we've already given up on, as a position-and-size signature.
-    ///
-    /// Keyed on geometry rather than on the set of window ids, which was the
-    /// bug: once stuck, resizing a window by hand changed nothing about *which*
-    /// windows were present, so the corrector stayed given-up and appeared to
-    /// need poking before it would do anything.
-    private var settled: String?
     /// When the mouse was last held down. A manual resize or drag passes
     /// through overlapping states on its way somewhere, and correcting them
     /// mid-gesture means fighting the person doing the resizing.
     private var lastInteraction = Date.distantPast
 
+    /// Unpark plus retile settles well inside a second; churny moments
+    /// (windows opening in bursts) just extend the quiet period.
+    private static let membershipSettle: TimeInterval = 1.2
     private static let maxAttempts = 5
     /// How long to leave a workspace alone after moving a window out of it.
     ///
@@ -61,51 +122,29 @@ final class WindowFitController {
     /// split a workspace that only ever needed to lose a single window.
     private static let evictionCooldown: TimeInterval = 4
     /// How long after letting go of the mouse before a window may be evicted.
-    /// Long enough to cover a pause mid-adjustment, short enough that a layout
-    /// genuinely too full still resolves without being touched again.
+    /// Long enough to cover a pause mid-adjustment, short enough that a
+    /// layout genuinely too full still resolves without being touched again.
     private static let settleAfterInteraction: TimeInterval = 3
-    private var lastEviction = Date.distantPast
-    /// Same idea as the eviction cooldown: a join reshapes the tree, and
-    /// judging the layout again before AeroSpace has settled reads chaos.
-    private var lastStack = Date.distantPast
-    /// The window set at the moment of the last eviction. Nothing else moves
-    /// until this differs from what's actually on screen.
-    private var evictedFrom: Set<UInt32> = []
-    /// Windows moved out recently, and when.
-    ///
-    /// The set-based guard compares the whole workspace, so it passes as soon
-    /// as *any* window changes — which let the same window be evicted twice,
-    /// the second time to the workspace it was already on. Remembering the
-    /// window itself is what makes that impossible rather than unlikely.
-    private var recentlyEvicted: [UInt32: Date] = [:]
     private static let reEvictionGuard: TimeInterval = 10
-
-    /// Cached workspace membership, refreshed only when the on-screen window
-    /// set changes — see currentWindows.
-    private var cachedBundleIDs: [UInt32: String] = [:]
-    private var cachedFloating: Set<UInt32> = []
-    /// Windows currently filling the display. Kept separately from the tiled
-    /// set so they're left out of fitting, and raised like floaters — a
-    /// fullscreen window covered by a tiled one is plainly wrong.
-    private var fullscreenIDs: Set<UInt32> = []
-    private var cachedWindowIDs: Set<UInt32> = []
-    private var cachedAt = Date.distantPast
 
     init(notify: @escaping (String) -> Void) {
         self.notify = notify
         minimums.load()
-        // Heal a cache poisoned by an earlier build before trusting any of it.
-        if let screen = NSScreen.main {
-            minimums.discardImplausible(
-                displayWidth: screen.frame.width, displayHeight: screen.frame.height)
+        // Heal a cache poisoned by an earlier build before trusting any of
+        // it. Judged against the largest display present: a floor plausible
+        // on any attached screen is a floor worth keeping.
+        let widest = NSScreen.screens.map(\.frame.width).max()
+        let tallest = NSScreen.screens.map(\.frame.height).max()
+        if let widest, let tallest {
+            minimums.discardImplausible(displayWidth: widest, displayHeight: tallest)
             minimums.save()
         }
     }
 
     func start() {
         stop()
-        // Fast enough that a broken layout is corrected before it registers as
-        // wrong. Affordable because the per-tick cost is one CGWindowList
+        // Fast enough that a broken layout is corrected before it registers
+        // as wrong. Affordable because the per-tick cost is one CGWindowList
         // call: the `aerospace` process is only spawned when the geometry has
         // actually moved (see currentWindows).
         timer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
@@ -126,7 +165,7 @@ final class WindowFitController {
         // Nothing measured just after a wake is trustworthy — not the frames,
         // and not a window's refusal to resize.
         guard !WakeGuard.isSettling else {
-            consecutiveOverlaps = 0
+            for state in states.values { state.consecutiveOverlaps = 0 }
             return
         }
         // Any button held means a drag or a resize is in progress. Cheap,
@@ -134,23 +173,43 @@ final class WindowFitController {
         // between a helper and something that undoes your work as you do it.
         if NSEvent.pressedMouseButtons != 0 {
             lastInteraction = Date()
-            consecutiveOverlaps = 0
+            for state in states.values { state.consecutiveOverlaps = 0 }
             return
         }
-        let windows = currentWindows(cli: cli)
-        prune(to: windows, config: config)
+        // One CGWindowList capture serves every workspace this tick.
+        let onScreen = WindowSnapshot.capture(allLayers: true)
+        let visible = visibleWorkspaces(cli: cli, onScreen: onScreen)
+        if config.fitting.floatOnTop { raiseFloaters(onScreen: onScreen, among: visible) }
+        for entry in visible {
+            fit(entry, config: config, cli: cli, onScreen: onScreen)
+            // A burst launched for one workspace owns the engine until it
+            // settles; the others get their turn next tick.
+            if converging { break }
+        }
+    }
+
+    /// One workspace's tick: observe, learn floors, and start a convergence
+    /// burst if the layout is genuinely broken two ticks running.
+    private func fit(
+        _ entry: Monitors.VisibleWorkspace, config: PanewrightConfig, cli: AeroSpaceCLI,
+        onScreen: [OnScreenWindow]
+    ) {
+        let state = state(for: entry.workspace)
+        let windows = currentWindows(
+            cli: cli, workspace: entry.workspace, screen: entry.screen,
+            state: state, onScreen: onScreen)
+        prune(to: windows, state: state, config: config)
         let membership = Set(windows.map(\.id))
-        if membership != lastMembership {
-            lastMembership = membership
-            lastMembershipChange = Date()
+        if membership != state.lastMembership {
+            state.lastMembership = membership
+            state.lastMembershipChange = Date()
         }
-        if Date().timeIntervalSince(lastMembershipChange) < Self.membershipSettle {
-            consecutiveOverlaps = 0
+        if Date().timeIntervalSince(state.lastMembershipChange) < Self.membershipSettle {
+            state.consecutiveOverlaps = 0
             return
         }
-        if config.fitting.floatOnTop { raiseFloaters() }
         guard windows.count > 1 else {
-            reset()
+            reset(state)
             return
         }
         // Every window seen is evidence about its floor: it cannot be larger
@@ -167,23 +226,25 @@ final class WindowFitController {
             }
         }
         if corrected { minimums.save() }
-        let bounds = displayBounds(config)
+        let bounds = displayBounds(config, screen: entry.screen)
         let separation = CGFloat(config.gaps.inner)
         let broken = WindowFitting.Axis.allCases.contains {
             WindowFitting.deficit(
                 in: windows, bounds: bounds, separation: separation, axis: $0) > 0
         }
         guard broken else {
-            reset()
+            reset(state)
             return
         }
-        if signature(of: windows) == settled { return }
+        if signature(of: windows) == state.settled { return }
         // Windows are legitimately mid-flight during an animation or a
         // workspace switch. Correcting a layout that was about to settle on
         // its own is how this turns into a tug of war with AeroSpace.
-        consecutiveOverlaps += 1
-        guard consecutiveOverlaps >= 2 else { return }
-        converge(cli: cli, config: config, bounds: bounds, separation: separation)
+        state.consecutiveOverlaps += 1
+        guard state.consecutiveOverlaps >= 2 else { return }
+        converge(
+            cli: cli, config: config, entry: entry, state: state,
+            bounds: bounds, separation: separation)
     }
 
     /// Fix it in one burst rather than one nudge per tick.
@@ -194,19 +255,21 @@ final class WindowFitController {
     /// immediately — so the whole convergence happens in a few hundred
     /// milliseconds and looks like one reflow.
     private func converge(
-        cli: AeroSpaceCLI, config: PanewrightConfig, bounds: CGRect?, separation: CGFloat
+        cli: AeroSpaceCLI, config: PanewrightConfig, entry: Monitors.VisibleWorkspace,
+        state: WorkspaceState, bounds: CGRect?, separation: CGFloat
     ) {
         converging = true
         let started = Date()
         Task { @MainActor in
             defer {
                 converging = false
-                consecutiveOverlaps = 0
+                state.consecutiveOverlaps = 0
             }
             // Fetched once per round and carried forward: the frames read
-            // back after a resize are the same frames the next decision needs,
-            // and querying twice was most of the time this loop spent.
-            var windows = currentWindows(cli: cli)
+            // back after a resize are the same frames the next decision
+            // needs, and querying twice was most of the time this loop spent.
+            var windows = currentWindows(
+                cli: cli, workspace: entry.workspace, screen: entry.screen, state: state)
             // Remembered so running out of steps can tell progress from a
             // stalemate. A window shoved far off-screen needs more correction
             // than one burst's step budget covers, and marking the layout
@@ -235,16 +298,16 @@ final class WindowFitController {
                             "fitting: settled after \(attempt - 1) steps in "
                                 + "\(Int(Date().timeIntervalSince(started) * 1000))ms")
                     }
-                    settled = nil
+                    state.settled = nil
                     return
                 case .cannotFit(let count):
-                    // Overflow is off, so this is the user's choice. Record it
-                    // and stop pestering until something actually changes.
+                    // Overflow is off, so this is the user's choice. Record
+                    // it and stop pestering until something actually changes.
                     DragLog.log("fitting: \(count) windows don't fit and overflow is off")
-                    settled = signature(of: windows)
+                    state.settled = signature(of: windows)
                     return
                 case .adjusting(.evict(let id)):
-                    if let when = recentlyEvicted[id],
+                    if let when = state.recentlyEvicted[id],
                         Date().timeIntervalSince(when) < Self.reEvictionGuard
                     {
                         DragLog.log("fitting: \(id) was just moved — not moving it again")
@@ -253,11 +316,11 @@ final class WindowFitController {
                     // Unchanged window set means the last eviction hasn't
                     // landed yet — but only for as long as landing plausibly
                     // takes. Without the time bound this deadlocks: move the
-                    // same windows back onto the workspace and the set matches
-                    // the one we evicted from, so it waits forever for a
-                    // change that already happened and was undone.
-                    guard evictedFrom != Set(windows.map(\.id))
-                        || Date().timeIntervalSince(lastEviction) >= Self.evictionCooldown
+                    // same windows back onto the workspace and the set
+                    // matches the one we evicted from, so it waits forever
+                    // for a change that already happened and was undone.
+                    guard state.evictedFrom != Set(windows.map(\.id))
+                        || Date().timeIntervalSince(state.lastEviction) >= Self.evictionCooldown
                     else {
                         DragLog.log("fitting: waiting for the last eviction to take effect")
                         return
@@ -273,7 +336,8 @@ final class WindowFitController {
                     // layouts that would fit. Eviction is destructive enough
                     // to be worth one round of proving the constraint first.
                     if await retestFloors(
-                        windows: windows, separation: separation,
+                        windows: windows, workspace: entry.workspace, screen: entry.screen,
+                        state: state, separation: separation,
                         usable: CGFloat(config.fitting.minimumUsable), cli: cli)
                     {
                         DragLog.log("fitting: a floor was wrong — resizing instead of evicting")
@@ -289,14 +353,14 @@ final class WindowFitController {
                         DragLog.log("fitting: not evicting — you were just resizing")
                         return
                     }
-                    guard Date().timeIntervalSince(lastEviction) >= Self.evictionCooldown
+                    guard Date().timeIntervalSince(state.lastEviction) >= Self.evictionCooldown
                     else {
-                        // Let the previous eviction land and the layout re-tile
-                        // before concluding anything else has to go.
+                        // Let the previous eviction land and the layout
+                        // re-tile before concluding anything else has to go.
                         DragLog.log("fitting: holding off — just evicted a window")
                         return
                     }
-                    evict(id: id, windows: windows, cli: cli)
+                    evict(id: id, windows: windows, entry: entry, state: state, cli: cli)
                     return
                 case .adjusting(.stack(let id, let with)):
                     // Structural, like eviction — never mid-gesture, never in
@@ -304,11 +368,11 @@ final class WindowFitController {
                     // doesn't loop.
                     guard
                         Date().timeIntervalSince(lastInteraction) >= Self.settleAfterInteraction,
-                        Date().timeIntervalSince(lastStack) >= Self.evictionCooldown,
+                        Date().timeIntervalSince(state.lastStack) >= Self.evictionCooldown,
                         let mover = windows.first(where: { $0.id == id }),
                         let target = windows.first(where: { $0.id == with })
                     else { return }
-                    lastStack = Date()
+                    state.lastStack = Date()
                     let direction =
                         target.frame.midX < mover.frame.midX ? "left" : "right"
                     DragLog.log(
@@ -319,14 +383,15 @@ final class WindowFitController {
                         (try? cli.run(["join-with", "--window-id", "\(id)", direction])) != nil
                     else {
                         DragLog.log("fitting: join-with failed — leaving the layout alone")
-                        settled = signature(of: windows)
+                        state.settled = signature(of: windows)
                         return
                     }
-                    // The tree reshapes more slowly than windows move; give it
-                    // a beat, then let the next tick judge the new geometry
-                    // fresh rather than acting on mid-transition frames.
+                    // The tree reshapes more slowly than windows move; give
+                    // it a beat, then let the next tick judge the new
+                    // geometry fresh rather than acting on mid-transition
+                    // frames.
                     try? await Task.sleep(for: .milliseconds(350))
-                    consecutiveOverlaps = 0
+                    state.consecutiveOverlaps = 0
                     return
                 case .adjusting(.shrink(let id, let by, let axis)):
                     guard let target = windows.first(where: { $0.id == id }) else { return }
@@ -336,20 +401,24 @@ final class WindowFitController {
                     // Let the resize land before reading it back, or we learn
                     // a minimum from a frame that hadn't updated yet.
                     try? await Task.sleep(for: .milliseconds(15))
-                    windows = currentWindows(cli: cli)
-                    learn(from: target, requested: by, axis: axis, in: windows)
+                    windows = currentWindows(
+                        cli: cli, workspace: entry.workspace, screen: entry.screen, state: state)
+                    learn(
+                        from: target, requested: by, axis: axis, in: windows,
+                        screen: entry.screen)
                 case .adjusting(.settle):
                     return
                 }
             }
             // Out of attempts. Before calling it a stalemate, ask once more:
             // those attempts existed to learn the floors, and the answer they
-            // produce is often "these genuinely don't fit". Marking the layout
-            // settled without asking meant the fitter proved a workspace was
-            // impossible and then sat on the finding — four windows left
-            // visibly overlapping, one of them off the edge of the screen,
-            // with eviction never considered.
-            windows = currentWindows(cli: cli)
+            // produce is often "these genuinely don't fit". Marking the
+            // layout settled without asking meant the fitter proved a
+            // workspace was impossible and then sat on the finding — four
+            // windows left visibly overlapping, one of them off the edge of
+            // the screen, with eviction never considered.
+            windows = currentWindows(
+                cli: cli, workspace: entry.workspace, screen: entry.screen, state: state)
             DragLog.log(
                 "fitting: out of resize steps after "
                     + "\(Int(Date().timeIntervalSince(started) * 1000))ms")
@@ -361,12 +430,12 @@ final class WindowFitController {
                 honorPushOut: Date().timeIntervalSince(lastInteraction) < 10)
             if case .adjusting(.evict(let id)) = final,
                 Date().timeIntervalSince(lastInteraction) >= Self.settleAfterInteraction,
-                Date().timeIntervalSince(lastEviction) >= Self.evictionCooldown,
-                evictedFrom != Set(windows.map(\.id)),
-                recentlyEvicted[id].map({ Date().timeIntervalSince($0) >= Self.reEvictionGuard })
-                    ?? true
+                Date().timeIntervalSince(state.lastEviction) >= Self.evictionCooldown,
+                state.evictedFrom != Set(windows.map(\.id)),
+                state.recentlyEvicted[id]
+                    .map({ Date().timeIntervalSince($0) >= Self.reEvictionGuard }) ?? true
             {
-                evict(id: id, windows: windows, cli: cli)
+                evict(id: id, windows: windows, entry: entry, state: state, cli: cli)
                 return
             }
             // Give up only on a genuine stalemate. If this burst reduced the
@@ -382,10 +451,10 @@ final class WindowFitController {
                 DragLog.log(
                     "fitting: progress (\(Int(deficitAtStart)) → \(Int(deficitNow))pt)"
                         + " — continuing next tick")
-                consecutiveOverlaps = 0
+                state.consecutiveOverlaps = 0
                 return
             }
-            settled = signature(of: windows)
+            state.settled = signature(of: windows)
         }
     }
 
@@ -398,16 +467,17 @@ final class WindowFitController {
     /// Never below a size worth having, and that bound is what stops this
     /// running away. Most apps' true minimum is far smaller than anything
     /// useful — iTerm will go to 87 points — so a window asked to prove its
-    /// floor essentially always complies. That reads as "the floor was wrong",
-    /// which skips the eviction and shrinks instead, and the next round asks
-    /// again from the new smaller size. Six windows on one workspace drove
-    /// iTerm from 228 points to 87 that way, in a couple of seconds, and the
-    /// eviction the workspace genuinely needed never happened: there was
-    /// always one more point to give. A window already down at the usable size
-    /// has nothing left to prove, and asking only manufactures the evidence
-    /// that blocks the eviction.
+    /// floor essentially always complies. That reads as "the floor was
+    /// wrong", which skips the eviction and shrinks instead, and the next
+    /// round asks again from the new smaller size. Six windows on one
+    /// workspace drove iTerm from 228 points to 87 that way, in a couple of
+    /// seconds, and the eviction the workspace genuinely needed never
+    /// happened: there was always one more point to give. A window already
+    /// down at the usable size has nothing left to prove, and asking only
+    /// manufactures the evidence that blocks the eviction.
     private func retestFloors(
-        windows: [WindowFitting.Window], separation: CGFloat, usable: CGFloat,
+        windows: [WindowFitting.Window], workspace: String, screen: NSScreen,
+        state: WorkspaceState, separation: CGFloat, usable: CGFloat,
         cli: AeroSpaceCLI
     ) async -> Bool {
         var improved = false
@@ -415,17 +485,17 @@ final class WindowFitController {
             for axis in WindowFitting.Axis.allCases {
                 guard let floor = minimums.minimum(for: window.bundleID, axis: axis),
                     axis.extent(window.frame) <= floor + 4,
-                    // Same rule the planner uses: a window alone in its column
-                    // cannot give up height, so asking can only be refused —
-                    // and that refusal gets misread as a floor. Re-testing was
-                    // generating exactly the phantom measurements the planner
-                    // already knows to avoid.
+                    // Same rule the planner uses: a window alone in its
+                    // column cannot give up height, so asking can only be
+                    // refused — and that refusal gets misread as a floor.
+                    // Re-testing was generating exactly the phantom
+                    // measurements the planner already knows to avoid.
                     WindowFitting.hasNeighbour(
                         window, among: windows, along: axis, separation: separation)
                 else { continue }
                 let before = axis.extent(window.frame)
-                // Ask only for what keeps it at a usable size, and don't ask at
-                // all once there's nothing left worth reclaiming.
+                // Ask only for what keeps it at a usable size, and don't ask
+                // at all once there's nothing left worth reclaiming.
                 let ask = min(CGFloat(40), before - usable)
                 guard ask >= 8 else { continue }
                 try? cli.run([
@@ -434,7 +504,9 @@ final class WindowFitController {
                 ])
                 try? await Task.sleep(for: .milliseconds(25))
                 guard
-                    let now = currentWindows(cli: cli).first(where: { $0.id == window.id })
+                    let now = currentWindows(
+                        cli: cli, workspace: workspace, screen: screen, state: state
+                    ).first(where: { $0.id == window.id })
                 else { continue }
                 let after = axis.extent(now.frame)
                 if after < before - 1 {
@@ -459,7 +531,7 @@ final class WindowFitController {
     /// what it was asked for is the only signal macOS offers about its floor.
     private func learn(
         from target: WindowFitting.Window, requested: Int, axis: WindowFitting.Axis,
-        in windows: [WindowFitting.Window]
+        in windows: [WindowFitting.Window], screen: NSScreen
     ) {
         guard let now = windows.first(where: { $0.id == target.id }) else { return }
         // An app's width floor and its height floor are unrelated numbers, so
@@ -470,12 +542,10 @@ final class WindowFitController {
                 before: axis.extent(target.frame), after: axis.extent(now.frame))
         else { return }
         // A "minimum" near the size of the display is a resize that did
-        // nothing, not a constraint the app expressed. Recording it would make
-        // the app read as unshrinkable forever and push the fitter toward
-        // evicting instead of resizing.
-        if let screen = NSScreen.main,
-            learned.minimum >= axis.extent(screen.frame) * 0.8
-        {
+        // nothing, not a constraint the app expressed. Recording it would
+        // make the app read as unshrinkable forever and push the fitter
+        // toward evicting instead of resizing.
+        if learned.minimum >= axis.extent(screen.frame) * 0.8 {
             DragLog.log(
                 "fitting: ignoring implausible \(learned.bundleID) floor of "
                     + "\(Int(learned.minimum))pt \(axis.rawValue)")
@@ -505,57 +575,55 @@ final class WindowFitController {
         frame.width >= display.width * 0.98 && frame.height >= display.height * 0.95
     }
 
-    /// The visible bounds of the display the focused workspace is on. A window
-    /// pushed past this edge overlaps nothing and is still plainly broken.
-    /// The region AeroSpace actually tiles into, in CGWindowList's top-left
-    /// coordinates.
+    /// The region AeroSpace actually tiles into on `screen`, in CGWindowList's
+    /// top-left coordinates. A window pushed past this edge overlaps nothing
+    /// and is still plainly broken.
     ///
-    /// Not the whole screen. AeroSpace insets the workspace by the outer gaps,
-    /// and by the bar's reserved space at the bottom — so a window can be
-    /// pushed below the tiled area, still be on screen, and be plainly wrong
-    /// while a screen-sized bounds check calls it fine. That's exactly the
-    /// "partially outside the tiled area" case a vertical resize leaves behind.
-    ///
-    /// The flip used not to matter, because only the horizontal extent was
-    /// compared and it's identical in both coordinate systems. Now that height
-    /// is fitted too, using NSScreen's bottom-left rect directly would put the
-    /// insets on the wrong ends.
-    private func displayBounds(_ config: PanewrightConfig) -> CGRect? {
-        guard let screen = NSScreen.main else { return nil }
+    /// Not the whole screen. AeroSpace insets the workspace by the outer
+    /// gaps, and by the bar's reserved space at the bottom — so a window can
+    /// be pushed below the tiled area, still be on screen, and be plainly
+    /// wrong while a screen-sized bounds check calls it fine. That's exactly
+    /// the "partially outside the tiled area" case a vertical resize leaves
+    /// behind.
+    private func displayBounds(_ config: PanewrightConfig, screen: NSScreen) -> CGRect? {
         let outer = CGFloat(config.gaps.outer)
         // The emitter adds the bar's reserved height to whichever edge the
-        // bar lives on — mirror that rather than re-deriving it.
+        // bar lives on — mirror that rather than re-deriving it. The bar
+        // draws on every display, so the reserve applies on every screen.
         let reserve =
             config.statusBar.enabled
             ? CGFloat(SketchyBarConfigEmitter.reservedGap(for: config.statusBar)) : 0
         let barAtBottom = config.statusBar.position == .bottom
         let bottom = outer + (barAtBottom ? reserve : 0)
         let extraTop = barAtBottom ? 0 : reserve
-        // visibleFrame is the screen minus what the system has already claimed:
-        // the menu bar, and the Dock on whichever edge it happens to live. It
-        // is the only way to be right for all four placements — there is no
-        // "where is the Dock" API, and its thickness moves with the tile size
-        // and magnification setting anyway.
+        // visibleFrame is the screen minus what the system has already
+        // claimed: the menu bar, and the Dock on whichever edge it happens to
+        // live. It is the only way to be right for all four placements —
+        // there is no "where is the Dock" API, and its thickness moves with
+        // the tile size and magnification setting anyway.
         //
         // Using the full frame here meant this believed it had 1728 points of
-        // a 1728pt display while AeroSpace was tiling into 1679 of it, because
-        // AeroSpace does respect the Dock. Every deficit was under-measured by
-        // the width of the Dock, and every "but the display is Npt" in the log
-        // named a display that wasn't there.
+        // a 1728pt display while AeroSpace was tiling into 1679 of it,
+        // because AeroSpace does respect the Dock. Every deficit was
+        // under-measured by the width of the Dock, and every "but the display
+        // is Npt" in the log named a display that wasn't there.
         let full = screen.frame
         let visible = screen.visibleFrame
         let insetLeft = visible.minX - full.minX
         let insetRight = full.maxX - visible.maxX
-        // AppKit measures from the bottom-left, CGWindowList from the top-left,
-        // and every frame compared against these bounds comes from the latter.
+        // AppKit measures from the bottom-left, CGWindowList from the
+        // top-left, and every frame compared against these bounds comes from
+        // the latter. The y flip also has to account for the screen's own
+        // origin: only the primary display starts at zero in either system.
         let insetTop = full.maxY - visible.maxY
         let insetBottom = visible.minY - full.minY
         return CGRect(
             x: full.minX + insetLeft + outer,
-            y: insetTop + outer + extraTop,
+            y: (Monitors.primaryTop - full.maxY) + insetTop + outer + extraTop,
             width: full.width - insetLeft - insetRight - outer * 2,
             height: full.height - insetTop - insetBottom - outer - extraTop - bottom)
     }
+
 
     /// Identity of a layout: which windows, and roughly where. Rounded so
     /// sub-point jitter doesn't read as a change, but any real move or resize
@@ -571,15 +639,18 @@ final class WindowFitController {
             .joined(separator: ",")
     }
 
-    /// Move the newest arrival out, and always say so. A window vanishing from
-    /// a workspace with no explanation reads as a bug, not a feature.
-    private func evict(id: UInt32, windows: [WindowFitting.Window], cli: AeroSpaceCLI) {
+    /// Move the newest arrival out, and always say so. A window vanishing
+    /// from a workspace with no explanation reads as a bug, not a feature.
+    private func evict(
+        id: UInt32, windows: [WindowFitting.Window], entry: Monitors.VisibleWorkspace,
+        state: WorkspaceState, cli: AeroSpaceCLI
+    ) {
         // Confirm it's still here, from AeroSpace rather than from our cache.
         // The cache only refreshes when the on-screen window set changes, so
         // it can still list a window that has already been moved away — and
         // moving it "again" lands it on the workspace it's already on.
         if let listing = try? cli.run([
-            "list-windows", "--workspace", "focused", "--format", "%{window-id}",
+            "list-windows", "--workspace", entry.workspace, "--format", "%{window-id}",
         ]) {
             let here = Set(
                 listing.split(separator: "\n").compactMap {
@@ -590,9 +661,14 @@ final class WindowFitController {
                 return
             }
         }
-        guard let destination = firstEmptyWorkspace(cli: cli) else {
+        // An empty workspace on the same monitor, so the window stays on the
+        // display the user is working on — i3 keeps outputs independent, and
+        // an eviction that teleports a window to another physical screen
+        // reads as losing it twice.
+        guard let destination = firstEmptyWorkspace(cli: cli, monitorID: entry.monitorID)
+        else {
             DragLog.log("fitting: nothing fits but there's no empty workspace to use")
-            settled = signature(of: windows)
+            state.settled = signature(of: windows)
             return
         }
         let name = appName(for: id, windows: windows)
@@ -600,52 +676,63 @@ final class WindowFitController {
             try cli.run([
                 "move-node-to-workspace", "--window-id", "\(id)", destination,
             ])
-            lastEviction = Date()
+            state.lastEviction = Date()
             // Wait for the window set to actually change before considering
             // another. Evicting removes a window, which frees space for the
             // ones left — deciding again off geometry that hasn't re-tiled is
             // how one necessary eviction became two, on a workspace that fit
             // perfectly well once the first window had gone.
-            evictedFrom = Set(windows.map(\.id))
-            recentlyEvicted[id] = Date()
+            state.evictedFrom = Set(windows.map(\.id))
+            state.recentlyEvicted[id] = Date()
             // Keep this from growing across a long session.
-            recentlyEvicted = recentlyEvicted.filter {
+            state.recentlyEvicted = state.recentlyEvicted.filter {
                 Date().timeIntervalSince($0.value) < Self.reEvictionGuard * 2
             }
             // On screen for a moment, and the reasoning in the log.
             //
             // A system notification is the wrong weight: it persists in
-            // Notification Center and asks to be dismissed, for something that
-            // stops being relevant the moment it's read. The arithmetic that
-            // justified the move is worth keeping, but in the log rather than
-            // in your face — the toast only has to answer "where did my window
-            // go".
+            // Notification Center and asks to be dismissed, for something
+            // that stops being relevant the moment it's read. The arithmetic
+            // that justified the move is worth keeping, but in the log rather
+            // than in your face — the toast only has to answer "where did my
+            // window go".
             Toast.show("\(name) moved to workspace \(destination) — it wouldn't fit")
-            if let bounds = (try? Orchestrator().loadConfig()).flatMap({ displayBounds($0) }) {
+            if let config = try? Orchestrator().loadConfig(),
+                let bounds = displayBounds(config, screen: entry.screen)
+            {
                 let capacity = WindowFitting.capacity(
                     of: windows, minimums: minimums.minimums, bounds: bounds,
-                    separation: CGFloat((try? Orchestrator().loadConfig())?.gaps.inner ?? 0))
+                    separation: CGFloat(config.gaps.inner))
                 if !capacity.explanation.isEmpty {
                     DragLog.log("fitting: \(capacity.explanation)")
                 }
             }
             DragLog.log("fitting: evicted \(name) (\(id)) to workspace \(destination)")
-            reset()
+            reset(state)
         } catch {
             DragLog.log("fitting: eviction failed: \(error)")
-            settled = signature(of: windows)
+            state.settled = signature(of: windows)
         }
     }
 
     /// A floating window covered by a tiled one defeats the point of floating
-    /// it. Only ever acts when that's actually happening, so it can't fight the
-    /// user for control of their own stacking.
-    private func raiseFloaters() {
-        guard !cachedFloating.isEmpty || !fullscreenIDs.isEmpty else { return }
+    /// it. Only ever acts when that's actually happening, so it can't fight
+    /// the user for control of their own stacking. Judged across all visible
+    /// workspaces at once: raising is per-window and CGWindowList is global.
+    private func raiseFloaters(
+        onScreen: [OnScreenWindow], among visible: [Monitors.VisibleWorkspace]
+    ) {
+        var floating: Set<UInt32> = []
+        var tiled: Set<UInt32> = []
+        for entry in visible {
+            guard let state = states[entry.workspace] else { continue }
+            floating.formUnion(state.cachedFloating)
+            floating.formUnion(state.fullscreenIDs)
+            tiled.formUnion(Set(state.cachedBundleIDs.keys).subtracting(state.fullscreenIDs))
+        }
+        guard !floating.isEmpty else { return }
         let raised = FloatingWindowRaiser.raiseOccludedFloaters(
-            onScreen: WindowSnapshot.capture(allLayers: true),
-            floating: cachedFloating.union(fullscreenIDs),
-            tiled: Set(cachedBundleIDs.keys).subtracting(fullscreenIDs))
+            onScreen: onScreen, floating: floating, tiled: tiled)
         if !raised.isEmpty {
             DragLog.log("fitting: raised floating window(s) \(raised) above the tiling")
         }
@@ -653,31 +740,51 @@ final class WindowFitController {
 
     // MARK: Reading the world
 
-    private func currentWindows(cli: AeroSpaceCLI) -> [WindowFitting.Window] {
-        let onScreen = WindowSnapshot.capture(allLayers: true)
+    /// The visible-workspace roster, re-fetched only when the on-screen
+    /// window set changes or the cache ages out — same economics as the
+    /// per-workspace membership cache.
+    private func visibleWorkspaces(
+        cli: AeroSpaceCLI, onScreen: [OnScreenWindow]
+    ) -> [Monitors.VisibleWorkspace] {
         let live = Set(onScreen.map(\.id))
-        // Which windows are tiled here changes far more slowly than where they
-        // are, so the answer is cached and only re-fetched when the set of
-        // on-screen windows changes (or the cache ages out). That keeps the
-        // polling loop down to one CGWindowList call, which is what makes a
-        // sub-second cadence affordable.
-        if live != cachedWindowIDs || Date().timeIntervalSince(cachedAt) > 2 {
-            let listing = fetchWorkspace(cli: cli)
-            cachedBundleIDs = listing.tiled
-            cachedFloating = listing.floating
-            cachedWindowIDs = live
-            cachedAt = Date()
+        if live != visibleCacheIDs || Date().timeIntervalSince(visibleCachedAt) > 2 {
+            visibleCache = Monitors.visibleWorkspaces(cli: cli)
+            visibleCacheIDs = live
+            visibleCachedAt = Date()
         }
-        guard !cachedBundleIDs.isEmpty else { return [] }
+        return visibleCache
+    }
+
+    private func currentWindows(
+        cli: AeroSpaceCLI, workspace: String, screen: NSScreen, state: WorkspaceState,
+        onScreen: [OnScreenWindow]? = nil
+    ) -> [WindowFitting.Window] {
+        let onScreen = onScreen ?? WindowSnapshot.capture(allLayers: true)
+        let live = Set(onScreen.map(\.id))
+        // Which windows are tiled here changes far more slowly than where
+        // they are, so the answer is cached and only re-fetched when the set
+        // of on-screen windows changes (or the cache ages out). That keeps
+        // the polling loop down to one CGWindowList call, which is what makes
+        // a sub-second cadence affordable.
+        if live != state.cachedWindowIDs || Date().timeIntervalSince(state.cachedAt) > 2 {
+            let listing = fetchWorkspace(cli: cli, workspace: workspace)
+            state.cachedBundleIDs = listing.tiled
+            state.cachedFloating = listing.floating
+            state.cachedWindowIDs = live
+            state.cachedAt = Date()
+        }
+        guard !state.cachedBundleIDs.isEmpty else { return [] }
         let now = Date()
         // The raw screen here, not the tiled area: this only rejects windows
-        // parked far off-screen, and a window legitimately overlapping the bar
-        // must still be seen so it can be corrected.
-        let visible = NSScreen.main?.frame
-        fullscreenIDs = []
+        // parked far off-screen, and a window legitimately overlapping the
+        // bar must still be seen so it can be corrected. Judged against the
+        // workspace's own display — a window on a second monitor is exactly
+        // as on-screen as one on the first.
+        let visible = Monitors.cgFrame(of: screen)
+        state.fullscreenIDs = []
         var windows: [WindowFitting.Window] = []
         for window in onScreen {
-            guard let bundleID = cachedBundleIDs[window.id] else { continue }
+            guard let bundleID = state.cachedBundleIDs[window.id] else { continue }
             // AeroSpace hides windows by parking them far off-screen rather
             // than using Spaces, and a window parked in a bar pill is hidden
             // the same way. Mid-move, such a window can still be listed as
@@ -687,23 +794,24 @@ final class WindowFitController {
             // evict it. That is what scattered real windows across workspaces
             // three times. A window with no pixels on the display isn't part
             // of the layout and has no business influencing it.
-            if let visible, !window.frame.intersects(visible) { continue }
-            // A window covering essentially the whole display isn't sharing it
-            // with anyone, so it isn't tiling and must not be measured against
-            // its neighbours.
+            if !window.frame.intersects(visible) { continue }
+            // A window covering essentially the whole display isn't sharing
+            // it with anyone, so it isn't tiling and must not be measured
+            // against its neighbours.
             //
-            // Judged on geometry rather than on AeroSpace's is-fullscreen flag,
-            // which lags: for up to two seconds after the green button the app
-            // is drawn fullscreen while still reported as tiled. In that gap it
-            // looks like one window overlapping every other, nothing can shrink
-            // to fix it, and the only move left is eviction — which is exactly
-            // how full-screening an app kicked it to the next workspace.
-            if let visible, covers(window.frame, visible) {
-                fullscreenIDs.insert(window.id)
+            // Judged on geometry rather than on AeroSpace's is-fullscreen
+            // flag, which lags: for up to two seconds after the green button
+            // the app is drawn fullscreen while still reported as tiled. In
+            // that gap it looks like one window overlapping every other,
+            // nothing can shrink to fix it, and the only move left is
+            // eviction — which is exactly how full-screening an app kicked it
+            // to the next workspace.
+            if covers(window.frame, visible) {
+                state.fullscreenIDs.insert(window.id)
                 continue
             }
-            let arrived = firstSeen[window.id] ?? now
-            firstSeen[window.id] = arrived
+            let arrived = state.firstSeen[window.id] ?? now
+            state.firstSeen[window.id] = arrived
             windows.append(
                 WindowFitting.Window(
                     id: window.id, bundleID: bundleID, frame: window.frame, arrived: arrived))
@@ -716,18 +824,18 @@ final class WindowFitController {
     /// has no geometry and CGWindowList has no workspace, so neither is
     /// sufficient alone. The window id is the same number in both.
     ///
-    /// Only genuinely tiled windows are returned. A floating window isn't part
-    /// of the layout — it's deliberately sitting on top of it — so counting it
-    /// would have the fitter endlessly resizing the tiled windows underneath
-    /// to get away from something that is supposed to overlap them. Fullscreen
-    /// windows are excluded for the same reason: one covers everything, which
-    /// reads as a collision with every window at once.
+    /// Only genuinely tiled windows are returned. A floating window isn't
+    /// part of the layout — it's deliberately sitting on top of it — so
+    /// counting it would have the fitter endlessly resizing the tiled windows
+    /// underneath to get away from something that is supposed to overlap
+    /// them. Fullscreen windows are excluded for the same reason: one covers
+    /// everything, which reads as a collision with every window at once.
     private func fetchWorkspace(
-        cli: AeroSpaceCLI
+        cli: AeroSpaceCLI, workspace: String
     ) -> (tiled: [UInt32: String], floating: Set<UInt32>) {
         guard
             let listing = try? cli.run([
-                "list-windows", "--workspace", "focused",
+                "list-windows", "--workspace", workspace,
                 "--format",
                 "%{window-id}|%{app-bundle-id}|%{window-layout}|%{window-is-fullscreen}",
             ])
@@ -749,10 +857,10 @@ final class WindowFitController {
         return (bundleIDs, floating)
     }
 
-    private func firstEmptyWorkspace(cli: AeroSpaceCLI) -> String? {
+    private func firstEmptyWorkspace(cli: AeroSpaceCLI, monitorID: Int) -> String? {
         guard
             let output = try? cli.run([
-                "list-workspaces", "--monitor", "focused", "--empty",
+                "list-workspaces", "--monitor", "\(monitorID)", "--empty",
             ])
         else { return nil }
         return output.split(separator: "\n").first.map {
@@ -769,18 +877,25 @@ final class WindowFitController {
 
     // MARK: Bookkeeping
 
-    private func reset() {
-        consecutiveOverlaps = 0
-        settled = nil
+    private func reset(_ state: WorkspaceState) {
+        state.consecutiveOverlaps = 0
+        state.settled = nil
     }
 
     /// Drop remembered arrival times for windows that are gone — and tell the
     /// user's hooks who came and went. The fitter already watches every
-    /// window on a quarter-second tick, so open/close events are free to
-    /// observe here and nowhere else.
-    private func prune(to windows: [WindowFitting.Window], config: PanewrightConfig) {
+    /// window on a sub-second tick, so open/close events are free to observe
+    /// here and nowhere else.
+    ///
+    /// Scoped per workspace: comparing against a single global set meant a
+    /// workspace *switch* looked like every old window closing and every new
+    /// one opening. A window that genuinely moves between visible workspaces
+    /// still reads as closed-here, opened-there — which is what happened.
+    private func prune(
+        to windows: [WindowFitting.Window], state: WorkspaceState, config: PanewrightConfig
+    ) {
         let live = Set(windows.map(\.id))
-        let known = Set(lastKnown.keys)
+        let known = Set(state.lastKnown.keys)
         // No dispatch on the very first pass: launching Panewright over an
         // existing desktop is not thirty windows "opening".
         if !known.isEmpty {
@@ -791,19 +906,15 @@ final class WindowFitController {
             }
             if let hook = config.windowClosedHook {
                 for id in known.subtracting(live) {
-                    guard let record = lastKnown[id] else { continue }
+                    guard let record = state.lastKnown[id] else { continue }
                     Self.runHook(hook, window: record)
                 }
             }
         }
-        for window in windows { lastKnown[window.id] = window }
-        lastKnown = lastKnown.filter { live.contains($0.key) }
-        firstSeen = firstSeen.filter { live.contains($0.key) }
+        for window in windows { state.lastKnown[window.id] = window }
+        state.lastKnown = state.lastKnown.filter { live.contains($0.key) }
+        state.firstSeen = state.firstSeen.filter { live.contains($0.key) }
     }
-
-    /// The last full record per window, so a close hook can still name the
-    /// app that owned the now-gone window.
-    private var lastKnown: [UInt32: WindowFitting.Window] = [:]
 
     /// User hooks run detached with the window's identity in the environment,
     /// mirroring the engine-side hooks (WORKSPACE, FOCUSED_* etc.).

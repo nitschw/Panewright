@@ -5,6 +5,35 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Added
+- **Multi-monitor support, for real.** Every visible workspace — one per
+  monitor — is now fitted against the screen its monitor actually occupies;
+  previously all fitting judged windows against the primary display, and
+  windows on a second monitor were ignored entirely (or worse, "corrected"
+  with the wrong screen's dimensions). The palette, overview, toasts, and
+  the dropdown terminal open on the focused monitor, i3-style; the
+  auto-hiding bar can be summoned from any display's edge; the dropdown's
+  remembered size only replays on a screen it fits.
+- `$mod+,` / `$mod+.` (and `+shift`) wrap around at the last monitor, so
+  with three displays they cycle.
+
+### Fixed
+- Docking no longer churns the desktop: display changes settle for four
+  seconds before anything reacts (a dock's link negotiation can flap a
+  monitor six times in under a minute, and every flap used to reload the bar
+  and re-spread workspaces — workspaces visibly "disappearing").
+- The monitor map (the M1/M2/M3 badges and per-display workspace strips)
+  retries until SketchyBar reports geometry for every display, instead of
+  silently keeping a stale single-display map forever.
+- Plugging in a monitor gives it the lowest *empty* workspace, i3-style,
+  instead of stealing workspace 0 — and a monitor already showing one of
+  your workspaces is left completely alone.
+- Hidden-workspace windows no longer paint a strip along a neighboring
+  display's bottom edge (the engine now weighs "this corner bleeds onto
+  another monitor" above "this corner is behind the Dock" when parking).
+- A floating window that can't be raised above the tiling (cross-app
+  z-order) is asked once per situation instead of four times a second.
+
 ## [0.5.1] — 2026-07-26
 
 ### Added

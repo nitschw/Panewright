@@ -103,15 +103,22 @@ enum DropdownController {
         DragLog.log("dropdown: summoning \(appID) (\(id))")
         _ = try? cli.run(["move-node-to-workspace", "--window-id", "\(id)", workspace])
         _ = try? cli.run(["layout", "floating", "--window-id", "\(id)"])
-        guard let screen = NSScreen.main else { return }
-        if let remembered = rememberedFrame {
+        // Quake terminals drop from the top of the monitor you're looking
+        // at, and "looking at" is the focused monitor, i3-style.
+        guard let screen = Monitors.focusedScreen() else { return }
+        // The remembered size only carries across summons on glass it fits:
+        // a frame resized on a portrait 4K, replayed on the laptop lid,
+        // lands mostly off-screen.
+        if let remembered = rememberedFrame,
+            Monitors.cgFrame(of: screen).intersects(remembered)
+        {
             setFrame(windowID: id, remembered)
         } else {
             // First summon: top strip of the visible frame, full width, at
             // the configured height. AX speaks top-left coordinates.
             let visible = screen.visibleFrame
             let height = visible.height * config.dropdown.height
-            let topLeftY = screen.frame.height - visible.maxY
+            let topLeftY = Monitors.primaryTop - visible.maxY
             setFrame(
                 windowID: id,
                 CGRect(

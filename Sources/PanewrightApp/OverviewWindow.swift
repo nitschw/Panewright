@@ -46,7 +46,7 @@ final class OverviewController {
             rootView: OverviewView(
                 workspaces: workspaces,
                 dismiss: { [weak self] in self?.close() }))
-        if let screen = NSScreen.main {
+        if let screen = Monitors.focusedScreen() {
             let frame = screen.visibleFrame
             panel.setFrameOrigin(
                 NSPoint(x: frame.midX - 380, y: frame.midY - 240))

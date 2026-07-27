@@ -250,7 +250,10 @@ public enum AeroSpaceConfigEmitter {
         case .layoutAccordion: "layout accordion horizontal vertical"
         case .fullscreen: "fullscreen"
         case .toggleFloating: "layout floating tiling"
-        case .focusMonitor(let target): "focus-monitor \(target.rawValue)"
+        // Wrap-around, so the key always does something: without it,
+        // "focus monitor right" on the rightmost monitor is an error beep,
+        // and with three displays the pair of keys becomes a full cycle.
+        case .focusMonitor(let target): "focus-monitor --wrap-around \(target.rawValue)"
         case .moveToMonitor(let target):
             "exec-and-forget /bin/bash \"$HOME/.config/panewright/scripts/move-window.sh\" monitor \(target.rawValue)"
         case .resize(let dimension, let delta):

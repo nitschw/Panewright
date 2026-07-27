@@ -55,7 +55,10 @@ final class PaletteController {
                 rootView: PaletteView(model: model, dismiss: { [weak self] in self?.close() }))
             self.panel = panel
         }
-        if let screen = NSScreen.main {
+        // The focused monitor, like dmenu on the focused output — a palette
+        // that always opens on the laptop lid while you work on the external
+        // means a head-turn per launch.
+        if let screen = Monitors.focusedScreen() {
             let frame = screen.visibleFrame
             panel.setFrameOrigin(
                 NSPoint(

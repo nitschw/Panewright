@@ -33,8 +33,7 @@ final class BarAutoHide {
 
     private func tick() {
         guard let config = try? Orchestrator().loadConfig(),
-            let bar = SketchyBarSupervisor.locate(), bar.isRunning(),
-            let screen = NSScreen.main
+            let bar = SketchyBarSupervisor.locate(), bar.isRunning()
         else { return }
         let enabled = config.statusBar.enabled && config.statusBar.autoHide
         defer { wasEnabled = enabled }
@@ -60,10 +59,15 @@ final class BarAutoHide {
             return
         }
         let mouse = NSEvent.mouseLocation
+        // The bar draws (and hides) on every display, so the summoning edge
+        // is the edge of whichever screen the pointer is on — measured from
+        // that screen's own bottom or top, which is only zero on the primary.
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) })
+        else { return }
         let barBand = CGFloat(config.statusBar.effectiveThickness) + 14
         let inBand: Bool
         if config.statusBar.position == .bottom {
-            inBand = mouse.y <= (revealed ? barBand : Self.summonBand)
+            inBand = mouse.y <= screen.frame.minY + (revealed ? barBand : Self.summonBand)
         } else {
             let top = screen.frame.maxY
             inBand = mouse.y >= top - (revealed ? barBand : Self.summonBand)

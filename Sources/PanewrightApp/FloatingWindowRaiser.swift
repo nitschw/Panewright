@@ -25,6 +25,17 @@ import Foundation
 ///    and nothing happens until it's true.
 @MainActor
 enum FloatingWindowRaiser {
+    /// The occlusion each window was last asked to escape, so an attempt
+    /// that didn't stick isn't repeated four times a second forever.
+    ///
+    /// kAXRaiseAction reorders windows *within their app*; when the window
+    /// covering the floater belongs to a different, frontmost app, the action
+    /// reports success and changes nothing (iPhone Mirroring under a tiled
+    /// browser looped exactly this way). One attempt per distinct situation:
+    /// the entry clears when the occlusion clears, and any window moving or
+    /// the covering set changing makes a new signature worth one new try.
+    private static var lastAttempt: [UInt32: String] = [:]
+
     /// Raise any floating window that a tiled window is currently covering.
     /// `onScreen` must be in front-to-back order, as CGWindowList returns it.
     /// Returns the ids raised, for logging.
@@ -36,10 +47,18 @@ enum FloatingWindowRaiser {
         var raised: [UInt32] = []
         for (index, window) in onScreen.enumerated() where floating.contains(window.id) {
             // Anything earlier in the list is in front of this window.
-            let covered = onScreen.prefix(index).contains { front in
+            let covering = onScreen.prefix(index).filter { front in
                 tiled.contains(front.id) && front.frame.intersects(window.frame)
             }
-            guard covered else { continue }
+            guard !covering.isEmpty else {
+                lastAttempt[window.id] = nil
+                continue
+            }
+            let signature = ([window] + covering)
+                .map { "\($0.id):\(Int($0.frame.minX)):\(Int($0.frame.minY))" }
+                .joined(separator: ",")
+            guard lastAttempt[window.id] != signature else { continue }
+            lastAttempt[window.id] = signature
             if raise(window) { raised.append(window.id) }
         }
         return raised

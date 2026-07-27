@@ -87,7 +87,7 @@ import Testing
         let toml = AeroSpaceConfigEmitter.emit(.default)
         #expect(toml.contains("alt-f = 'fullscreen'"))
         #expect(toml.contains("alt-shift-space = 'layout floating tiling'"))
-        #expect(toml.contains("alt-comma = 'focus-monitor left'"))
+        #expect(toml.contains("alt-comma = 'focus-monitor --wrap-around left'"))
         #expect(toml.contains("move-window.sh\" monitor right'"))
         #expect(toml.contains("alt-enter = 'exec-and-forget open -a Terminal'"))
     }

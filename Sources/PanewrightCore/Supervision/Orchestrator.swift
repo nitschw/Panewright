@@ -162,12 +162,19 @@ public struct Orchestrator: Sendable {
 
     /// Spreads workspaces across displays so every monitor owns at least one,
     /// instead of AeroSpace piling them on the main display and auto-inventing
-    /// throwaway workspaces (10, 11, …) for the extras. Policy "one each, rest
-    /// on primary": each non-primary monitor is handed one distinct workspace
-    /// (the lowest not already claimed), and everything else stays home on the
-    /// primary. Idempotent, so re-running on a display change pulls a workspace
-    /// onto a freshly attached monitor and returns an unplugged monitor's
-    /// workspaces to a surviving display.
+    /// throwaway workspaces (10, 11, …) for the extras.
+    ///
+    /// i3's rule, ported: a new output gets the lowest *unused* workspace.
+    /// Taking `names[index]` instead — the lowest workspaces, occupied or not
+    /// — is how plugging in a monitor stole workspace 0 with the user's
+    /// windows on it and teleported them across the desk.
+    ///
+    /// Idempotent in the strong sense: a monitor already showing one of the
+    /// user's real workspaces is left completely alone. Display-change
+    /// notifications fire far more often than displays actually change, and a
+    /// "re-spread" that moves anything on a no-op event reads as the window
+    /// manager glitching. Focus is put back exactly where it was, and only if
+    /// something moved at all.
     public func distributeWorkspaces(primaryMonitorID: Int? = nil) {
         guard let cli = AeroSpaceCLI.locate(),
             let monitorOut = try? cli.run(["list-monitors"])
@@ -180,14 +187,33 @@ public struct Orchestrator: Sendable {
         let config = (try? loadConfig()) ?? .default
         let names = AeroSpaceConfigEmitter.workspaceNumbers(in: config.bindings).map(String.init)
         guard !names.isEmpty else { return }
+        let persistent = Set(names)
 
         // Prefer the caller's true main display; fall back to the busiest one.
         let primary = (primaryMonitorID.flatMap { monitorIDs.contains($0) ? $0 : nil })
             ?? mainMonitorID(cli) ?? monitorIDs[0]
-        let secondaries = monitorIDs.filter { $0 != primary }
-        let persistent = Set(names)
-        for (index, monitor) in secondaries.enumerated() where index < names.count {
-            let workspace = names[index]
+        let focusedBefore = (try? cli.run(["list-workspaces", "--focused"]))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        // Workspaces pinned to a monitor in the config are the engine's to
+        // place (workspace-to-monitor-force-assignment); never second-guess.
+        let pinned = Set(config.workspaceMonitors.keys.map(String.init))
+        let empty = Set(
+            ((try? cli.run(["list-workspaces", "--monitor", "all", "--empty"])) ?? "")
+                .split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) })
+        var assignable = names.filter { empty.contains($0) && !pinned.contains($0) }
+        var moved = false
+        for monitor in monitorIDs where monitor != primary {
+            // Already showing one of the user's workspaces? Then it's set up,
+            // whether by us, by the engine's force-assignments, or by hand.
+            if let visible = try? cli.run([
+                "list-workspaces", "--monitor", "\(monitor)", "--visible",
+            ]),
+                persistent.contains(visible.trimmingCharacters(in: .whitespacesAndNewlines))
+            {
+                continue
+            }
+            guard !assignable.isEmpty else { continue }
+            let workspace = assignable.removeFirst()
             try? cli.run(["move-workspace-to-monitor", "--workspace", workspace, "\(monitor)"])
             // AeroSpace auto-invents throwaway workspaces (10, 11, …) for extra
             // monitors and homes their windows there. Rehome those onto the
@@ -196,9 +222,13 @@ public struct Orchestrator: Sendable {
             rehomeStrandedWindows(cli, onMonitor: monitor, to: workspace, keeping: persistent)
             try? cli.run(["focus-monitor", "\(monitor)"])
             try? cli.run(["workspace", workspace])
+            moved = true
         }
-        // Leave the user looking at the primary, not the last secondary we touched.
-        try? cli.run(["focus-monitor", "\(primary)"])
+        // Put focus back where the user had it — not on "the primary", which
+        // is only right when that's where they happened to be looking.
+        if moved, let focusedBefore, !focusedBefore.isEmpty {
+            try? cli.run(["workspace", focusedBefore])
+        }
     }
 
     /// Moves windows off any non-persistent (auto-created) workspace currently
@@ -391,7 +421,7 @@ public struct Orchestrator: Sendable {
               sleep 0.15
             fi
             if [ "$KIND" = "monitor" ]; then
-              "$A" move-node-to-monitor --window-id "$WID" "$TARGET" 2>/dev/null
+              "$A" move-node-to-monitor --wrap-around --window-id "$WID" "$TARGET" 2>/dev/null
             else
               "$A" move-node-to-workspace --window-id "$WID" "$TARGET" 2>/dev/null
             fi
