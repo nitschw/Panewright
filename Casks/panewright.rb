@@ -42,6 +42,8 @@ cask "panewright" do
   app "Panewright.app"
   # The engine's CLI, version-locked to the embedded engine.
   binary "#{appdir}/Panewright.app/Contents/Helpers/aerospace-cli", target: "aerospace"
+  # Panewright's own CLI: `panewright import <i3-config>`, emit, apply, status.
+  binary "#{appdir}/Panewright.app/Contents/Helpers/panewright-cli", target: "panewright"
 
   # Panewright generates the aerospace and sketchybar configs, so uninstalling
   # should offer to take them back out. Its own config, saved profiles and the

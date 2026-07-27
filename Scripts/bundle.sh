@@ -15,6 +15,7 @@ CONFIGURATION="${1:-release}"
 APP="build/Panewright.app"
 
 swift build -c "$CONFIGURATION" --product panewright
+swift build -c "$CONFIGURATION" --product panewright-dev
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
@@ -39,6 +40,11 @@ if [ -f "$ENGINE" ]; then
 else
     echo "note: no fork build at $ENGINE — engine not embedded"
 fi
+
+# Panewright's own CLI (`panewright import` etc.) — the cask links it into
+# PATH, so brew users get the importer without a source checkout.
+mkdir -p "$APP/Contents/Helpers"
+cp ".build/$CONFIGURATION/panewright-dev" "$APP/Contents/Helpers/panewright-cli"
 
 # Embed Sparkle (SwiftPM links it from build artifacts; ship a copy).
 SPARKLE_FW="$(find .build/artifacts -name "Sparkle.framework" -type d | head -1)"
@@ -68,6 +74,10 @@ if [ -n "${IDENTITY:-}" ]; then
     if [ -f "$APP/Contents/Helpers/aerospace-cli" ]; then
         codesign --force --options runtime --sign "$IDENTITY" \
             "$APP/Contents/Helpers/aerospace-cli"
+    fi
+    if [ -f "$APP/Contents/Helpers/panewright-cli" ]; then
+        codesign --force --options runtime --sign "$IDENTITY" \
+            "$APP/Contents/Helpers/panewright-cli"
     fi
     codesign --force --options runtime --sign "$IDENTITY" "$APP"
     echo "signed with: $IDENTITY"

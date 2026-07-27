@@ -9,8 +9,7 @@
 </p>
 <p align="center">
   <a href="https://panewright.com">panewright.com</a> ·
-  <a href="DESIGN.md">Design doc</a> ·
-  <a href="https://patreon.com/panewright">Patreon</a>
+  <a href="DESIGN.md">Design doc</a>
 </p>
 
 ---
@@ -113,11 +112,16 @@ key, `brew install --cask karabiner-elements`.
 Updates arrive through the app itself (Sparkle, signed); brew knows this
 and won't nag.
 
-Coming from i3?
+Coming from i3? The importer ships with the app (brew links it as
+`panewright`):
 
 ```sh
-panewright-dev import ~/.config/i3/config
+panewright import ~/.config/i3/config
 ```
+
+It translates bindings, modes, gaps, colors, and the scratchpad; flags
+every untranslatable line with a reason; and lands the result as a profile
+you review before activating.
 
 ## Building from source
 
@@ -147,5 +151,4 @@ the drag-to-tile spec, and the long-term path to a fully self-contained app.
 The **core is [MIT](LICENSE)** © 2026 William Nitsch — build it from source
 and run it free, forever. A paid app is planned for the convenience layer: a
 signed, notarized, auto-updating build plus the work-tracker integrations.
-Open the roads, sell the car. Until then, if the project earns a spot in your
-day, [buy me a coffee](https://patreon.com/panewright).
+Open the roads, sell the car.

@@ -21,6 +21,16 @@ these as vendored dependencies/subprocesses or fork pieces of their source.
 Don't reimplement AXUIElement tiling from zero unless there's a concrete reason
 AeroSpace's model can't be extended.
 
+**Resolved 2026-07-26, exactly on the predicted trigger.** Two behaviors
+proved inexpressible through AeroSpace's CLI surface — the hide-corner
+choice (hidden workspaces peeked out around a right-side Dock) and the menu
+bar icon (redundant once Panewright owns that surface) — so the engine is
+now a *fork*: [nitschw/AeroSpace](https://github.com/nitschw/AeroSpace/tree/panewright),
+upstream plus two small patches, mirrored in `Patches/`. Still not a
+rewrite; the patches are a few dozen lines and rebase onto upstream tags.
+JankyBorders and SketchyBar remain orchestrated subprocesses (GPL — see the
+licensing rule).
+
 ## Distribution & monetization
 
 **No App Store.** Re-verified 2026-07-22: new Mac App Store submissions must
@@ -35,8 +45,18 @@ Rectangle Pro.
 Instead:
 
 - Free, open-source core on GitHub (MIT — see resolved questions).
-- Notarized direct-download builds (Developer ID signing + notarization,
-  Sparkle for auto-updates).
+- **Homebrew is the supported install path** (shipped 2026-07-26/27):
+  `brew trust nitschw/tap && brew install nitschw/tap/panewright`. The cask
+  installs from a notarized DMG — a DMG specifically because Homebrew
+  extracts zips with `unzip`, which materializes AppleDouble files inside
+  Sparkle.framework and breaks the code seal; `ditto` (the DMG path)
+  doesn't. Sparkle handles updates from a zip of the same build; the cask
+  declares `auto_updates` so brew defers to it. `Scripts/release.sh` cuts
+  the whole chain — version, tests, bundle, notarize both artifacts,
+  appcast, tag, GitHub release, tap sync — in one command.
+- Notarized direct-download builds remain (Developer ID signing +
+  notarization, Sparkle for auto-updates), but the docs no longer advertise
+  download links: one supported way in.
 - Monetization (settled 2026-07-23, refined same day): **fully open
   source, Patreon as a pure tip jar.** Everything ships MIT on the public
   repo; the Patreon pitch is simply "building this costs evenings and
@@ -116,7 +136,7 @@ What justifies charging money when the underlying stack is free:
   drag-to-tile (see below).
 - Ongoing support and updates via Patreon.
 
-## Drag-to-tile semantics (planned; the flagship interaction)
+## Drag-to-tile semantics (shipped; the flagship interaction)
 
 Modeled on i3 4.21's tiling drag. While a tiled window is dragged over
 another window:
@@ -142,6 +162,16 @@ Prerequisite: Panewright itself needs Accessibility/Input Monitoring
 permission for the event tap, which requires the stable code signature of a
 real .app bundle — the bundle work is a hard dependency of this feature.
 
+**What shipping it taught (2026-07-26/27):** AeroSpace exposes no geometry,
+so `CGWindowListCopyWindowInfo` frames are the only ground truth — container
+labels lag and lie; judge every structural operation by the numbers. Splicing
+into a *nested* container needs `move` (which descends into a neighbouring
+container) where `swap` can only step past it, and the descent direction must
+follow the axis the windows currently neighbour on, not the axis the drop
+wants. And the focused workspace can flip mid-operation (app activation +
+focus-follows-mouse), teleporting every frame to the parking corner between
+two reads — frame reads must verify the windows are actually on screen.
+
 ## Long-term: self-contained Panewright
 
 End-state goal (decided 2026-07-22): Panewright should eventually depend on
@@ -153,6 +183,17 @@ shippable stages, cheapest first:
    inside Panewright.app; JankyBorders/SketchyBar are GPL-3.0 and may only be
    *shipped alongside* as separate unmodified programs with license texts and
    a source pointer. Result: one download, zero prerequisites.
+
+   **✅ Done for the engine, 2026-07-26 — with a discovery that beat the
+   plan.** The fork's engine build ships in `Contents/Helpers` and is
+   spawned as a *direct child process*, so TCC bills its Accessibility use
+   to Panewright (responsible-process inheritance — proven by resetting the
+   engine's own grant and watching tiling continue). One app, one
+   permissions row; the engine never appears in System Settings. The
+   version-locked CLI ships beside it. Supervision grew to match: a dead
+   engine is respawned and window→workspace assignments are continuously
+   snapshotted and restored across any engine restart. Borders and bar
+   remain brew dependencies of the cask for now.
 2. **Replace JankyBorders with native borders.** Panewright already draws
    overlay windows (drag ghosts); a focus border is the same tech tracking
    the focused window's frame. Small, drops one GPL dependency.
@@ -168,6 +209,28 @@ shippable stages, cheapest first:
 **Licensing rule for all stages:** never absorb GPL source into MIT
 Panewright. Replacements for JankyBorders/SketchyBar must be original code;
 only AeroSpace's MIT code may be absorbed.
+
+## Overlap rescue (shipped 2026-07-26; unplanned, then essential)
+
+Not in the original design, and now one of the product's sharpest edges.
+macOS apps have minimum sizes and can *refuse* a resize — on X11 the WM is
+authoritative, so i3 never faces this and there is no algorithm to copy.
+AeroSpace divides space evenly, the app declines, and windows silently
+overlap: tiling stops being tiling with no error anywhere.
+
+The design that works is a closed observe-nudge-observe loop, never a
+solver: AeroSpace redistributes freed space on its own terms, so you cannot
+compute a target layout and set it — only ask, measure what actually
+happened, and ask again. The refusal itself is the sensor: ask a window to
+shrink by 80, watch it give 30, and you've learned its floor (persisted
+per-app, corroborated across windows of the same app, healed when later
+evidence contradicts it). Escalation order: shrink whatever has room above
+a *usable* size, then shrink to true floors — but only when that can
+actually resolve the layout — then **stack two columns into one** (half
+height beats crushed or evicted), and only then move the newest window out,
+with a toast naming the arithmetic. Guards pause everything during mouse
+interaction and briefly after wake, because a mid-gesture or mid-restore
+frame is a lie.
 
 ## Keyboard-complete + scripting (the "full tiling WM" milestone)
 
@@ -221,18 +284,23 @@ Sizeable enough to schedule separately from the list-shaped providers.
 
 ## Build order
 
-1. MVP wrapping AeroSpace for tiling + workspace switching + config parsing.
-2. JankyBorders integration for gaps/borders.
-3. SketchyBar integration for the status bar.
-4. i3-config importer.
-5. SwiftUI visual config editor — the real product differentiator.
+1. ✅ MVP wrapping AeroSpace for tiling + workspace switching + config parsing.
+2. ✅ JankyBorders integration for gaps/borders.
+3. ✅ SketchyBar integration for the status bar.
+4. ✅ i3-config importer.
+5. ✅ SwiftUI visual config editor — the real product differentiator.
 6. Patreon-gated theme packs / Pro features.
+
+(1–5 shipped by v0.4.x, plus the unplanned essentials: drag-to-tile,
+overlap rescue, the embedded engine, and the brew distribution chain.)
 
 ## Resolved questions (2026-07-22)
 
 - **Orchestration model:** subprocess-orchestrate AeroSpace / JankyBorders /
   SketchyBar via their CLIs and generated config files. Fork only if a
-  concrete feature can't be expressed through the CLI surface.
+  concrete feature can't be expressed through the CLI surface. *(That
+  trigger fired 2026-07-26 for the engine — see "Why not build the tiling
+  engine from scratch". The visual tools remain unforked.)*
 - **License:** MIT for Panewright. JankyBorders and SketchyBar are GPL-3.0,
   but running them as separate processes (never linking or vendoring their
   source) keeps Panewright's own code MIT-clean, which the paid Pro layer
@@ -244,6 +312,8 @@ Sizeable enough to schedule separately from the list-shaped providers.
 
 ## Open questions
 
-- Onboarding flow for granting Accessibility permissions outside the App
-  Store's trusted-install context.
 - Patreon tier structure (what goes in early-access vs. gated Pro).
+
+*(Resolved along the way: the permission-onboarding question collapsed once
+the engine moved under Panewright's own grant — the setup checklist walks
+one grant, not two, and the 0.4.x releases shipped that flow.)*

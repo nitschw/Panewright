@@ -1,11 +1,16 @@
 import Foundation
 import PanewrightCore
 
-// Dev harness for the orchestration pipeline:
-//   panewright-dev emit [panewright.toml]  — print the generated aerospace.toml
-//   panewright-dev apply                   — write config + hot-reload AeroSpace
-//   panewright-dev status                  — report AeroSpace's health
+// Panewright's command line. Ships inside the app bundle (the cask links it
+// into PATH as `panewright`) and doubles as the dev harness when built from
+// source as `panewright-dev`:
+//   panewright import <i3-config>   — translate a real i3 config to a profile
+//   panewright emit [panewright.toml] — print the generated engine config
+//   panewright apply                — write config + hot-reload the engine
+//   panewright status               — report the tiling engine's health
 let arguments = Array(CommandLine.arguments.dropFirst())
+// Usage lines name whichever identity was invoked.
+let tool = (CommandLine.arguments.first as NSString?)?.lastPathComponent ?? "panewright"
 
 func fail(_ message: String) -> Never {
     FileHandle.standardError.write(Data((message + "\n").utf8))
@@ -60,9 +65,9 @@ do {
         }
 
     default:
-        fail("usage: panewright-dev emit [panewright.toml] | apply | status | import <i3-config>")
+        fail("usage: \(tool) import <i3-config> | emit [panewright.toml] | apply | status")
     }
 } catch {
-    FileHandle.standardError.write(Data("panewright-dev: \(error)\n".utf8))
+    FileHandle.standardError.write(Data("\(tool): \(error)\n".utf8))
     exit(1)
 }

@@ -135,6 +135,7 @@
       <a href="#profiles">Profiles</a>
       <a href="#import">i3 import</a>
       <a href="#scripting">Scripting</a>
+      <a href="#raycast">Raycast</a>
     </div>
     <div class="toc-group">
       <h5>Meta</h5>
@@ -547,7 +548,7 @@ user = "you@example.com"</pre>
   </ul>
 
   <h2 id="import">i3 import</h2>
-  <pre>panewright-dev import ~/.config/i3/config</pre>
+  <pre>panewright import ~/.config/i3/config</pre>
   <p>Translates bindings, modes, gaps, colors, scratchpad, <code>kill</code>, <code>focus_follows_mouse</code>, and workspace→output pins. Everything untranslatable is flagged with its line number and a reason — never silently dropped. The result lands as an <code>i3-imported</code> profile to inspect before activating.</p>
 
   <h2 id="scripting">Scripting</h2>
@@ -571,6 +572,12 @@ focus-changed = "python3 ~/.config/panewright/user-scripts/on-focus.py"</pre>
 aerospace focus --window-id 12345
 aerospace move-node-to-workspace --window-id 12345 3</pre>
   <div class="note">Keep your scripts anywhere except <code>~/.config/panewright/scripts/</code> — that directory is generated and overwritten on every apply.</div>
+
+  <h2 id="raycast">Raycast</h2>
+  <p>A Raycast extension lives in the repo (<code>Integrations/raycast/</code>): switch workspaces, move the focused window, jump between layouts, and open Panewright's settings — all from Raycast's launcher. It drives the same <code>aerospace</code> CLI the app installs, so it works with a brew-installed Panewright with no extra setup once the extension is in place.</p>
+  <p>Until it lands in the Raycast Store, it runs from a source checkout:</p>
+  <pre>git clone https://github.com/nitschw/Panewright && cd Panewright/Integrations/raycast
+npm ci && npx ray develop   <span class="c"># registers it in your Raycast as a dev extension</span></pre>
 
   <h2 id="releases">Releases</h2>
   <p>Install and update through Homebrew; installed apps also update themselves via Sparkle.</p>

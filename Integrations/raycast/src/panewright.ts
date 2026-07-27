@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { promisify } from "node:util";
 
 const run = promisify(execFile);
@@ -8,7 +9,15 @@ const run = promisify(execFile);
 /// window operation goes through its CLI rather than through Panewright
 /// itself. That keeps this extension working even while the Panewright app is
 /// restarting, which it does on every config apply.
-const AEROSPACE_PATHS = ["/opt/homebrew/bin/aerospace", "/usr/local/bin/aerospace"];
+const AEROSPACE_PATHS = [
+  "/opt/homebrew/bin/aerospace",
+  "/usr/local/bin/aerospace",
+  // The symlink Panewright maintains to whichever CLI it actually uses,
+  // and the copy inside the app bundle — so the extension works even when
+  // no brew link exists.
+  `${homedir()}/.config/panewright/bin/aerospace`,
+  "/Applications/Panewright.app/Contents/Helpers/aerospace-cli",
+];
 
 export class PanewrightNotInstalled extends Error {
   constructor() {
