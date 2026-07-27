@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.9] — 2026-07-27
+
 ### Fixed
 - Rapidly switching away from a workspace mid-render can no longer get your
   focused window evicted (and you dragged with it to an empty workspace).
