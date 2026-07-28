@@ -74,7 +74,12 @@ public enum SketchyBarConfigEmitter {
             .write(to: unitRatioFile, atomically: true, encoding: .utf8)
     }
 
+    /// Tests pin this to 1 so a ratio learned on the developer's display
+    /// can't leak into hermetic geometry expectations.
+    nonisolated(unsafe) public static var unitRatioOverride: Double?
+
     private static func storedUnitRatio() -> Double {
+        if let unitRatioOverride { return unitRatioOverride }
         guard let raw = try? String(contentsOf: unitRatioFile, encoding: .utf8),
             let ratio = Double(raw.trimmingCharacters(in: .whitespacesAndNewlines)),
             ratio >= 0.5, ratio <= 4

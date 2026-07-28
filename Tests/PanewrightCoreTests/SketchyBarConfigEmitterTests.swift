@@ -403,6 +403,10 @@ import Testing
     private func barLine(dockInsetBottom: Int, theme: PanewrightConfig.StatusBar.Theme)
         throws -> String
     {
+        // Hermetic: the emitter consults a per-machine learned display
+        // ratio; pin it so the dev machine's 2× panel can't leak in.
+        SketchyBarConfigEmitter.unitRatioOverride = 1
+        defer { SketchyBarConfigEmitter.unitRatioOverride = nil }
         var config = PanewrightConfig.default
         config.statusBar.theme = theme
         let rc = try SketchyBarConfigEmitter.emit(config, dockInsetBottom: dockInsetBottom)
