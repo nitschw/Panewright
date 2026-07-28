@@ -5,6 +5,22 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Added
+- **The app talks to the engine over its socket, not by launching its CLI.**
+  Every engine query and command is now a direct unix-socket exchange from
+  the already-running app — microseconds instead of a process launch. On
+  managed machines this matters twice: endpoint security taxed every launch
+  (the lag), and eventually denied them outright (issue #16's
+  ES_AUTH_RESULT_DENY storm — the bar's strips died at the exec gate while
+  nothing of ours was at fault). A socket write cannot be exec-denied. The
+  exec path survives only as the fallback for the moment before the
+  engine's server is listening.
+- **The ghost terminal is a real ghost.** Cmd+Tab-ing to your terminal app
+  never lands on the parked dropdown — the switch routes to a working
+  window. And if the ghost's window dies, the next `` $mod+` `` spawns a
+  fresh one (a genuine New Window on iTerm2/Terminal) instead of
+  conscripting a terminal you were working in.
+
 ## [0.6.20] — 2026-07-27
 
 ### Fixed

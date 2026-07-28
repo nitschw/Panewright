@@ -77,7 +77,19 @@ final class AppSwitchRouter {
             actingUntil = Date().addingTimeInterval(1.5)
             runScript("pill-toggle.sh", id: id)
             DragLog.log("switch: summoned parked \(bundleID)")
-        case .focusWindow(let id):
+        case .focusWindow(var id):
+            // Never land a Cmd+Tab on the parked ghost terminal: the
+            // dropdown is a scratchpad summoned by its own key, and app-
+            // switching to its app should reach a working window. If the
+            // route picked the designated dropdown while it's stashed, hand
+            // the switch to any civilian window of the same app instead.
+            if id == DropdownController.designated,
+                let civilian = windows.first(where: {
+                    $0.bundleID == bundleID && $0.id != id && $0.workspace != "S"
+                })
+            {
+                id = civilian.id
+            }
             actingUntil = Date().addingTimeInterval(1.5)
             // Our own follow changes the workspace; pre-record the
             // destination so the next genuine Cmd+Tab isn't mistaken for

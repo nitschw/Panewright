@@ -34,7 +34,13 @@ enum DropdownController {
     /// dropdown, surviving an app restart), the focused window if it's the
     /// right app (a deliberate "make this one the dropdown"), then the
     /// app's frontmost window. Every other window of the app is a civilian.
-    private static var designated: UInt32?
+    private(set) static var designated: UInt32?
+    /// Set once a window has ever held the job. When the designated window
+    /// later dies, the next toggle spawns a FRESH window instead of
+    /// conscripting one of the user's working terminals — the ghost is a
+    /// scratchpad, and a scratchpad that dies gets reincarnated, not
+    /// replaced by a hostage.
+    private static var everDesignated = false
 
     static func toggle() {
         guard let config = try? Orchestrator().loadConfig(), config.dropdown.enabled,
@@ -65,6 +71,18 @@ enum DropdownController {
         if let current = designated, !appWindows.contains(where: { $0.id == current }) {
             designated = nil  // it closed; the job is open again
         }
+        // A dead ghost reincarnates: spawn a fresh window rather than
+        // adopting one the user is working in. (First-ever designation still
+        // adopts — the user's focused terminal is a deliberate choice then.)
+        if designated == nil, everDesignated {
+            DragLog.log("dropdown: ghost died — spawning a fresh one")
+            spawnNewWindow(appID: appID) { newID in
+                designated = newID
+                DragLog.log("dropdown: window \(newID) is the reincarnated dropdown")
+                summon(id: newID, appID: appID, to: focusedWorkspace, config: config, cli: cli)
+            }
+            return
+        }
         if designated == nil {
             let focusedID = (try? cli.run([
                 "list-windows", "--focused", "--format", "%{window-id}|%{app-bundle-id}",
@@ -81,6 +99,7 @@ enum DropdownController {
                 appWindows.first(where: { $0.workspace == "S" })?.id
                 ?? focusedID ?? frontmost
             if let designated {
+                everDesignated = true
                 DragLog.log("dropdown: window \(designated) is now the dropdown")
             }
         }
@@ -123,6 +142,56 @@ enum DropdownController {
                 }
                 DragLog.log("dropdown: \(appID) launched but showed no window")
             }
+        }
+    }
+
+    /// Ask the app for a genuinely new window, then wait for its id to
+    /// appear. AppleScript for the terminals that support it properly;
+    /// `open -n` as the generic fallback.
+    private static func spawnNewWindow(appID: String, then: @escaping @MainActor (UInt32) -> Void) {
+        let before = Set(WindowSnapshot.capture().map(\.id))
+        let script: [String]? =
+            switch appID {
+            case "com.googlecode.iterm2":
+                ["-e", "tell application \"iTerm2\" to create window with default profile"]
+            case "com.apple.Terminal":
+                ["-e", "tell application \"Terminal\" to do script \"\""]
+            default: nil
+            }
+        if let script {
+            let process = Process()
+            process.executableURL = URL(filePath: "/usr/bin/osascript")
+            process.arguments = script
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            try? process.run()
+        } else if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: appID) {
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.createsNewApplicationInstance = false
+            NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+        }
+        Task { @MainActor in
+            guard let cli = AeroSpaceCLI.locate() else { return }
+            for _ in 0..<20 {
+                try? await Task.sleep(for: .milliseconds(300))
+                let fresh = WindowSnapshot.capture().map(\.id).filter { !before.contains($0) }
+                if let listing = try? cli.run([
+                    "list-windows", "--all", "--format", "%{window-id}|%{app-bundle-id}",
+                ]) {
+                    for line in listing.split(separator: "\n") {
+                        let parts = line.split(separator: "|").map {
+                            $0.trimmingCharacters(in: .whitespaces)
+                        }
+                        if parts.count >= 2, parts[1] == appID, let id = UInt32(parts[0]),
+                            fresh.contains(id)
+                        {
+                            then(id)
+                            return
+                        }
+                    }
+                }
+            }
+            DragLog.log("dropdown: asked \(appID) for a new window but none appeared")
         }
     }
 
