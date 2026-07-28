@@ -797,7 +797,18 @@ final class AppModel {
         label: "com.panewright.orchestration")
 
     private func offMain(_ successMessage: String?, _ work: @escaping @Sendable () throws -> Void) {
-        Task.detached(priority: .userInitiated) { [weak self] in
+        // MainActor closure built here so `self` never crosses the
+        // detachment boundary — CI's stricter checker insists.
+        let finish: @MainActor @Sendable (String?) -> Void = { [weak self] failure in
+            guard let self else { return }
+            if let failure {
+                self.report(error: failure)
+            } else if let successMessage {
+                self.lastMessage = successMessage
+            }
+            self.refreshStatus()
+        }
+        Task.detached(priority: .userInitiated) {
             let failure: String? = Self.orchestrationQueue.sync {
                 do {
                     try work()
@@ -806,15 +817,7 @@ final class AppModel {
                     return "\(error)"
                 }
             }
-            await MainActor.run {
-                guard let self else { return }
-                if let failure {
-                    self.report(error: failure)
-                } else if let successMessage {
-                    self.lastMessage = successMessage
-                }
-                self.refreshStatus()
-            }
+            await finish(failure)
         }
     }
 

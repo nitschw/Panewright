@@ -338,7 +338,14 @@ final class SettingsModel {
         }
         let orchestrator = appModel.orchestrator
         let insets = (DockInset.bottom, DockInset.sides)
-        Task.detached(priority: .userInitiated) { [weak self, weak appModel] in
+        // MainActor closure built here so neither `self` nor `appModel`
+        // crosses the detachment boundary — CI's stricter checker insists.
+        let finish: @MainActor @Sendable (String?) -> Void = { [weak self, weak appModel] failure in
+            self?.statusLine = failure ?? "Applied"
+            if let failure { appModel?.report(error: failure) }
+            appModel?.refreshStatus()
+        }
+        Task.detached(priority: .userInitiated) {
             let failure: String? = {
                 do {
                     try orchestrator.apply(dockInsetBottom: insets.0, dockInsetSides: insets.1)
@@ -347,11 +354,7 @@ final class SettingsModel {
                     return "\(error)"
                 }
             }()
-            await MainActor.run {
-                self?.statusLine = failure ?? "Applied"
-                if let failure { appModel?.report(error: failure) }
-                appModel?.refreshStatus()
-            }
+            await finish(failure)
         }
     }
 
