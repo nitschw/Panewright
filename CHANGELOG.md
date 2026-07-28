@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.24] — 2026-07-28
+
 ### Fixed
 - Switching native macOS Spaces no longer breaks tiling (issue #18): a
   Space change makes every window on the departed Space invisible to the
