@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.20] — 2026-07-27
+
 ### Fixed
 - **The freezes are gone — root cause found by sampling a frozen instance.**
   The auto-hide poller ran five times a second and spawned a process
