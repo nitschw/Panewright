@@ -48,8 +48,13 @@ public struct AeroSpaceCLI: Sendable {
         process.standardOutput = pipe
         process.standardError = pipe
         try process.run()
-        process.waitUntilExit()
+        // Read before waiting (a full pipe buffer would deadlock the child),
+        // and close the handles explicitly — thousands of CLI calls a day
+        // must not lean on deallocation timing for their file descriptors.
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        try? pipe.fileHandleForReading.close()
+        try? pipe.fileHandleForWriting.close()
         let output = String(decoding: data, as: UTF8.self)
         guard process.terminationStatus == 0 else {
             throw AeroSpaceCLIError(

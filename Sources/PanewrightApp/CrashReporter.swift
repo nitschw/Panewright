@@ -94,7 +94,7 @@ enum CrashReporter {
             </details>
             \(engineSection)
 
-            _Full logs: `~/Library/Logs/Panewright.log` and `PanewrightEngine.log` — drag them onto this issue if asked._
+            _The complete log for this run was just saved to your Desktop (`Panewright-session-….log`) — drag it into this issue._
             """
     }
 
@@ -248,6 +248,59 @@ enum CrashReporter {
         if let url = components.url {
             NSWorkspace.shared.open(url)
         }
+        // The prefilled URL can only carry a few KB, so the inline log is a
+        // tail. The complete log for THIS RUN (both processes, since this
+        // app instance launched) goes to the Desktop and gets revealed
+        // beside the browser — one drag finishes the report.
+        if let bundle = writeSessionLogBundle() {
+            NSWorkspace.shared.activateFileViewerSelecting([bundle])
+        }
+    }
+
+    /// Everything both logs recorded since this app instance started, in one
+    /// Desktop file. The session boundary is our own launch line ("guard:
+    /// mine=<pid>") with the current pid — exact, not a heuristic.
+    private static func writeSessionLogBundle() -> URL? {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let marker = "guard: mine=\(ProcessInfo.processInfo.processIdentifier) "
+        guard
+            let appLog = try? String(
+                contentsOf: home.appending(path: "Library/Logs/Panewright.log"),
+                encoding: .utf8)
+        else { return nil }
+        let session = appLog.range(of: marker, options: .backwards)
+            .map { range -> String in
+                let lineStart = appLog[..<range.lowerBound]
+                    .lastIndex(of: "\n")
+                    .map(appLog.index(after:)) ?? appLog.startIndex
+                return String(appLog[lineStart...])
+            } ?? appLog
+        var bundle = "===== Panewright.log (this run) =====\n" + session
+        if let engineLog = try? String(
+            contentsOf: home.appending(path: "Library/Logs/PanewrightEngine.log"),
+            encoding: .utf8)
+        {
+            // The engine log has no per-session marker; include everything
+            // from the session's first timestamp onward, or the last 200
+            // lines when that can't be determined.
+            let sessionStart = session.prefix(20)
+            let engineSlice: Substring
+            if sessionStart.count == 20,
+                let range = engineLog.range(of: String(sessionStart.prefix(13)))
+            {
+                engineSlice = engineLog[range.lowerBound...]
+            } else {
+                engineSlice = Substring(
+                    engineLog.split(separator: "\n").suffix(200).joined(separator: "\n"))
+            }
+            bundle += "\n\n===== PanewrightEngine.log =====\n" + engineSlice
+        }
+        let stamp = Date().formatted(.iso8601.year().month().day().time(includingFractionalSeconds: false))
+            .replacingOccurrences(of: ":", with: "-")
+        let destination = home.appending(path: "Desktop/Panewright-session-\(stamp).log")
+        guard (try? bundle.write(to: destination, atomically: true, encoding: .utf8)) != nil
+        else { return nil }
+        return destination
     }
 
     private static func title(for report: String) -> String {

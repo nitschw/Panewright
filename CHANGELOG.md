@@ -5,6 +5,19 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Changed
+- The config file is parsed once per actual change instead of nine-plus
+  times per second (the fitter, bar auto-hide, adopter and router each
+  re-parsed it on their own clocks — an mtime stat now answers the common
+  case). CLI process pipes close their descriptors explicitly. Heap
+  inspection shows the live heap small and stable; the footprint metric's
+  climb is high-water accounting of past churn, which this reduces at the
+  source. The silent-death investigation on managed machines continues —
+  the next death's report will carry its full memory curve.
+- Bug reports save the **complete log for the current run** to your
+  Desktop and reveal it beside the browser — the prefilled issue can only
+  carry a short tail inline, and the full story is one drag away.
+
 ## [0.6.16] — 2026-07-27
 
 ### Added

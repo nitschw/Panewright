@@ -75,13 +75,33 @@ public struct Orchestrator: Sendable {
     }
 
     /// A missing config file means pure defaults; a malformed one is an error.
+    ///
+    /// Cached on the file's mtime. The fitter asks four times a second, the
+    /// bar auto-hide five, the adopter and the router besides — nine-plus
+    /// full TOML parses per second, each allocating an AST, forever. On a
+    /// busy three-monitor machine that churn grew the footprint ~12MB a
+    /// minute until the memory killer took the app out silently every half
+    /// hour. The mtime check is one stat; edits still apply instantly.
     public func loadConfig() throws -> PanewrightConfig {
-        guard FileManager.default.fileExists(atPath: paths.panewrightConfigFile.path) else {
-            return .default
+        let path = paths.panewrightConfigFile.path
+        guard
+            let mtime = (try? FileManager.default.attributesOfItem(atPath: path))?[
+                .modificationDate] as? Date
+        else { return .default }
+        Self.configCacheLock.lock()
+        defer { Self.configCacheLock.unlock() }
+        if let cached = Self.configCache, cached.path == path, cached.mtime == mtime {
+            return cached.config
         }
         let toml = try String(contentsOf: paths.panewrightConfigFile, encoding: .utf8)
-        return try ConfigParser.parse(toml: toml)
+        let config = try ConfigParser.parse(toml: toml)
+        Self.configCache = (path, mtime, config)
+        return config
     }
+
+    nonisolated(unsafe) private static var configCache:
+        (path: String, mtime: Date, config: PanewrightConfig)?
+    private static let configCacheLock = NSLock()
 
     /// The editor's save path: serialize a config model over panewright.toml.
     /// Note: rewrites the file — hand-written comments are replaced.
