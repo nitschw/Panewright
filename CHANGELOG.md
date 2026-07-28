@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.15] — 2026-07-27
+
 ### Fixed
 - **Waking from sleep restores your desk again** (issue #8). Three holes,
   all closed: the snapshot's staleness gate measured wall-clock time, so an
