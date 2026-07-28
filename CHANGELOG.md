@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.21] — 2026-07-28
+
 ### Added
 - **The app talks to the engine over its socket, not by launching its CLI.**
   Every engine query and command is now a direct unix-socket exchange from
