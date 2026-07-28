@@ -5,6 +5,13 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Added
+- The health log records the app's memory footprint every 20 seconds. One
+  machine loses the app silently every ~30 minutes with no crash report —
+  the signature of a SIGKILL, with the memory killer as prime suspect —
+  and the next bug report from it will contain the growth curve that
+  convicts or clears a leak.
+
 ## [0.6.15] — 2026-07-27
 
 ### Fixed

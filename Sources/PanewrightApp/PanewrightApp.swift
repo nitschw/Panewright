@@ -948,8 +948,27 @@ final class AppModel {
                     orchestrator.snapshotWorkspaces()
                 }
                 Self.refreshBrewOutdatedCache()
+                Self.logFootprint()
             }
         }
+    }
+
+    /// One line per health tick with the app's real memory footprint. The
+    /// app died silently every ~30 minutes on one machine, with no crash
+    /// report — the signature of a SIGKILL, and jetsam (the memory killer)
+    /// is the prime suspect. If it's a leak, the next bug report's log IS
+    /// the growth curve; if footprint is flat, the killer is external.
+    nonisolated static func logFootprint() {
+        var info = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(
+            MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<integer_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+            }
+        }
+        guard result == KERN_SUCCESS else { return }
+        DragLog.log("health: footprint \(info.phys_footprint / 1_048_576)MB")
     }
 
     /// `brew outdated` from the app, not the bar plugin: SketchyBar's spawn
