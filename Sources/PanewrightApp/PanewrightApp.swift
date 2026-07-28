@@ -278,7 +278,8 @@ final class AppModel {
         let dockSides = DockInset.sides
         Task.detached(priority: .userInitiated) {
             orchestrator.bootstrap(
-                dockInsetBottom: dockBottom, dockInsetSides: dockSides)
+                dockInsetBottom: dockBottom, dockInsetSides: dockSides,
+                phase: { DragLog.log($0) })
             await finished()
         }
     }

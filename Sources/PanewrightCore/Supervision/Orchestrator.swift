@@ -162,19 +162,54 @@ public struct Orchestrator: Sendable {
     /// Dock insets arrive as parameters because measuring them needs NSScreen
     /// and this layer has no AppKit — the caller reads them on the main actor
     /// before detaching.
-    public func bootstrap(dockInsetBottom: Int = 0, dockInsetSides: Int = 0) {
+    public func bootstrap(
+        dockInsetBottom: Int = 0, dockInsetSides: Int = 0,
+        phase: (String) -> Void = { _ in }
+    ) {
+        // Phase-timed, because a silent 30-second startup is undebuggable:
+        // the one session log we got from a slow machine contained six lines
+        // and then nothing, and the answer to "what is startup doing" was a
+        // shrug. Every phase now announces itself with its cost.
+        let started = Date()
+        func mark(_ name: String) {
+            phase("bootstrap: \(name) (+\(Int(Date().timeIntervalSince(started) * 1000))ms)")
+        }
         teardown()
         Thread.sleep(forTimeInterval: 0.7)
+        mark("teardown done")
+        let config = try? loadConfig()
         guard AeroSpaceCLI.locate() != nil else {
             // No engine installed: still sync the visual layer.
             try? apply(dockInsetBottom: dockInsetBottom, dockInsetSides: dockInsetSides)
+            mark("visual layer up (no engine)")
             return
         }
+        // The engine's config must exist before the engine boots and reads
+        // it; the launch itself is fire-and-forget.
+        refreshCLILink()
+        try? config.map(writeSupportScripts)
+        try? writeAerospaceConfig()
         try? launchAeroSpace()
+        mark("engine launched")
+        // The bar does NOT wait for the engine. On managed machines,
+        // endpoint security hashes the ~100MB engine binary on every exec —
+        // the engine can take 20-30 seconds to answer, and the old serial
+        // bootstrap held the bar (and the whole visual layer) hostage to
+        // that wait: a bare desktop with no bar for half a minute, reported
+        // as "startup is broken". The strips populate on their own once the
+        // engine arrives.
+        if let config {
+            try? applyBorders(config)
+            try? applyBar(
+                config, dockInsetBottom: dockInsetBottom, dockInsetSides: dockInsetSides)
+        }
+        mark("bar and borders up")
         _ = waitForAeroSpace()
-        try? apply(dockInsetBottom: dockInsetBottom, dockInsetSides: dockInsetSides)
+        mark("engine answered")
         healLayoutsWhenReady()
+        mark("layouts healed")
         restoreWorkspaces()
+        mark("workspaces restored — bootstrap complete")
         // Distribution is driven from the app layer (MonitorMap) once the
         // display arrangement is known and AeroSpace has settled — running it
         // here races AeroSpace's own startup workspace auto-assignment.

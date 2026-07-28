@@ -5,6 +5,15 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- **Startup no longer holds the bar hostage to the engine** (issue #12). On
+  machines whose endpoint security hashes the ~100MB engine binary at every
+  launch, the engine takes 20-30 seconds to answer — and the old serial
+  bootstrap kept the whole visual layer waiting behind it: a bare desktop
+  reported as "startup is broken". The bar and borders now come up in under
+  two seconds while the engine boots in parallel, and bootstrap logs every
+  phase with its cost, so the next slow startup names its bottleneck.
+
 ## [0.6.17] — 2026-07-27
 
 ### Changed
