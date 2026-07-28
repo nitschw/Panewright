@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.29] — 2026-07-28
+
 ### Fixed
 - A display the bar never reports geometry for (hidden by a monitor
   profile, or on a Space that never laid out) no longer traps the
