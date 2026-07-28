@@ -15,6 +15,14 @@ import PanewrightCore
 /// is working-as-designed in the worst way unless someone explains it.
 @MainActor
 final class SpaceGuard {
+    /// When the user last moved between native Spaces — consulted by the
+    /// engine stall detector, because an engine that manages zero windows
+    /// is *also* what a healthy engine looks like from a foreign Space
+    /// (windows on inactive Spaces are invisible to AX, and the engine
+    /// garbage-collects them from its tree). Restarting it on that
+    /// evidence exploded every window twice in one session (issue #22).
+    private(set) static var lastSpaceChange = Date.distantPast
+
     private var observing = false
     private var advisoryGiven = false
     private let notify: (String) -> Void
@@ -35,6 +43,7 @@ final class SpaceGuard {
     }
 
     private func spaceChanged() {
+        Self.lastSpaceChange = Date()
         DragLog.log("space: native macOS Space changed — holding corrections")
         // The same stamp the workspace-switch dispatch writes: the fitter's
         // tick holds while it's fresh, which is exactly right for a Space

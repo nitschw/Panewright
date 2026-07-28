@@ -1088,6 +1088,31 @@ final class AppModel {
     /// the user can do, so tell them (once) instead of thrashing.
     private var aeroStallRestarted = false
     private var aeroStallNotified = false
+    /// Consecutive ticks the stall signature has held (with no Space-side
+    /// explanation) — one glimpse is not a verdict; see the vetoes below.
+    private var aeroStallStrikes = 0
+
+    /// A window whose frame exactly covers a display — the signature of a
+    /// fullscreen app, which lives on its own native Space. CG-only, safe
+    /// off the main actor.
+    nonisolated private static func fullscreenWindow(
+        in windows: [OnScreenWindow]
+    ) -> OnScreenWindow? {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return nil }
+        var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &ids, &count) == .success else { return nil }
+        let bounds = ids.map { CGDisplayBounds($0) }
+        return windows.first { window in
+            bounds.contains { display in
+                abs(display.minX - window.frame.minX) < 2
+                    && abs(display.minY - window.frame.minY) < 2
+                    && abs(display.width - window.frame.width) < 2
+                    && abs(display.height - window.frame.height) < 2
+            }
+        }
+    }
+
     /// One recovery at a time. The health tick detaches a task each cycle;
     /// during a docking storm the engine segfaulted, two ticks both saw it
     /// dead, and two concurrent recoveries each launched an engine and each
@@ -1260,18 +1285,55 @@ final class AppModel {
             return
         }
         engineWaitingTicks = 0
-        let onScreen = WindowSnapshot.capture().filter {
+        let snapshot = WindowSnapshot.capture().filter {
             !Self.systemOwners.contains($0.ownerName)
-        }.count
+        }
+        let onScreen = snapshot.count
         guard orchestrator.aeroSpaceIsStalled(visibleAppWindowCount: onScreen) else {
             // Recovered (or never stalled): rearm both stages for next time.
             aeroStallRestarted = false
             aeroStallNotified = false
+            aeroStallStrikes = 0
+            return
+        }
+        // Zero managed with windows on screen is the stall signature — but
+        // it is ALSO what a healthy engine looks like from a foreign native
+        // Space: windows on inactive Spaces are invisible to AX, the engine
+        // garbage-collects them, and CGWindowList sees whatever lives on
+        // the Space the user is visiting. Restarting on that evidence
+        // exploded and re-restored every window while the user watched
+        // (issue #22, right after fourteen Space changes). Three vetoes,
+        // each logged with its reasoning, before the verdict stands.
+        let sinceSpaceChange = await MainActor.run {
+            Date().timeIntervalSince(SpaceGuard.lastSpaceChange)
+        }
+        if sinceSpaceChange < 120 {
+            DragLog.log(
+                "aerospace health: 0 managed, \(onScreen) on screen — but a native"
+                    + " Space change was \(Int(sinceSpaceChange))s ago; the tiled world"
+                    + " is likely on another Space — holding")
+            return
+        }
+        if let fullscreen = Self.fullscreenWindow(in: snapshot) {
+            DragLog.log(
+                "aerospace health: 0 managed, \(onScreen) on screen — but"
+                    + " \(fullscreen.ownerName) is fullscreen here, so this is its own"
+                    + " Space and the tiled world is elsewhere — holding")
+            return
+        }
+        aeroStallStrikes += 1
+        if aeroStallStrikes < 3 {
+            DragLog.log(
+                "aerospace health: stall suspected (strike \(aeroStallStrikes)/3):"
+                    + " 0 managed, \(onScreen) on screen — confirming before restart")
             return
         }
         if !aeroStallRestarted {
             aeroStallRestarted = true
-            DragLog.log("aerospace health: stalled (0 managed, \(onScreen) on screen) — restarting")
+            aeroStallStrikes = 0
+            DragLog.log(
+                "aerospace health: stalled (0 managed, \(onScreen) on screen,"
+                    + " three consecutive ticks, no Space activity) — restarting")
             await MainActor.run { AppModel.lastEngineLaunch = Date() }
             try? orchestrator.restartAeroSpace()
             // The restarted engine dumps every window onto one workspace, the

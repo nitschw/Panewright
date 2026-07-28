@@ -5,6 +5,17 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- The engine is no longer restarted for looking stalled from a foreign
+  native Space (issue #22): zero managed windows with windows on screen
+  is also what a healthy engine looks like while the user visits a
+  fullscreen app's Space — AX can't see windows on inactive Spaces and
+  the engine garbage-collects them. The stall verdict now stands down
+  for two minutes after any native Space change, is vetoed outright
+  when a fullscreen window owns the current Space, and needs three
+  consecutive ticks — and every held or confirmed verdict logs its
+  reasoning and inputs.
+
 ## [0.6.29] — 2026-07-28
 
 ### Fixed
