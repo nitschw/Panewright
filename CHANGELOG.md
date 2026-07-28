@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.16] — 2026-07-27
+
 ### Added
 - The health log records the app's memory footprint every 20 seconds. One
   machine loses the app silently every ~30 minutes with no crash report —
