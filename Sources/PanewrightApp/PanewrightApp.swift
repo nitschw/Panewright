@@ -387,26 +387,37 @@ final class AppModel {
             @MainActor @Sendable (AeroSpaceStatus, String, String, PanewrightConfig?, [String])
                 -> Void = { [weak self] status, bordersInfo, barInfo, config, profiles in
                 guard let self else { return }
-                self.status = status
-                self.bordersInfo = bordersInfo
-                self.barInfo = barInfo
-                self.bordersEnabled = config?.focusBorder.enabled ?? true
-                self.barEnabled = config?.statusBar.enabled ?? true
-                self.profiles = profiles
+                // Diff-guarded: Observation notifies on every assignment,
+                // equal value or not, and each notification invalidates the
+                // menu-bar menu — including while it's OPEN, since this runs
+                // on menu open and on every health tick. Unconditional
+                // assignment of unchanged status meant the menu rebuilt
+                // itself under the pointer: the "painfully slow" hover.
+                func set<T: Equatable>(
+                    _ keyPath: ReferenceWritableKeyPath<AppModel, T>, _ value: T
+                ) {
+                    if self[keyPath: keyPath] != value { self[keyPath: keyPath] = value }
+                }
+                set(\.status, status)
+                set(\.bordersInfo, bordersInfo)
+                set(\.barInfo, barInfo)
+                set(\.bordersEnabled, config?.focusBorder.enabled ?? true)
+                set(\.barEnabled, config?.statusBar.enabled ?? true)
+                set(\.profiles, profiles)
                 self.dragController?.configure(
                     focusFollowsMouse: config?.focusFollowsMouse ?? false)
                 self.dragController?.configure(
                     dragToBar: config?.pills.dragToBar ?? true)
                 self.integrations.configure(config?.integrations ?? IntegrationsConfig())
-                self.confluenceEnabled = config?.integrations.confluence.enabled ?? false
-                self.conflictCount = config.map { BindingConflicts.rows(in: $0).count } ?? 0
+                set(\.confluenceEnabled, config?.integrations.confluence.enabled ?? false)
+                set(\.conflictCount, config.map { BindingConflicts.rows(in: $0).count } ?? 0)
                 if self.isBundled {
-                    self.launchAtLogin = SMAppService.mainApp.status == .enabled
+                    set(\.launchAtLogin, SMAppService.mainApp.status == .enabled)
                 }
                 if !self.dragToTileActive {
                     self.startDragToTileIfPermitted()
                 }
-                self.needsDragSetup = !DragTileController.hasPermission
+                set(\.needsDragSetup, !DragTileController.hasPermission)
             }
         Task.detached(priority: .utility) {
             let status = orchestrator.status()

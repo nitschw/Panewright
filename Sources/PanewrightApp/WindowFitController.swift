@@ -88,6 +88,8 @@ final class WindowFitController {
         /// Windows this workspace already floated as unfillable. If the user
         /// tiles one back by hand, their decision stands — no refloating.
         var floatedUnfillable: Set<UInt32> = []
+        /// One background membership refresh at a time (see currentWindows).
+        var fetchInFlight = false
     }
 
     private var states: [String: WorkspaceState] = [:]
@@ -912,29 +914,57 @@ final class WindowFitController {
     /// The visible-workspace roster, re-fetched only when the on-screen
     /// window set changes or the cache ages out — same economics as the
     /// per-workspace membership cache.
+    /// True while a background roster/membership refresh is in flight, so
+    /// the tick kicks at most one and keeps serving the stale cache — the
+    /// tick must NEVER wait on the engine: a wedged engine once turned
+    /// every 250ms tick into a 5-second main-thread stall.
+    private var refreshInFlight = false
+
     private func visibleWorkspaces(
         cli: AeroSpaceCLI, onScreen: [OnScreenWindow]
     ) -> [Monitors.VisibleWorkspace] {
         let live = Set(onScreen.map(\.id))
-        if live != visibleCacheIDs || Date().timeIntervalSince(visibleCachedAt) > 1 {
-            let before = Set(visibleCache.map(\.workspace))
-            visibleCache = Monitors.visibleWorkspaces(cli: cli)
+        if live != visibleCacheIDs || Date().timeIntervalSince(visibleCachedAt) > 1,
+            !refreshInFlight
+        {
+            refreshInFlight = true
             visibleCacheIDs = live
-            visibleCachedAt = Date()
-            // A workspace that just appeared or vanished is mid-transition:
-            // its windows are teleporting to or from the parking corner with
-            // stable ids and flying frames — which passes the membership
-            // guard while failing every assumption it protects. Rapid
-            // switching judged a half-parked workspace as "overlapping" and
-            // evicted the still-focused window to the first empty workspace,
-            // dragging the user with it. Visibility changes get the same
-            // settle window a membership change does.
-            let after = Set(visibleCache.map(\.workspace))
-            for changed in before.symmetricDifference(after) {
-                states[changed]?.lastMembershipChange = Date()
+            Task { @MainActor in
+                defer { self.refreshInFlight = false }
+                let fresh = await Self.rosterOffMain(cli: cli)
+                // A workspace that just appeared or vanished is
+                // mid-transition: its windows are teleporting with stable
+                // ids and flying frames, which passes the membership guard
+                // while failing every assumption it protects. Visibility
+                // changes get the same settle window a membership change
+                // does.
+                let before = Set(self.visibleCache.map(\.workspace))
+                self.visibleCache = fresh
+                self.visibleCachedAt = Date()
+                for changed in before.symmetricDifference(Set(fresh.map(\.workspace))) {
+                    self.states[changed]?.lastMembershipChange = Date()
+                }
             }
         }
         return visibleCache
+    }
+
+    /// The roster query runs on the fitter's I/O queue; the NSScreen pairing
+    /// hops back to the main actor where AppKit lives.
+    nonisolated private static func rosterOffMain(
+        cli: AeroSpaceCLI
+    ) async -> [Monitors.VisibleWorkspace] {
+        let listing: String? = await withCheckedContinuation { continuation in
+            ioQueue.async {
+                continuation.resume(
+                    returning: try? cli.run([
+                        "list-workspaces", "--monitor", "all", "--visible",
+                        "--format", "%{workspace}|%{monitor-id}|%{monitor-name}",
+                    ]))
+            }
+        }
+        guard let listing else { return [] }
+        return await MainActor.run { Monitors.visibleWorkspaces(fromListing: listing) }
     }
 
     private func currentWindows(
@@ -948,12 +978,23 @@ final class WindowFitController {
         // of on-screen windows changes (or the cache ages out). That keeps
         // the polling loop down to one CGWindowList call, which is what makes
         // a sub-second cadence affordable.
-        if live != state.cachedWindowIDs || Date().timeIntervalSince(state.cachedAt) > 2 {
-            let listing = fetchWorkspace(cli: cli, workspace: workspace)
-            state.cachedBundleIDs = listing.tiled
-            state.cachedFloating = listing.floating
+        if live != state.cachedWindowIDs || Date().timeIntervalSince(state.cachedAt) > 2,
+            !state.fetchInFlight
+        {
+            // Serve the stale membership and refresh it in the background —
+            // the tick must never wait on the engine. When the engine is
+            // healthy the fresh answer lands before the next tick anyway;
+            // when it's wedged, stale membership beats a frozen app.
+            state.fetchInFlight = true
             state.cachedWindowIDs = live
-            state.cachedAt = Date()
+            let workspaceName = workspace
+            Task { @MainActor in
+                defer { state.fetchInFlight = false }
+                let listing = await Self.fetchWorkspaceOffMain(cli: cli, workspace: workspaceName)
+                state.cachedBundleIDs = listing.tiled
+                state.cachedFloating = listing.floating
+                state.cachedAt = Date()
+            }
         }
         guard !state.cachedBundleIDs.isEmpty else { return [] }
         let now = Date()
@@ -1012,7 +1053,17 @@ final class WindowFitController {
     /// underneath to get away from something that is supposed to overlap
     /// them. Fullscreen windows are excluded for the same reason: one covers
     /// everything, which reads as a collision with every window at once.
-    private func fetchWorkspace(
+    nonisolated private static func fetchWorkspaceOffMain(
+        cli: AeroSpaceCLI, workspace: String
+    ) async -> (tiled: [UInt32: String], floating: Set<UInt32>) {
+        await withCheckedContinuation { continuation in
+            ioQueue.async {
+                continuation.resume(returning: Self.parseWorkspace(cli: cli, workspace: workspace))
+            }
+        }
+    }
+
+    nonisolated private static func parseWorkspace(
         cli: AeroSpaceCLI, workspace: String
     ) -> (tiled: [UInt32: String], floating: Set<UInt32>) {
         guard

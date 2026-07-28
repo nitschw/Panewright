@@ -5,6 +5,19 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- **The pinwheels are over — profiled, root-caused, and closed at every
+  layer.** The menu (and everything else) froze because the engine's server
+  had slowed to seconds per answer and the app still made two synchronous
+  engine calls on the UI thread. Engine: hidden windows are parked once,
+  not re-parked with an AX call on every refresh (dozens of parked windows
+  × a slow accessibility layer = 10-second answers, measured). App: the
+  fitter's roster and membership reads now serve their cache and refresh in
+  the background — the UI thread never waits on the engine, wedged or not.
+  Menu interactions also stop rebuilding the open menu (status refreshes
+  only notify on real changes). Measured: main-thread blocking frames went
+  from 4,657 to 1 in a six-second sample.
+
 ## [0.6.25] — 2026-07-28
 
 ### Fixed

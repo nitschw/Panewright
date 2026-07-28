@@ -14,7 +14,10 @@ import PanewrightCore
 /// them backwards is nil for fitting purposes: the geometry is the same.
 @MainActor
 enum Monitors {
-    struct VisibleWorkspace {
+    /// NSScreen is documented main-thread-bound but is a reference we only
+    /// read from the main actor; carrying it across an await boundary in a
+    /// value struct is safe by construction here.
+    struct VisibleWorkspace: @unchecked Sendable {
         let workspace: String
         let monitorID: Int
         let screen: NSScreen
@@ -31,6 +34,12 @@ enum Monitors {
                 "--format", "%{workspace}|%{monitor-id}|%{monitor-name}",
             ])
         else { return [] }
+        return visibleWorkspaces(fromListing: output)
+    }
+
+    /// The pairing half alone, for callers that fetched the listing off the
+    /// main actor (NSScreen work has to happen here regardless).
+    static func visibleWorkspaces(fromListing output: String) -> [VisibleWorkspace] {
         var claimed: Set<Int> = []  // NSScreen indices already paired off
         var result: [VisibleWorkspace] = []
         let screens = NSScreen.screens
