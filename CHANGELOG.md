@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.23] — 2026-07-28
+
 ### Fixed
 - **Restarting the environment no longer multiplies the machinery**
   (issue #17). Every restart re-armed the periodic jobs without stopping
