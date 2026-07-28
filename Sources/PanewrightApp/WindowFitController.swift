@@ -145,6 +145,24 @@ final class WindowFitController {
     private static let switchStampPath = NSHomeDirectory()
         + "/.config/panewright/.last-switch"
 
+    /// Engine I/O off the main actor: a convergence burst runs dozens of
+    /// sequential CLI calls, and on machines whose endpoint security taxes
+    /// every spawn (100-500ms each) doing that on main froze the UI for the
+    /// burst's whole duration — fifteen-second pinwheels timed to layout
+    /// corrections, not to anything the user touched. One serial queue keeps
+    /// the engine conversation ordered; awaits keep main responsive.
+    nonisolated private static let ioQueue = DispatchQueue(label: "com.panewright.fitter.io")
+
+    nonisolated private static func runOff(
+        _ cli: AeroSpaceCLI, _ args: [String]
+    ) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            ioQueue.async {
+                continuation.resume(with: Result { try cli.run(args) })
+            }
+        }
+    }
+
     init(notify: @escaping (String) -> Void) {
         self.notify = notify
         minimums.load()
@@ -432,7 +450,8 @@ final class WindowFitController {
                             + " (\(Int(mover.frame.width))pt) into"
                             + " \(target.bundleID)'s column")
                     guard
-                        (try? cli.run(["join-with", "--window-id", "\(id)", direction])) != nil
+                        (try? await Self.runOff(
+                            cli, ["join-with", "--window-id", "\(id)", direction])) != nil
                     else {
                         DragLog.log("fitting: join-with failed — leaving the layout alone")
                         state.settled = signature(of: windows)
@@ -447,7 +466,7 @@ final class WindowFitController {
                     return
                 case .adjusting(.shrink(let id, let by, let axis)):
                     guard let target = windows.first(where: { $0.id == id }) else { return }
-                    try? cli.run([
+                    try? await Self.runOff(cli, [
                         "resize", "--window-id", "\(id)", axis.resizeDimension, "-\(by)",
                     ])
                     // Let the resize land before reading it back, or we learn
@@ -550,7 +569,7 @@ final class WindowFitController {
                 // at all once there's nothing left worth reclaiming.
                 let ask = min(CGFloat(40), before - usable)
                 guard ask >= 8 else { continue }
-                try? cli.run([
+                try? await Self.runOff(cli, [
                     "resize", "--window-id", "\(window.id)", axis.resizeDimension,
                     "-\(Int(ask))",
                 ])
@@ -847,7 +866,7 @@ final class WindowFitController {
         Task { @MainActor in
             defer { converging = false }
             let asked = min(Int(hole.amount), 400)
-            try? cli.run([
+            try? await Self.runOff(cli, [
                 "resize", "--window-id", "\(window.id)",
                 hole.axis.resizeDimension, "+\(asked)",
             ])

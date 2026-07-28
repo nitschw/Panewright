@@ -326,15 +326,33 @@ final class SettingsModel {
     }
 
     private func save() {
+        // The write is fast and stays here; the apply shells out repeatedly
+        // and must never run on the main actor — editing a slider used to
+        // pinwheel the Settings window while the engine reloaded.
         do {
             try appModel.orchestrator.writeConfig(config)
-            try appModel.orchestrator.apply(dockInsetBottom: DockInset.bottom, dockInsetSides: DockInset.sides)
-            statusLine = "Applied"
         } catch {
             statusLine = "\(error)"
             appModel.report(error: "\(error)")
+            return
         }
-        appModel.refreshStatus()
+        let orchestrator = appModel.orchestrator
+        let insets = (DockInset.bottom, DockInset.sides)
+        Task.detached(priority: .userInitiated) { [weak self, weak appModel] in
+            let failure: String? = {
+                do {
+                    try orchestrator.apply(dockInsetBottom: insets.0, dockInsetSides: insets.1)
+                    return nil
+                } catch {
+                    return "\(error)"
+                }
+            }()
+            await MainActor.run {
+                self?.statusLine = failure ?? "Applied"
+                if let failure { appModel?.report(error: failure) }
+                appModel?.refreshStatus()
+            }
+        }
     }
 
     /// `quiet` is for reloads the user didn't ask for — reopening the window

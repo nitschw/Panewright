@@ -32,8 +32,16 @@ final class BarAutoHide {
     }
 
     private func tick() {
+        // No process is spawned on this five-per-second path. It used to
+        // pgrep for the bar before even checking whether auto-hide was on —
+        // five main-thread spawns per second, forever, for everyone. On
+        // machines whose endpoint security taxes each spawn that saturated
+        // the main thread outright: the app "froze and stayed frozen" while
+        // every sample showed waitUntilExit under this timer. The bar's
+        // liveness is the health check's job; a slide command sent to a dead
+        // bar fails silently and costs nothing.
         guard let config = try? Orchestrator().loadConfig(),
-            let bar = SketchyBarSupervisor.locate(), bar.isRunning()
+            let bar = SketchyBarSupervisor.locate()
         else { return }
         let enabled = config.statusBar.enabled && config.statusBar.autoHide
         defer { wasEnabled = enabled }

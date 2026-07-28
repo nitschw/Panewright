@@ -5,6 +5,17 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- **The freezes are gone — root cause found by sampling a frozen instance.**
+  The auto-hide poller ran five times a second and spawned a process
+  (checking whether the bar was alive) on the main thread on every tick —
+  even with auto-hide switched off. On machines whose endpoint security
+  taxes each spawn, that alone saturated the UI thread: the app froze and
+  stayed frozen, with normal CPU. The tick now spawns nothing. The fitter's
+  convergence bursts (dozens of sequential engine calls) and the config
+  apply pipeline (engine reload, bar respawn) also moved off the main
+  thread, so none of the background choreography can pinwheel the UI again.
+
 ## [0.6.19] — 2026-07-27
 
 ### Fixed

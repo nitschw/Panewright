@@ -788,24 +788,49 @@ final class AppModel {
                 identifier: UUID().uuidString, content: content, trigger: nil))
     }
 
-    func apply() {
-        do {
-            try orchestrator.apply(dockInsetBottom: DockInset.bottom, dockInsetSides: DockInset.sides)
-            lastMessage = "Config applied"
-        } catch {
-            report(error: "\(error)")
+    /// Every mutating orchestrator operation runs on one serial background
+    /// queue: each shells out (engine reload, bar respawn, borders), each
+    /// spawn is taxed on managed machines, and running them on the main
+    /// actor pinwheeled the UI for the duration. Serial, so rapid toggles
+    /// can't interleave their process choreography.
+    nonisolated private static let orchestrationQueue = DispatchQueue(
+        label: "com.panewright.orchestration")
+
+    private func offMain(_ successMessage: String?, _ work: @escaping @Sendable () throws -> Void) {
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let failure: String? = Self.orchestrationQueue.sync {
+                do {
+                    try work()
+                    return nil
+                } catch {
+                    return "\(error)"
+                }
+            }
+            await MainActor.run {
+                guard let self else { return }
+                if let failure {
+                    self.report(error: failure)
+                } else if let successMessage {
+                    self.lastMessage = successMessage
+                }
+                self.refreshStatus()
+            }
         }
-        refreshStatus()
+    }
+
+    func apply() {
+        let orchestrator = orchestrator
+        let insets = (DockInset.bottom, DockInset.sides)
+        offMain("Config applied") {
+            try orchestrator.apply(dockInsetBottom: insets.0, dockInsetSides: insets.1)
+        }
     }
 
     func setBordersEnabled(_ enabled: Bool) {
-        do {
+        let orchestrator = orchestrator
+        offMain(enabled ? "Borders on" : "Borders off") {
             try orchestrator.setBordersEnabled(enabled)
-            lastMessage = enabled ? "Borders on" : "Borders off"
-        } catch {
-            report(error: "\(error)")
         }
-        refreshStatus()
     }
 
     /// Current widget toggles, read fresh so the menu reflects hand edits to
