@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.19] — 2026-07-27
+
 ### Fixed
 - **No more minute-long beachballs.** Two causes: a CLI call against an
   engine dying mid-update could hang forever (the socket accepts, then says
