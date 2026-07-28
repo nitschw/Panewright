@@ -216,6 +216,33 @@ enum MonitorMap {
     /// use geometry because SketchyBar reports off-screen sentinels until it has
     /// laid the bar out, and blocking the main thread to wait would freeze the
     /// UI.
+    /// The engine relaunched: its monitor ids renumbered, so the map —
+    /// and everything reading it — must be rebuilt even though no physical
+    /// display changed. Same treatment as a display change.
+    static func engineRelaunched() {
+        refreshMap()
+        redistribute()
+    }
+
+    /// A map whose engine ids no longer match `list-monitors` paints
+    /// M-badges with no workspace pills under them (the strip queries
+    /// monitors that don't exist). Cheap to detect; called from the health
+    /// tick so a stale map can never outlive one.
+    static func refreshIfStale() {
+        let current = Set(monitorsByName().values)
+        guard !current.isEmpty else { return }
+        let mapped = Set(
+            ((try? String(contentsOf: url, encoding: .utf8)) ?? "")
+                .split(separator: "\n")
+                .compactMap { line -> Int? in
+                    let parts = line.split(separator: "\t")
+                    return parts.count >= 2 ? Int(parts[1]) : nil
+                })
+        guard !mapped.isEmpty, mapped != current else { return }
+        DragLog.log("monitor-map: engine ids changed \(mapped.sorted()) → \(current.sorted()) — rebuilding")
+        engineRelaunched()
+    }
+
     private static func refreshMap() {
         if write() { reloadBar() }
         Task.detached(priority: .userInitiated) {

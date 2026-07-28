@@ -121,7 +121,9 @@ enum CrashReporter {
     /// crashed" report used to arrive with logs that showed nothing wrong.
     /// macOS wrote the whole story to DiagnosticReports; include it.
     private static func recentCrashes() -> String {
-        let since = Date().addingTimeInterval(-86400)
+        // Four hours, not a day: a long-since-fixed crash from this morning
+        // kept riding along in every subsequent report as noise.
+        let since = Date().addingTimeInterval(-4 * 3600)
         var sections: [String] = []
         if let app = latestCrashReport(since: since, prefix: "panewright") {
             sections.append(app)

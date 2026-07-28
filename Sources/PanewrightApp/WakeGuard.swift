@@ -49,6 +49,18 @@ enum WakeGuard {
                         DragLog.log(
                             "wake: leaving windows, bar and AeroSpace alone for "
                                 + "\(Int(settle))s")
+                        // Sleep doesn't age the workspace snapshot: nothing
+                        // can rearrange while the machine is off. The
+                        // restore's staleness gate measures wall-clock time,
+                        // so an overnight sleep made a perfectly valid
+                        // snapshot look ancient — the engine relaunched at
+                        // wake and restored nothing, leaving every monitor
+                        // wrong until the user clicked around. Waking
+                        // revalidates it.
+                        let snapshot = FileManager.default.homeDirectoryForCurrentUser
+                            .appending(path: ".config/panewright/.workspace-snapshot")
+                        try? FileManager.default.setAttributes(
+                            [.modificationDate: Date()], ofItemAtPath: snapshot.path)
                     }
                 }
             }

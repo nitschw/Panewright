@@ -933,6 +933,9 @@ final class AppModel {
                 if let config = try? orchestrator.loadConfig() {
                     await MainActor.run { BarProfiles.apply(config) }
                 }
+                // And catch a monitor map whose engine ids went stale — an
+                // engine restart renumbers monitors without any display event.
+                await MainActor.run { MonitorMap.refreshIfStale() }
                 await self?.checkAeroSpaceHealth(orchestrator)
                 // Keep the who-lives-where record fresh while the engine is
                 // healthy — but not right after a (re)launch, when the truth
@@ -1089,6 +1092,14 @@ final class AppModel {
                         moved > 0
                             ? "aerospace health: restored \(moved) windows from snapshot"
                             : "aerospace health: snapshot restore moved nothing (stale or empty)")
+                    // Finish the recovery: force a layout pass (the engine is
+                    // event-driven, and after a wake-restore no events arrive
+                    // until the user touches something — secondary monitors
+                    // sat showing pre-sleep pixels until a click), and rebuild
+                    // the monitor map (the relaunched engine renumbered its
+                    // monitors, which left M-badges with no pills under them).
+                    orchestrator.healLayoutsWhenReady()
+                    await MainActor.run { MonitorMap.engineRelaunched() }
                     break
                 }
             }

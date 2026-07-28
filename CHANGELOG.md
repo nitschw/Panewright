@@ -5,6 +5,20 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- **Waking from sleep restores your desk again** (issue #8). Three holes,
+  all closed: the snapshot's staleness gate measured wall-clock time, so an
+  overnight sleep made a perfectly valid snapshot look ancient and the
+  engine relaunched restoring *nothing* — waking now revalidates it (sleep
+  can't rearrange anything). An engine relaunch renumbers its monitors
+  without any display event, which left M-badges with no workspace pills
+  under them — the monitor map now rebuilds after every engine relaunch,
+  and the health tick catches any stale map that slips through. And the
+  relaunch recovery now forces a layout pass, so secondary monitors render
+  their workspaces instead of pre-sleep pixels waiting for a click.
+- Bug reports only attach crashes from the last four hours, so a
+  long-since-fixed morning crash stops riding along as noise.
+
 ## [0.6.14] — 2026-07-27
 
 ### Fixed
