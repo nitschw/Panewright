@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.27] — 2026-07-28
+
 ### Fixed
 - **The accessibility-debris problem is fixed at both ends** (the root of
   the day's lag, orphaned-at-startup apps, and slow menus). Release builds
