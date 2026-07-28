@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.31] — 2026-07-28
+
 ### Fixed
 - Windows no longer scramble across workspaces after visiting another
   native Space (issue #23). Two engine fixes: the engine now remembers
