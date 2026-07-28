@@ -5,6 +5,13 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Added
+- `float-secondary-windows` (config + Layout tab toggle, off by default):
+  any new window of an app that already has one arrives floating — auth
+  prompts, OAuth popups and password sheets are usually an app's second
+  window even when macOS types them as standard windows. Re-tile keepers
+  with `$mod+shift+space`; the float is the arrival state, not a cage.
+
 ## [0.6.21] — 2026-07-28
 
 ### Added

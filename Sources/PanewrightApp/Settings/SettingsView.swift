@@ -111,6 +111,12 @@ struct SettingsView: View {
             case .layout:
                 gapsSection.id("layout")
                 Divider()
+                Toggle(
+                    "New windows of already-open apps arrive floating",
+                    isOn: bind(\.floatSecondaryWindows))
+                Text("Auth prompts and popups are usually an app's second window. Re-tile any keeper with $mod+shift+space.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Divider()
                 floatingAppsSection
                 Divider()
                 workspaceMonitorsSection

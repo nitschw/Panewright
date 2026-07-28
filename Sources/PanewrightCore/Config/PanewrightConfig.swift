@@ -479,6 +479,13 @@ public struct PanewrightConfig: Equatable, Sendable {
     /// i3's `focus_follows_mouse` — hover moves focus, no click. Implemented
     /// by Panewright's event tap (AeroSpace has no native support).
     public var focusFollowsMouse: Bool
+    /// Float any new window of an app that already has one — the second
+    /// window of an app is very often a dialog in spirit (auth prompts,
+    /// OAuth popups, password managers) even when macOS types it as a
+    /// standard window the engine would tile. Off by default; float is the
+    /// arrival state, not a cage — re-tile with $mod+shift+space and it
+    /// stays tiled.
+    public var floatSecondaryWindows: Bool
     /// i3's `mouse_warping output`: when focus lands on another monitor
     /// (workspace switch, focus-monitor), the pointer warps to that
     /// monitor's center — your next click is where your eyes already are.
@@ -536,6 +543,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         integrations: IntegrationsConfig = IntegrationsConfig(),
         focusFollowsMouse: Bool = false,
         mouseFollowsFocus: Bool = true,
+        floatSecondaryWindows: Bool = false,
         followAppSwitch: Bool = true,
         statusBar: StatusBar = StatusBar(),
         gaps: Gaps = Gaps(),
@@ -566,6 +574,7 @@ public struct PanewrightConfig: Equatable, Sendable {
         self.integrations = integrations
         self.focusFollowsMouse = focusFollowsMouse
         self.mouseFollowsFocus = mouseFollowsFocus
+        self.floatSecondaryWindows = floatSecondaryWindows
         self.followAppSwitch = followAppSwitch
         self.statusBar = statusBar
         self.gaps = gaps

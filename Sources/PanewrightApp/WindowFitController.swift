@@ -1081,9 +1081,33 @@ final class WindowFitController {
         // No dispatch on the very first pass: launching Panewright over an
         // existing desktop is not thirty windows "opening".
         if !known.isEmpty {
+            let arrivals = windows.filter { !known.contains($0.id) }
             if let hook = config.windowOpenedHook {
-                for window in windows where !known.contains(window.id) {
+                for window in arrivals {
                     Self.runHook(hook, window: window)
+                }
+            }
+            // The second window of an app is a dialog in spirit — auth
+            // prompts, OAuth popups — even when typed as a standard window.
+            // Float on arrival (opt-in); the user re-tiles keepers.
+            if config.floatSecondaryWindows, !arrivals.isEmpty,
+                let cli = AeroSpaceCLI.locate(),
+                let listing = try? cli.run([
+                    "list-windows", "--all", "--format", "%{window-id}|%{app-bundle-id}",
+                ])
+            {
+                var countByBundle: [String: Int] = [:]
+                for line in listing.split(separator: "\n") {
+                    let parts = line.split(separator: "|").map {
+                        $0.trimmingCharacters(in: .whitespaces)
+                    }
+                    if parts.count >= 2 { countByBundle[parts[1], default: 0] += 1 }
+                }
+                for window in arrivals where countByBundle[window.bundleID, default: 0] > 1 {
+                    try? cli.run(["layout", "floating", "--window-id", "\(window.id)"])
+                    DragLog.log(
+                        "fitting: floated secondary window of \(window.bundleID)"
+                            + " (\(window.id)) on arrival")
                 }
             }
             if let hook = config.windowClosedHook {

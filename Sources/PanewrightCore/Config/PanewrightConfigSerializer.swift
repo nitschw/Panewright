@@ -13,6 +13,8 @@ public enum PanewrightConfigSerializer {
         lines.append("leader-key = \"\(config.leaderKey)\"")
         lines.append("focus-follows-mouse = \(config.focusFollowsMouse)")
         lines.append("mouse-follows-focus = \(config.mouseFollowsFocus)")
+        lines.append("# New windows of already-open apps arrive floating (auth popups etc.).")
+        lines.append("float-secondary-windows = \(config.floatSecondaryWindows)")
         lines.append("# Cmd+Tab lands you where the app's window actually is.")
         lines.append("follow-app-switch = \(config.followAppSwitch)")
         // EVERY top-level key must be emitted before the first table header.

@@ -64,6 +64,9 @@ public enum ConfigParser {
         if let mouseFollowsFocus = raw.mouseFollowsFocus {
             config.mouseFollowsFocus = mouseFollowsFocus
         }
+        if let floatSecondary = raw.floatSecondaryWindows {
+            config.floatSecondaryWindows = floatSecondary
+        }
         if let followAppSwitch = raw.followAppSwitch {
             config.followAppSwitch = followAppSwitch
         }
@@ -387,6 +390,7 @@ private struct RawConfig: Codable {
     var leaderKey: String?
     var focusFollowsMouse: Bool?
     var mouseFollowsFocus: Bool?
+    var floatSecondaryWindows: Bool?
     var followAppSwitch: Bool?
     var floatingApps: [String]?
     var ignoredConflicts: [String]?
@@ -407,6 +411,7 @@ private struct RawConfig: Codable {
         case leaderKey = "leader-key"
         case focusFollowsMouse = "focus-follows-mouse"
         case mouseFollowsFocus = "mouse-follows-focus"
+        case floatSecondaryWindows = "float-secondary-windows"
         case followAppSwitch = "follow-app-switch"
         case floatingApps = "floating-apps"
         case ignoredConflicts = "ignored-conflicts"
