@@ -26,6 +26,7 @@ final class BarAutoHide {
     private static let summonBand: CGFloat = 6
 
     func start() {
+        timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 0.2, repeats: true) { _ in
             MainActor.assumeIsolated { [weak self] in self?.tick() }
         }

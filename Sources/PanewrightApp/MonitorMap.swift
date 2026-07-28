@@ -177,7 +177,17 @@ enum MonitorMap {
     /// Rewrite the map and repaint the bar whenever the display layout changes.
     /// Plugging or unplugging a monitor also re-spreads workspaces so the new
     /// display gets one (and an unplugged one's workspaces return home).
+    private static var observing = false
+
     static func observe() {
+        // Once: a second registration means a second display handler racing
+        // the first through redistribute on every display event.
+        if observing {
+            refreshMap()
+            redistribute()
+            return
+        }
+        observing = true
         displayFingerprint = currentFingerprint()
         refreshMap()
         // Initial spread: bootstrap left AeroSpace settled but with everything

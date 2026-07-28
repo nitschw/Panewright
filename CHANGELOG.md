@@ -5,6 +5,15 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- **Restarting the environment no longer multiplies the machinery**
+  (issue #17). Every restart re-armed the periodic jobs without stopping
+  the previous set — three restarts meant three health loops, three orphan
+  sweeps, and three display handlers racing each other through workspace
+  redistribution: the flicker storms, and windows left stranded off to the
+  side, were the app fighting its own clones. Every start is idempotent
+  now; restart as often as you like, there is always exactly one of each.
+
 ## [0.6.22] — 2026-07-28
 
 ### Added

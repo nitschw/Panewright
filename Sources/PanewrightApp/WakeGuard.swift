@@ -34,7 +34,11 @@ enum WakeGuard {
     /// Registered once at launch. `didWake` covers the machine, and
     /// `screensDidWake` the displays alone — a clamshell open posts one and a
     /// lid open the other, and both want the same pause.
+    private static var observing = false
+
     static func observe() {
+        guard !observing else { return }
+        observing = true
         for name in [
             NSWorkspace.didWakeNotification, NSWorkspace.screensDidWakeNotification,
         ] {

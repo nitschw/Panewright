@@ -41,6 +41,7 @@ final class OrphanAdopter {
     ]
 
     func start() {
+        timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { _ in
             MainActor.assumeIsolated { [weak self] in self?.sweep() }
         }

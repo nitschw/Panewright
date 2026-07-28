@@ -893,8 +893,17 @@ final class AppModel {
     /// Consecutive silent bar probes — see the zombie check below.
     @MainActor private static var barZombieStrikes = 0
 
+    private var barHealthTimer: Timer?
+
     private func startBarHealthCheck() {
-        Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
+        // Idempotent, like every start below it: bootstrapEnvironment calls
+        // this on every environment restart, and re-arming without stopping
+        // multiplied the daemons — three restarts meant three health loops
+        // (footprint logged at 2s intervals), three orphan sweeps, and three
+        // display handlers racing to redistribute the same workspaces. The
+        // flicker storm was the app fighting its own clones.
+        barHealthTimer?.invalidate()
+        barHealthTimer = Timer.scheduledTimer(withTimeInterval: 20, repeats: true) { [weak self] _ in
             // Read on the main actor before handing off: NSScreen is not for
             // background threads, and this timer already runs on main.
             // A wake makes AeroSpace report zero managed windows and the bar

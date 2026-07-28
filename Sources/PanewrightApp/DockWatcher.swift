@@ -22,6 +22,8 @@ final class DockWatcher {
     private var lastApplied: (bottom: Int, sides: Int)?
     private var debounce: Timer?
 
+    private var observing = false
+
     func start() {
         // Reconcile immediately rather than recording the current insets as
         // "applied". The bar was configured with whatever the insets were at
@@ -38,6 +40,10 @@ final class DockWatcher {
             MainActor.assumeIsolated { BarPlacer.reconcile() }
         }
         lastApplied = (DockInset.bottom, DockInset.sides)
+        // Register the observer once; environment restarts call start()
+        // again, and stacked observers meant stacked Dock reconciliations.
+        guard !observing else { return }
+        observing = true
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil, queue: .main
