@@ -5,6 +5,16 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- Windows no longer scramble across workspaces after visiting another
+  native Space (issue #23). Two engine fixes: the engine now remembers
+  which workspace each window lived on when a Space visit hides it from
+  Accessibility and gets it garbage-collected, and re-homes it there
+  when it reappears (instead of dumping it on the focused workspace);
+  and leaving native fullscreen returns the window to its own workspace
+  instead of whichever one the fullscreen Space had displaced onto its
+  monitor.
+
 ## [0.6.30] — 2026-07-28
 
 ### Fixed
