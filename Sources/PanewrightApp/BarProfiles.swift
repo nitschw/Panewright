@@ -63,6 +63,11 @@ enum BarProfiles {
         var args: [String] = [
             "--bar",
             "display=\(shownDisplays.isEmpty ? "all" : shownDisplays.map(String.init).joined(separator: ","))",
+            // The rc births the bar hidden and the workspace driver reveals
+            // it after its first paint — but on machines where the driver's
+            // exec gets denied, this pass (our own process, always allowed)
+            // is the guaranteed revealer. Idempotent.
+            "--bar", "hidden=off",
         ]
         for item in queryItems() {
             guard let key = key(forItem: item) else { continue }

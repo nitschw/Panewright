@@ -62,6 +62,11 @@ enum BarPlacer {
             "bar: bottom inset is \(Int(measured.inset))pt, want \(Int(target))"
                 + " — y_offset \(Int(measured.offset)) → \(corrected)"
                 + " (unit ratio \(String(format: "%.2f", ratio)))")
+        // Remember the display's unit ratio so the next emit seeds the
+        // correct offset and the bar is BORN in place — relearning this
+        // every boot meant a visible position jump seconds after launch,
+        // every single startup, forever.
+        SketchyBarConfigEmitter.rememberUnitRatio(max(ratio, 0.5))
         try? bar.setBarGeometry(yOffset: corrected)
     }
 

@@ -1,3 +1,5 @@
+import Foundation
+
 /// Generates SketchyBar's config script and plugins from a PanewrightConfig.
 /// Two aesthetics, one toggle: native (SF Pro, vibrancy, floating pill) and
 /// technical (monospace, square, solid). The accent color follows the focus
@@ -41,12 +43,43 @@ public enum SketchyBarConfigEmitter {
         for theme: PanewrightConfig.StatusBar.Theme,
         dockInsetBottom: Int = 0, dockInsetSides: Int = 0
     ) -> (yOffset: Int, margin: Int) {
-        switch theme {
-        case .native:
-            (yOffset: 5 + dockInsetBottom, margin: max(8, dockInsetSides))
-        case .technical:
-            (yOffset: dockInsetBottom, margin: dockInsetSides)
-        }
+        // Divided by the display's learned unit ratio (see rememberUnitRatio):
+        // on some panels one point of y_offset moves the bar two points, and
+        // seeding the raw number meant the bar appeared, then visibly jumped
+        // to the corrected position a few seconds later, on every startup.
+        let ratio = storedUnitRatio()
+        let target: (yOffset: Int, margin: Int) =
+            switch theme {
+            case .native:
+                (yOffset: 5 + dockInsetBottom, margin: max(8, dockInsetSides))
+            case .technical:
+                (yOffset: dockInsetBottom, margin: dockInsetSides)
+            }
+        return (
+            yOffset: Int((Double(target.yOffset) / ratio).rounded()),
+            margin: target.margin
+        )
+    }
+
+    private static var unitRatioFile: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appending(path: ".config/panewright/.bar-unit-ratio")
+    }
+
+    /// The measured points-moved-per-unit-of-y_offset for this display,
+    /// learned by BarPlacer and reused at emit time so the bar starts life
+    /// at its final position.
+    public static func rememberUnitRatio(_ ratio: Double) {
+        try? String(format: "%.3f", ratio)
+            .write(to: unitRatioFile, atomically: true, encoding: .utf8)
+    }
+
+    private static func storedUnitRatio() -> Double {
+        guard let raw = try? String(contentsOf: unitRatioFile, encoding: .utf8),
+            let ratio = Double(raw.trimmingCharacters(in: .whitespacesAndNewlines)),
+            ratio >= 0.5, ratio <= 4
+        else { return 1 }
+        return ratio
     }
 
     private static func palette(
@@ -155,7 +188,13 @@ public enum SketchyBarConfigEmitter {
             # zone, which fought our drag-to-park and workspace clicks. The
             # bottom edge triggers nothing, needs no menu-bar hiding, and is
             # consistent across a notched primary and flat externals.
-            $BAR --bar sticky=on \(palette.barProps)
+            # Born hidden: the bar reveals itself exactly once, after the
+            # workspace driver's first full paint — instead of the user
+            # watching items get bolted on one by one. The driver flips it
+            # visible; rewriting this rc clears the flag so every reload is
+            # one clean reveal too.
+            rm -f "$HOME/.config/panewright/.bar-revealed"
+            $BAR --bar sticky=on hidden=on \(palette.barProps)
             $BAR --default icon.font="\(palette.font)" label.font="\(palette.font)" \\
                 icon.color=\(palette.text) label.color=\(palette.text) \\
                 padding_left=4 padding_right=4
@@ -300,6 +339,11 @@ public enum SketchyBarConfigEmitter {
                 fi
               done
             done
+            REVEAL="$HOME/.config/panewright/.bar-revealed"
+            if [ ! -f "$REVEAL" ]; then
+              ARGS+=(--bar hidden=off)
+              : > "$REVEAL"
+            fi
             [ ${#ARGS[@]} -gt 0 ] && "$BAR" "${ARGS[@]}"
             """
 

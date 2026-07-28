@@ -5,6 +5,16 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- The bar appears once, fully formed, in the right place. Startup used to
+  be visible theater: items bolted on one by one, then the whole bar
+  jumped to its corrected position (the display's y_offset unit ratio was
+  relearned and discarded every boot). The bar is now born hidden and
+  revealed after its first full paint, and the learned ratio persists so
+  the emitted geometry is right from birth. Verified across two boots:
+  the first learns (one last visible correction), every boot after is
+  born in place with zero corrections.
+
 ## [0.6.24] — 2026-07-28
 
 ### Fixed

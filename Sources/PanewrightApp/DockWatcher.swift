@@ -36,8 +36,14 @@ final class DockWatcher {
         // The bar may still be laying itself out when the first pass runs (it
         // reports off-screen sentinels until it has) — one delayed retry
         // covers the launch race, and is free if the first pass landed.
-        Timer.scheduledTimer(withTimeInterval: 3, repeats: false) { _ in
-            MainActor.assumeIsolated { BarPlacer.reconcile() }
+        for delay in [3.0, 10.0] {
+            // Two retries: the bar is born hidden and reveals after its
+            // first paint, and a reconcile against a hidden bar measures
+            // nothing — the later pass is the one that learns (and
+            // persists) the display's unit ratio on a fresh install.
+            Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { _ in
+                MainActor.assumeIsolated { BarPlacer.reconcile() }
+            }
         }
         lastApplied = (DockInset.bottom, DockInset.sides)
         // Register the observer once; environment restarts call start()
