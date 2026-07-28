@@ -404,9 +404,9 @@ import Testing
         throws -> String
     {
         // Hermetic: the emitter consults a per-machine learned display
-        // ratio; pin it so the dev machine's 2× panel can't leak in.
+        // ratio; pin it for the whole test process (never unset — suites
+        // run in parallel, and a set-then-reset races other readers).
         SketchyBarConfigEmitter.unitRatioOverride = 1
-        defer { SketchyBarConfigEmitter.unitRatioOverride = nil }
         var config = PanewrightConfig.default
         config.statusBar.theme = theme
         let rc = try SketchyBarConfigEmitter.emit(config, dockInsetBottom: dockInsetBottom)
