@@ -107,6 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
             source.setEventHandler {
                 DragLog.log("signal \(sig): tearing down")
+                Deathwatch.markCleanExit()
                 Orchestrator().teardown()
                 exit(0)
             }
@@ -116,6 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        Deathwatch.markCleanExit()
         Orchestrator().teardown()
     }
 }
@@ -249,6 +251,7 @@ final class AppModel {
         // Both engines would watch the same windows and undo each other, and
         // the fitting loop would read their placement as a broken layout and
         // "correct" it forever. Failing to start, loudly, is kinder than that.
+        Deathwatch.performAutopsyIfPreviousDiedDirty()
         competingTools = Self.detectCompetingTools()
         if !competingTools.isEmpty, !startedDespiteCompetition {
             let explanation = CompetingWindowManagers.explanation(for: competingTools)
@@ -1007,6 +1010,7 @@ final class AppModel {
                 }
                 Self.refreshBrewOutdatedCache()
                 Self.logFootprint()
+                Deathwatch.heartbeat()
             }
         }
     }

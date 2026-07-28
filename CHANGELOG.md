@@ -5,6 +5,15 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Added
+- **Deathwatch**: when an instance vanishes without a clean shutdown, the
+  next launch autopsies it — pulling the system log for the minutes around
+  the last heartbeat (via Apple's own `log` tool, which endpoint security
+  doesn't block) and writing anything that smells like a kill, denial, or
+  removal into our log. The two-day mystery of silent deaths on managed
+  machines gets named by its next occurrence, automatically, inside the
+  next bug report.
+
 ## [0.6.27] — 2026-07-28
 
 ### Fixed
