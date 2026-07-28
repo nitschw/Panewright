@@ -5,6 +5,15 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- Switching native macOS Spaces no longer breaks tiling (issue #18): a
+  Space change makes every window on the departed Space invisible to the
+  sensing stack, and corrections against that half-visible world caused
+  the "unpopulated workspaces / broken tiling" mess. Space changes now get
+  the same stand-down as workspace switches, and a one-time notice explains
+  the model — Panewright's workspaces replace Spaces; one Space per display
+  works best.
+
 ## [0.6.23] — 2026-07-28
 
 ### Fixed

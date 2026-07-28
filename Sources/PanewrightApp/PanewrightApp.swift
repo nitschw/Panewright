@@ -188,6 +188,7 @@ final class AppModel {
     private let dockWatcher = DockWatcher()
     private let barAutoHide = BarAutoHide()
     private let orphanAdopter = OrphanAdopter()
+    private var spaceGuard: SpaceGuard?
     var status: AeroSpaceStatus = .notInstalled
     var lastMessage = ""
     private var watcher: ConfigWatcher?
@@ -272,6 +273,7 @@ final class AppModel {
             self?.dockWatcher.start()
             self?.barAutoHide.start()
             self?.orphanAdopter.start()
+            self?.startSpaceGuard()
             MonitorMap.observe()
         }
         let dockBottom = DockInset.bottom
@@ -894,6 +896,13 @@ final class AppModel {
     @MainActor private static var barZombieStrikes = 0
 
     private var barHealthTimer: Timer?
+
+    private func startSpaceGuard() {
+        if spaceGuard == nil {
+            spaceGuard = SpaceGuard(notify: { [weak self] in self?.notify($0) })
+        }
+        spaceGuard?.start()
+    }
 
     private func startBarHealthCheck() {
         // Idempotent, like every start below it: bootstrapEnvironment calls
