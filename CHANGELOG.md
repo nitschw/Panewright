@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.30] — 2026-07-28
+
 ### Fixed
 - The engine is no longer restarted for looking stalled from a foreign
   native Space (issue #22): zero managed windows with windows on screen
