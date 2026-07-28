@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.22] — 2026-07-28
+
 ### Added
 - `float-secondary-windows` (config + Layout tab toggle, off by default):
   any new window of an app that already has one arrives floating — auth
