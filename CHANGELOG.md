@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.18] — 2026-07-27
+
 ### Fixed
 - **Startup no longer holds the bar hostage to the engine** (issue #12). On
   machines whose endpoint security hashes the ~100MB engine binary at every
