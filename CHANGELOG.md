@@ -5,6 +5,18 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- **The accessibility-debris problem is fixed at both ends** (the root of
+  the day's lag, orphaned-at-startup apps, and slow menus). Release builds
+  of the engine intercepted no signals, so every ordinary restart killed it
+  without removing a single AXObserver — depositing debris inside every
+  subscribed app, accumulating until the machine's whole accessibility
+  layer crawled. The engine now unsubscribes cleanly on SIGTERM, and app
+  registration is time-bounded so even a poisoned accessibility layer
+  can't wedge the command server. Measured on the debris-laden machine:
+  engine answers went from 10.2 seconds to 15 milliseconds. (Existing
+  debris in long-running apps clears when they — or the Mac — restart.)
+
 ## [0.6.26] — 2026-07-28
 
 ### Fixed
