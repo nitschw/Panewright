@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.26] — 2026-07-28
+
 ### Fixed
 - **The pinwheels are over — profiled, root-caused, and closed at every
   layer.** The menu (and everything else) froze because the engine's server
