@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.28] — 2026-07-28
+
 ### Added
 - **Deathwatch**: when an instance vanishes without a clean shutdown, the
   next launch autopsies it — pulling the system log for the minutes around
