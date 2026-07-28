@@ -5,6 +5,8 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+## [0.6.25] — 2026-07-28
+
 ### Fixed
 - The bar appears once, fully formed, in the right place. Startup used to
   be visible theater: items bolted on one by one, then the whole bar
