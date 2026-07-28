@@ -39,6 +39,24 @@ cask "panewright" do
     "nitschw/tap/aerospace-panewright",
   ]
 
+  # Earlier engine-era installs (standalone AeroSpace, aerospace-panewright,
+  # or a Panewright version that failed mid-upgrade) can leave orphaned
+  # symlinks at the binary targets that no cask owns any more — and brew
+  # refuses to overwrite an unowned file, failing the install with "there is
+  # already a binary at…". Clear a stale link only when it demonstrably
+  # points into one of our app bundles; a real file or a foreign link is
+  # left for the user (rm it by hand), never silently deleted.
+  preflight do
+    ["aerospace", "panewright"].each do |name|
+      stale = "#{HOMEBREW_PREFIX}/bin/#{name}"
+      next unless File.symlink?(stale)
+      dest = File.readlink(stale)
+      if dest.include?("Panewright.app") || dest.include?("AeroSpace")
+        File.delete(stale)
+      end
+    end
+  end
+
   app "Panewright.app"
   # The engine's CLI, version-locked to the embedded engine.
   binary "#{appdir}/Panewright.app/Contents/Helpers/aerospace-cli", target: "aerospace"
