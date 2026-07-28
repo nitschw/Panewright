@@ -932,11 +932,11 @@ final class AppModel {
                 // associated_display, and to-do/integration items appear
                 // after the fact. Idempotent — same values, no repaint.
                 if let config = try? orchestrator.loadConfig() {
-                    await MainActor.run { BarProfiles.apply(config) }
+                    await BarProfiles.apply(config)
                 }
                 // And catch a monitor map whose engine ids went stale — an
                 // engine restart renumbers monitors without any display event.
-                await MainActor.run { MonitorMap.refreshIfStale() }
+                await MonitorMap.refreshIfStale()
                 await self?.checkAeroSpaceHealth(orchestrator)
                 // Keep the who-lives-where record fresh while the engine is
                 // healthy — but not right after a (re)launch, when the truth

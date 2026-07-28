@@ -228,19 +228,42 @@ enum MonitorMap {
     /// M-badges with no workspace pills under them (the strip queries
     /// monitors that don't exist). Cheap to detect; called from the health
     /// tick so a stale map can never outlive one.
-    static func refreshIfStale() {
-        let current = Set(monitorsByName().values)
+    nonisolated static func refreshIfStale() async {
+        // The list-monitors spawn stays off the main actor: this runs every
+        // 20 seconds, and a taxed spawn on main was part of a rhythmic
+        // beachball.
+        let current = Set(Self.monitorIDsByNameOffMain().values)
         guard !current.isEmpty else { return }
+        let mapURL = FileManager.default.homeDirectoryForCurrentUser
+            .appending(path: ".config/panewright/monitor-map.tsv")
         let mapped = Set(
-            ((try? String(contentsOf: url, encoding: .utf8)) ?? "")
+            ((try? String(contentsOf: mapURL, encoding: .utf8)) ?? "")
                 .split(separator: "\n")
                 .compactMap { line -> Int? in
                     let parts = line.split(separator: "\t")
                     return parts.count >= 2 ? Int(parts[1]) : nil
                 })
         guard !mapped.isEmpty, mapped != current else { return }
-        DragLog.log("monitor-map: engine ids changed \(mapped.sorted()) → \(current.sorted()) — rebuilding")
-        engineRelaunched()
+        await MainActor.run {
+            DragLog.log(
+                "monitor-map: engine ids changed \(mapped.sorted()) → \(current.sorted()) — rebuilding")
+            engineRelaunched()
+        }
+    }
+
+    /// Same as monitorsByName, callable off the main actor.
+    nonisolated private static func monitorIDsByNameOffMain() -> [String: Int] {
+        guard let cli = AeroSpaceCLI.locate(),
+            let output = try? cli.run(["list-monitors"])
+        else { return [:] }
+        var monitorByName: [String: Int] = [:]
+        for line in output.split(separator: "\n") {
+            let parts = line.components(separatedBy: " | ")
+            if parts.count == 2, let id = Int(parts[0].trimmingCharacters(in: .whitespaces)) {
+                monitorByName[parts[1].trimmingCharacters(in: .whitespaces).lowercased()] = id
+            }
+        }
+        return monitorByName
     }
 
     private static func refreshMap() {
@@ -280,10 +303,8 @@ enum MonitorMap {
             // per-display assignments; give it a beat to lay out, then hand
             // each display its bar personality. No reload, no wait.
             if reloaded { try? await Task.sleep(for: .seconds(3)) }
-            await MainActor.run {
-                if let config = try? Orchestrator().loadConfig() {
-                    BarProfiles.apply(config)
-                }
+            if let config = try? Orchestrator().loadConfig() {
+                await BarProfiles.apply(config)
             }
         }
     }

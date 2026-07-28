@@ -5,6 +5,16 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- **No more minute-long beachballs.** Two causes: a CLI call against an
+  engine dying mid-update could hang forever (the socket accepts, then says
+  nothing) and froze the app with it — every engine call now has a hard
+  5-second timeout, kill included. And the periodic jobs added recently
+  (bar-personality reassert, monitor-map staleness check) shelled out on
+  the main thread every 20 seconds — on machines whose endpoint security
+  taxes each process spawn, that was a rhythmic stutter. They now run off
+  the main thread entirely.
+
 ## [0.6.18] — 2026-07-27
 
 ### Fixed

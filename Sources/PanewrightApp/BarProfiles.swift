@@ -15,7 +15,6 @@ import PanewrightCore
 /// (a reload rebuilds items from the rc and forgets these assignments). The
 /// health tick re-applies every 20 seconds, which also picks up items that
 /// appear later — to-do pills, integration chips.
-@MainActor
 enum BarProfiles {
     struct DisplayFacts {
         let index: Int  // SketchyBar's display number
@@ -38,9 +37,13 @@ enum BarProfiles {
         ("sys", "system-monitor"), ("todo", "todo"), ("integration", "integrations"),
     ]
 
-    static func apply(_ config: PanewrightConfig) {
+    /// Off the main thread except one hop for NSScreen names: this runs
+    /// every 20 seconds and shells out to sketchybar — on machines whose
+    /// endpoint security taxes each process spawn, doing that on the main
+    /// actor contributed a rhythmic beachball.
+    static func apply(_ config: PanewrightConfig) async {
         guard config.statusBar.enabled else { return }
-        let displays = currentDisplays()
+        let displays = await currentDisplays()
         guard displays.count > 1 || !config.statusBar.monitorProfiles.isEmpty else {
             // One display and no profiles: today's bar, untouched.
             return
@@ -99,26 +102,30 @@ enum BarProfiles {
     /// SketchyBar's display numbers pinned to physical displays by geometry —
     /// the same bridge the monitor map uses, for the same reason: SketchyBar
     /// does not number displays in CGGetActiveDisplayList order.
-    private static func currentDisplays() -> [DisplayFacts] {
+    private static func currentDisplays() async -> [DisplayFacts] {
         let origins = MonitorMap.sketchyBarDisplayOrigins()
         guard !origins.isEmpty else { return [] }
         var count: UInt32 = 0
         guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
         var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
         guard CGGetActiveDisplayList(count, &ids, &count) == .success else { return [] }
+        // NSScreen belongs to the main actor; everything else here is
+        // thread-safe CG or a subprocess.
+        let namesByID = await MainActor.run {
+            Dictionary(
+                uniqueKeysWithValues: NSScreen.screens.compactMap { screen in
+                    (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")]
+                        as? CGDirectDisplayID).map { ($0, screen.localizedName) }
+                })
+        }
         var facts: [DisplayFacts] = []
         for (index, origin) in origins {
             guard let displayID = ids.first(where: { CGDisplayBounds($0).contains(origin) })
             else { continue }
             let bounds = CGDisplayBounds(displayID)
-            let name =
-                NSScreen.screens.first {
-                    ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")]
-                        as? CGDirectDisplayID) == displayID
-                }?.localizedName ?? ""
             facts.append(
                 DisplayFacts(
-                    index: index, name: name,
+                    index: index, name: namesByID[displayID] ?? "",
                     isMain: CGDisplayIsMain(displayID) != 0,
                     isBuiltin: CGDisplayIsBuiltin(displayID) != 0,
                     isPortrait: bounds.height > bounds.width))
