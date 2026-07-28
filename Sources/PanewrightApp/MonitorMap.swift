@@ -65,6 +65,28 @@ enum MonitorMap {
                 else { continue }
                 entries.append((sketchyDisplay, monitor, displayID))
             }
+            // Displays the bar never reported still get rows, paired by
+            // elimination among the leftover indices (forced when only one
+            // display is missing). A display can be permanently bar-less —
+            // a `hidden` monitor profile, or a Space that never lays the
+            // bar out — and a row for it is never read by any strip. What
+            // the row buys is a map whose engine ids are complete, so the
+            // staleness detector can tell "map needs a rebuild" from "the
+            // bar cannot see that display": conflating those had it
+            // rebuilding, re-spreading and reloading every tick, forever,
+            // until the bar stopped answering under the load (issue #21).
+            if entries.count < ids.count {
+                let claimedIndices = Set(entries.map(\.sketchyDisplay))
+                let claimedDisplays = Set(entries.map(\.displayID))
+                let freeIndices = (1...max(ids.count, 1)).filter { !claimedIndices.contains($0) }
+                let unclaimed = ids.filter { !claimedDisplays.contains($0) }
+                for (index, displayID) in zip(freeIndices, unclaimed) {
+                    guard let name = screenName(for: displayID),
+                        let monitor = monitorByName[normalize(name)]
+                    else { continue }
+                    entries.append((index, monitor, displayID))
+                }
+            }
         } else if FileManager.default.fileExists(atPath: url.path) {
             // The bar is mid-reload (all rects are off-screen sentinels), but a
             // previous geometry-derived map exists. Keep it: a stale-but-right
@@ -255,11 +277,27 @@ enum MonitorMap {
                 })
         guard !mapped.isEmpty, mapped != current else { return }
         await MainActor.run {
+            // A mismatch a rebuild couldn't cure doesn't earn another rebuild
+            // every tick. On a setup where one display never reports bar
+            // geometry, the rebuild's 30s poller ran perpetually — several
+            // stacked copies querying the bar every 400ms on a machine that
+            // taxes every spawn — until the bar itself stopped answering
+            // (issue #21). One honest retry every few minutes is plenty;
+            // anything real (a display event, an engine relaunch) refreshes
+            // the map through its own path anyway.
+            let key = "\(mapped.sorted())→\(current.sorted())"
+            if key == lastStaleMismatch,
+                Date().timeIntervalSince(lastStaleRebuild) < 300 { return }
+            lastStaleMismatch = key
+            lastStaleRebuild = Date()
             DragLog.log(
                 "monitor-map: engine ids changed \(mapped.sorted()) → \(current.sorted()) — rebuilding")
             engineRelaunched()
         }
     }
+
+    private static var lastStaleMismatch = ""
+    private static var lastStaleRebuild = Date.distantPast
 
     /// Same as monitorsByName, callable off the main actor.
     nonisolated private static func monitorIDsByNameOffMain() -> [String: Int] {
@@ -276,9 +314,18 @@ enum MonitorMap {
         return monitorByName
     }
 
+    /// One geometry poller at a time: every caller of refreshMap detaches a
+    /// 30-second wait-for-the-bar task, and callers used to arrive faster
+    /// than the wait finished — each stale-map tick added another poller
+    /// spawning sketchybar queries every 400ms, in parallel, indefinitely.
+    private static var refreshInFlight = false
+
     private static func refreshMap() {
         if write() { reloadBar() }
+        guard !refreshInFlight else { return }
+        refreshInFlight = true
         Task.detached(priority: .userInitiated) {
+            defer { Task { @MainActor in refreshInFlight = false } }
             // Wait for the bar to report geometry for *every* display, not
             // just any: right after a display change SketchyBar answers for
             // the displays it has laid out so far, and a map written from a

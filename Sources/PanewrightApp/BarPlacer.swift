@@ -35,6 +35,11 @@ enum BarPlacer {
     /// screen-parameter notifications fire for app activations too, and a
     /// measure-first design makes false alarms free.
     static func reconcile() {
+        // Never measure a bar nobody can see: mid-wake (or with the glass
+        // dark) the bar's CG frame is wherever the thaw left it, and one
+        // such reading measured a 13814pt inset → unit ratio 2762.80 —
+        // which got *persisted*, so every future bar was born misplaced.
+        guard !WakeGuard.isSettling, CGDisplayIsAsleep(CGMainDisplayID()) == 0 else { return }
         // The measured placement exists for the bottom edge, where the Dock
         // and the bar can collide. A top bar has no Dock to dodge (the Dock
         // can't live there) and keeps its static offset.
@@ -57,6 +62,16 @@ enum BarPlacer {
         let ratio =
             measured.offset > 0 && measured.inset > 0
             ? measured.inset / measured.offset : 1
+        // Every honest measurement ever taken sits between 1 (points) and 2
+        // (retina doubling). A ratio far outside that range means the frame
+        // was read mid-animation or mid-wake and lied; acting on it — let
+        // alone remembering it — plants the lie in every future launch.
+        guard ratio <= 8 else {
+            DragLog.log(
+                "bar: implausible unit ratio \(String(format: "%.2f", ratio))"
+                    + " (inset \(Int(measured.inset))pt) — ignoring this measurement")
+            return
+        }
         let corrected = Int((target / max(ratio, 0.5)).rounded())
         DragLog.log(
             "bar: bottom inset is \(Int(measured.inset))pt, want \(Int(target))"

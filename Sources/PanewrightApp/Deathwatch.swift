@@ -41,7 +41,12 @@ enum Deathwatch {
             pid != ProcessInfo.processInfo.processIdentifier,
             // Older than a day is history, not a case.
             Date().timeIntervalSince(when) < 86400,
-            !FileManager.default.fileExists(atPath: cleanExitURL.path)
+            !FileManager.default.fileExists(atPath: cleanExitURL.path),
+            // Still breathing isn't dead: on a fast restart the new instance
+            // boots while the old one is mid-teardown, before its clean-exit
+            // marker lands — a false autopsy that named runningboard as the
+            // killer. kill(pid, 0) probes existence without touching it.
+            kill(pid, 0) != 0
         else {
             try? FileManager.default.removeItem(at: cleanExitURL)
             return

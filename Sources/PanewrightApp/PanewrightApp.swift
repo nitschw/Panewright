@@ -1128,6 +1128,52 @@ final class AppModel {
         }
     }
 
+    /// The wake fast-path. WakeGuard rightly distrusts everything probed
+    /// just after a wake — except process existence, which a half-awake
+    /// system cannot fake: a process that is *gone* at wake died during
+    /// sleep, and no amount of settling brings it back. Acting on that
+    /// immediately lets the engine's boot overlap the display flap storm
+    /// instead of following it — recovery used to ride the settle debounce
+    /// (13 seconds lid-open to restored); the engine is back inside 3 now,
+    /// and the settle pass just verifies.
+    ///
+    /// The bar gets the same process check plus an accelerated zombie
+    /// verdict: two silent socket probes a couple of seconds apart.
+    /// Steady-state keeps the three-strike rule — a busy bar drops one
+    /// probe routinely — but a bar that answers nothing twice right after
+    /// a wake is the known sleep casualty, and waiting for the settle
+    /// handler to say so was most of the old wait.
+    func wokeFromSleep() {
+        let insets = (DockInset.bottom, DockInset.sides)
+        Task.detached(priority: .userInitiated) { [weak self] in
+            let orchestrator = Orchestrator()
+            if AeroSpaceCLI.locate() != nil, !orchestrator.isAeroSpaceProcessRunning() {
+                DragLog.log("wake: engine process is gone — relaunching now")
+                await self?.checkAeroSpaceHealth(orchestrator, force: true)
+            }
+        }
+        Task.detached(priority: .userInitiated) {
+            let orchestrator = Orchestrator()
+            guard let config = try? orchestrator.loadConfig(), config.statusBar.enabled,
+                let bar = SketchyBarSupervisor.locate()
+            else { return }
+            if !bar.isRunning() {
+                DragLog.log("wake: bar process is gone — restarting now")
+                try? orchestrator.applyBar(
+                    config, dockInsetBottom: insets.0, dockInsetSides: insets.1)
+                return
+            }
+            try? await Task.sleep(for: .seconds(2))
+            if bar.isResponsive() { return }
+            try? await Task.sleep(for: .seconds(2))
+            if bar.isResponsive() { return }
+            DragLog.log("wake: bar silent on both post-wake probes — killing and restarting")
+            bar.kill()
+            try? orchestrator.applyBar(
+                config, dockInsetBottom: insets.0, dockInsetSides: insets.1)
+        }
+    }
+
     private func checkAeroSpaceHealth(_ orchestrator: Orchestrator, force: Bool = false) async {
         // A dead engine first, and separately from a stalled one. The stall
         // path exists for a *running* engine that lost Accessibility; before
@@ -1162,9 +1208,10 @@ final class AppModel {
             try? orchestrator.launchAeroSpace()
             // A fresh engine dumps every window onto one workspace; the
             // snapshot puts them back. Wait for the server first — moves
-            // against a socket that isn't listening yet just vanish.
-            for _ in 0..<20 {
-                try? await Task.sleep(for: .milliseconds(500))
+            // against a socket that isn't listening yet just vanish. Poll
+            // tightly: every waiting beat here is lid-open-to-usable time.
+            for attempt in 0..<40 {
+                if attempt > 0 { try? await Task.sleep(for: .milliseconds(250)) }
                 if let cli = AeroSpaceCLI.locate(),
                     (try? cli.run(["list-workspaces", "--focused"])) != nil
                 {

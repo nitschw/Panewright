@@ -65,6 +65,11 @@ enum WakeGuard {
                             .appending(path: ".config/panewright/.workspace-snapshot")
                         try? FileManager.default.setAttributes(
                             [.modificationDate: Date()], ofItemAtPath: snapshot.path)
+                        // The pause is for ambiguous evidence; a process that
+                        // is outright gone isn't ambiguous. Hand the wake to
+                        // the fast-path so a dead engine or bar comes back in
+                        // seconds instead of riding out the settle window.
+                        AppDelegate.model?.wokeFromSleep()
                     }
                 }
             }

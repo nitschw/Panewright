@@ -5,6 +5,30 @@ the `Unreleased` section becomes the next release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- A display the bar never reports geometry for (hidden by a monitor
+  profile, or on a Space that never laid out) no longer traps the
+  monitor map in a rebuild-forever loop — the loop that stacked bar
+  pollers every tick until SketchyBar stopped answering on 3-monitor
+  setups (issue #21). Missing displays are now paired by elimination,
+  the geometry poller is single-flight, and a mismatch a rebuild
+  couldn't cure backs off instead of refiring every 20 seconds.
+
+- The bar's learned y-offset unit ratio can no longer be poisoned by a
+  measurement taken mid-wake or on a dark display (one such reading
+  persisted a ratio of 2762.80 and misplaced every future bar); the
+  placer now stands down while waking and rejects implausible ratios.
+- Deathwatch no longer files a false autopsy when a fast restart boots
+  the new instance while the old one is still mid-teardown.
+
+### Changed
+- Wake recovery is fast now: a dead engine or bar is detected the
+  moment the machine wakes (process-existence checks can't be fooled
+  by a half-awake system) instead of riding the display-settle
+  debounce — lid-open to windows-restored dropped from ~13s to ~2-3s.
+  A zombie bar gets its verdict from two quick post-wake probes
+  instead of the steady-state three-strike rule.
+
 ## [0.6.28] — 2026-07-28
 
 ### Added
